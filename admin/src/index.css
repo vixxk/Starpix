@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #0D0A07;
+    color: #EFE5DC;
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  }
+
+  ::selection {
+    background: rgba(249, 115, 22, 0.35);
+    color: #fff;
+  }
+
+  .devanagari {
+    font-family: 'Noto Sans Devanagari', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #4A392C transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #4A392C;
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Surface / Card */
+  .panel {
+    @apply bg-[#221A14] border border-[#4A392C]/60 rounded-2xl shadow-xl;
+  }
+  .panel-hover {
+    @apply transition-all duration-300 hover:border-[#F97316]/40 hover:shadow-2xl hover:shadow-orange-950/40;
+  }
+
+  /* Typography helpers */
+  .display {
+    font-family: 'Outfit', sans-serif;
+    @apply font-extrabold tracking-tight;
+  }
+  .label {
+    font-family: 'Outfit', sans-serif;
+    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-[#AD9380];
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
+  }
+  .btn-primary {
+    @apply btn bg-[#F97316] hover:bg-[#FB923C] text-white shadow-[0_8px_24px_-8px_rgba(249,115,22,0.6)];
+  }
+  .btn-secondary {
+    @apply btn bg-[#2B2119] hover:bg-[#36291F] text-[#EFE5DC] border border-[#4A392C];
+  }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-[#2B2119] text-[#AD9380] hover:text-white;
+  }
+  .btn-danger {
+    @apply btn bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  /* Form controls */
+  .field-label {
+    @apply block text-xs font-medium text-[#D4C2B4] mb-1.5;
+  }
+  .input,
+  .select,
+  .textarea {
+    @apply w-full bg-[#140F0B] border border-[#4A392C] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-[#856C5A]/60 transition-colors duration-200;
+  }
+  .input:focus,
+  .select:focus,
+  .textarea:focus {
+    @apply outline-none border-[#F97316] ring-1 ring-[#F97316]/40;
+  }
+  select.select option {
+    background-color: #140F0B;
+    color: #EFE5DC;
+  }
+
+  /* Badges / Pills */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold;
+  }
+  .badge-success {
+    @apply badge bg-[#F97316]/15 text-[#FDBA74] border border-[#F97316]/30;
+  }
+  .badge-amber {
+    @apply badge bg-amber-500/10 text-amber-300 border border-amber-500/30;
+  }
+  .badge-muted {
+    @apply badge bg-[#2B2119] text-[#AD9380] border border-[#4A392C];
+  }
+  .badge-red {
+    @apply badge bg-red-500/10 text-red-400 border border-red-500/30;
+  }
+
+  /* Icon chip */
+  .icon-chip {
+    @apply w-11 h-11 rounded-xl flex items-center justify-center text-lg;
+  }
+
+  /* Tables */
+  .table-scroll {
+    @apply overflow-x-auto;
+  }
+  .data-table {
+    @apply w-full text-left text-sm min-w-[720px];
+  }
+  .data-table thead th {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-[#AD9380] px-5 py-3.5 bg-[#140F0B]/80 border-b border-[#4A392C]/70 whitespace-nowrap;
+  }
+  .data-table tbody td {
+    @apply px-5 py-4 border-b border-[#4A392C]/40 text-[#D4C2B4] whitespace-nowrap;
+  }
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-[#2B2119]/60;
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 bg-[#0D0A07]/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto;
+  }
+  .modal-card {
+    @apply bg-[#221A14] border border-[#4A392C] rounded-3xl shadow-2xl w-full max-h-[90vh] flex flex-col overflow-hidden anim;
+  }
+
+  /* Misc */
+  .chip-divider {
+    @apply h-3.5 w-px bg-[#4A392C];
+  }
+  .anim {
+    animation: fade-up 0.3s ease-out both;
+  }
+  .link-chip {
+    @apply text-xs font-medium text-[#AD9380] hover:text-[#FB923C] transition-colors;
+  }
+}

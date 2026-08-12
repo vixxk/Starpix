@@ -1,0 +1,101 @@
+const asyncHandler = require('../utils/asyncHandler');
+const Campaign = require('../models/Campaign');
+
+// @desc    Get active campaigns
+// @route   GET /api/campaigns
+// @access  Public
+const getCampaigns = asyncHandler(async (req, res) => {
+  const campaigns = await Campaign.find({ active: true })
+    .populate('featuredTemplates')
+    .populate('featuredCategories')
+    .sort({ priority: -1, createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: campaigns,
+  });
+});
+
+// @desc    Get active opening campaign (App splash/opening experience)
+// @route   GET /api/campaigns/active-opening
+// @access  Public
+const getActiveOpeningCampaign = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const campaign = await Campaign.findOne({
+    active: true,
+    showOnAppOpening: true,
+    $or: [{ startDate: { $lte: now } }, { startDate: null }],
+    $or: [{ endDate: { $gte: now } }, { endDate: null }],
+  })
+    .populate('featuredTemplates')
+    .populate('featuredCategories')
+    .sort({ priority: -1, createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: campaign || null,
+  });
+});
+
+// @desc    Create campaign (Admin)
+// @route   POST /api/campaigns
+// @access  Private (Admin)
+const createCampaign = asyncHandler(async (req, res) => {
+  const campaignData = req.body;
+
+  if (campaignData.showOnAppOpening) {
+    // Optionally unmark other opening campaigns if priority is highest
+  }
+
+  const campaign = await Campaign.create(campaignData);
+
+  res.status(201).json({
+    success: true,
+    data: campaign,
+  });
+});
+
+// @desc    Update campaign (Admin)
+// @route   PUT /api/campaigns/:id
+// @access  Private (Admin)
+const updateCampaign = asyncHandler(async (req, res) => {
+  const campaign = await Campaign.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true,
+  });
+
+  if (!campaign) {
+    return res.status(404).json({ success: false, message: 'Campaign not found' });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: campaign,
+  });
+});
+
+// @desc    Delete campaign (Admin)
+// @route   DELETE /api/campaigns/:id
+// @access  Private (Admin)
+const deleteCampaign = asyncHandler(async (req, res) => {
+  const campaign = await Campaign.findById(req.params.id);
+
+  if (!campaign) {
+    return res.status(404).json({ success: false, message: 'Campaign not found' });
+  }
+
+  await campaign.deleteOne();
+
+  res.status(200).json({
+    success: true,
+    message: 'Campaign deleted successfully',
+  });
+});
+
+module.exports = {
+  getCampaigns,
+  getActiveOpeningCampaign,
+  createCampaign,
+  updateCampaign,
+  deleteCampaign,
+};

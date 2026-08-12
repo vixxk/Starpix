@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Statuzzz",
+    "slug": "statuzzz",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "statuzzz",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07140B"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.statuzzz.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#07140B"
+      },
+      "package": "com.statuzzz.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
+  }
+}
