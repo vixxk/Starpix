@@ -1,7 +1,18 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+  if (import.meta.env.PROD) {
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
+    }
+    return 'https://56.228.25.105.sslip.io/api';
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+};
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getBaseUrl(),
 });
 
 API.interceptors.request.use((config) => {

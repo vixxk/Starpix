@@ -3,7 +3,6 @@ import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform } fro
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
-import PressableScale from '../../src/components/PressableScale';
 import AppButton from '../../src/components/AppButton';
 import BrutalCard from '../../src/components/BrutalCard';
 import ConfirmModal from '../../src/components/ConfirmModal';
@@ -13,7 +12,7 @@ import { useAuthStore } from '../../src/store/useAuthStore';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('9876543210');
-  const [name, setName] = useState('Vivek Sharma');
+  const [name, setName] = useState('Rajesh Kumar');
   const [focusedInput, setFocusedInput] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
   const { requestOtp, isAuthenticating, error } = useAuthStore();
@@ -64,6 +63,17 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.cardBody}>
+            {/* Default API Check User Banner */}
+            <View style={styles.apiUserBox}>
+              <View style={styles.apiUserHeader}>
+                <Ionicons name="flash" size={13} color={BRUTAL.flame} />
+                <Text style={styles.apiUserTitle}>DEFAULT API CHECK USER</Text>
+              </View>
+              <Text style={styles.apiUserDetail}>• Name: Rajesh Kumar</Text>
+              <Text style={styles.apiUserDetail}>• Mobile: +91 9876543210 (VIP Test Account)</Text>
+              <Text style={styles.apiUserDetail}>• OTP Code: 123456 (or any 6 digits)</Text>
+            </View>
+
             <Text style={styles.cardSubtitle}>
               New users register automatically. Enter your phone number to receive a 6-digit OTP.
             </Text>
@@ -82,7 +92,7 @@ export default function LoginScreen() {
                 onChangeText={setName}
                 onFocus={() => setFocusedInput('name')}
                 onBlur={() => setFocusedInput(null)}
-                placeholder="e.g. Vivek Sharma"
+                placeholder="e.g. Rajesh Kumar"
                 placeholderTextColor={BRUTAL.inkFaint}
                 style={[styles.textInput, inputBorder('name')]}
               />
@@ -115,15 +125,6 @@ export default function LoginScreen() {
               variant="brutal"
               style={{ marginTop: hp(0.014) }}
             />
-
-            <PressableScale
-              onPress={() => router.replace('/(tabs)')}
-              scaleTo={0.94}
-              style={styles.skipButton}
-              contentStyle={styles.skipContent}
-            >
-              <Text style={styles.skipText}>Skip for now · explore as guest</Text>
-            </PressableScale>
           </View>
         </BrutalCard>
 
@@ -251,6 +252,32 @@ const styles = StyleSheet.create({
   cardBody: {
     padding: wp(0.05),
   },
+  apiUserBox: {
+    backgroundColor: BRUTAL.paperAlt,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
+    borderRadius: 2,
+    padding: 12,
+    marginBottom: hp(0.016),
+  },
+  apiUserHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  apiUserTitle: {
+    color: BRUTAL.ink,
+    fontSize: fontScale(10.5),
+    fontFamily: FONTS.bold,
+    letterSpacing: 1,
+  },
+  apiUserDetail: {
+    color: BRUTAL.inkSoft,
+    fontSize: fontScale(11),
+    fontFamily: FONTS.medium,
+    lineHeight: 16,
+  },
   cardSubtitle: {
     color: BRUTAL.inkMute,
     fontSize: fontScale(12),
@@ -322,20 +349,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderTopLeftRadius: 0,
     borderBottomLeftRadius: 0,
-  },
-  skipButton: {
-    marginTop: 16,
-    paddingVertical: 6,
-  },
-  skipContent: {
-    alignItems: 'center',
-  },
-  skipText: {
-    color: BRUTAL.inkMute,
-    fontSize: fontScale(11),
-    fontFamily: FONTS.semibold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   footerStamp: {
     color: 'rgba(23, 18, 12, 0.35)',

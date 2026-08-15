@@ -8,44 +8,38 @@ import { useAuthStore } from '../src/store/useAuthStore';
 import { hydrateDownloadedCreations } from '../src/store/useCreationStore';
 import { BRUTAL } from '../src/constants/colors';
 
-// Routes that require an authenticated user. Prefixes match the first path
-// segment(s), so `/template/...` and `/preview/...` are covered too.
-// Everything else (home, explore, trending, campaigns, VIP pricing) stays
-// browsable as a guest.
-const PROTECTED_ROUTE_PREFIXES = [
-  '/profile',
-  '/favorites',
-  '/entitlements',
-  '/downloads',
-  '/create',
-  '/template/',
-  '/preview/',
-];
-
 /**
  * Central auth guard for every route.
  *
- * While the current route requires auth and no user is signed in, the app
- * content is not rendered (avoids flashes / null-user crashes) and the stale
- * auth state is cleared before redirecting to the login page.
+ * If user is not signed in, redirect to the sign in page.
+ * If user is signed in and accesses auth pages, redirect to main app.
  */
 function AuthGate({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const isLoading = useAuthStore((state) => state.isLoading);
-  const logout = useAuthStore((state) => state.logout);
 
-  const requiresAuth = PROTECTED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  const isAuthRoute =
+    pathname.startsWith('/(auth)') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/verify') ||
+    pathname.includes('(auth)') ||
+    pathname.includes('login') ||
+    pathname.includes('verify');
 
   useEffect(() => {
-    if (isLoading || !requiresAuth || user) return;
-    logout();
-    router.replace('/(auth)/login');
-  }, [isLoading, requiresAuth, user, logout, router]);
+    if (isLoading) return;
 
-  if (requiresAuth && !user) {
-    // Auth is still restoring or the redirect is in flight — render nothing.
+    if (!user && !isAuthRoute) {
+      router.replace('/(auth)/login');
+    } else if (user && isAuthRoute) {
+      router.replace('/(tabs)');
+    }
+  }, [isLoading, isAuthRoute, user, router]);
+
+  if (isLoading || (!user && !isAuthRoute)) {
+    // Auth state restoring or redirecting — render blank background to avoid UI flashes
     return <View style={{ flex: 1, backgroundColor: BRUTAL.bone }} />;
   }
 

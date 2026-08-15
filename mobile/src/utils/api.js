@@ -3,12 +3,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
 const getBaseUrl = () => {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl && !envUrl.includes('localhost')) {
-    return envUrl;
+  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+
+  if (!isDev) {
+    const envUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
+    }
+    return 'https://56.228.25.105.sslip.io/api';
   }
 
-  // Detect Expo Go host IP dynamically
+  // Local development mode: detect Expo Go host IP dynamically if available
   const hostUri =
     (Constants.expoConfig && Constants.expoConfig.hostUri) ||
     (Constants.expoGoConfig && Constants.expoGoConfig.debuggerHost) ||
@@ -22,7 +27,7 @@ const getBaseUrl = () => {
     }
   }
 
-  return 'https://56.228.25.105.sslip.io/api';
+  return process.env.EXPO_PUBLIC_DEV_API_URL || 'http://localhost:5000/api';
 };
 
 const API_BASE_URL = getBaseUrl();

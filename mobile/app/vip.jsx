@@ -81,7 +81,7 @@ export default function VipScreen() {
               <View style={styles.passTitleWrap}>
                 <Text style={[styles.passTitle, isSmall && styles.passTitleSmall]}>STATUZZZ VIP</Text>
                 <Text style={styles.passSubtitle} numberOfLines={1}>
-                  {user ? user.name || 'Member' : 'Guest'} · All-Access Pass
+                  {user?.name || 'Member'} · All-Access Pass
                 </Text>
               </View>
               {isVipActive && (

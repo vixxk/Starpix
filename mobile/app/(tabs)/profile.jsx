@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
-import { COLORS, FONTS } from '../../src/constants/colors';
+import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD, SPACING, CARD_SHADOW } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import ConfirmModal from '../../src/components/ConfirmModal';
@@ -21,11 +21,17 @@ const MENU = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout, fetchUser } = useAuthStore();
+  const { user, logout, fetchUser, isLoading } = useAuthStore();
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace('/(auth)/login');
+    }
+  }, [user, isLoading, router]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -53,6 +59,10 @@ export default function ProfileScreen() {
       setLogoutLoading(false);
     }
   };
+
+  if (!user) {
+    return <View style={{ flex: 1, backgroundColor: BRUTAL.bone }} />;
+  }
 
   return (
     <AppBackground>

@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale } from '../../src/utils/responsive';
 import { hapticTap, hapticImpact } from '../../src/utils/haptics';
+import { useAuthStore } from '../../src/store/useAuthStore';
 
 const TAB_CONFIG = {
   index: { label: 'Home', active: 'home', inactive: 'home-outline' },
@@ -55,6 +56,8 @@ function CreateButton({ focused }) {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((state) => state.user);
+  const router = useRouter();
   const bottomInset = Math.max(insets.bottom, 12);
 
   return (
@@ -81,6 +84,12 @@ export default function TabLayout() {
         tabBarItemStyle: styles.tabItem,
         screenListeners: {
           tabPress: (e) => {
+            if (e.target && e.target.startsWith('profile') && !user) {
+              e.preventDefault();
+              hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/(auth)/login');
+              return;
+            }
             if (e.target && e.target.startsWith('create')) {
               hapticImpact(Haptics.ImpactFeedbackStyle.Heavy);
             } else {

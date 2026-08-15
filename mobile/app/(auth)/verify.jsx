@@ -12,7 +12,7 @@ import { useAuthStore } from '../../src/store/useAuthStore';
 
 export default function VerifyScreen() {
   const { phone, name } = useLocalSearchParams();
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState('123456');
   const [alertMessage, setAlertMessage] = useState(null);
   const { verifyOtp, isAuthenticating, error } = useAuthStore();
   const router = useRouter();

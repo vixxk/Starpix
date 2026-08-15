@@ -12,6 +12,7 @@ import AppRefreshControl from '../../src/components/AppRefreshControl';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, CARD_SHADOW } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
+import { resolveMediaUrl } from '../../src/utils/media';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import ExploreCta from '../../src/components/ExploreCta';
