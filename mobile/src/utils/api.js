@@ -22,7 +22,7 @@ const getBaseUrl = () => {
     }
   }
 
-  return 'http://192.168.0.120:5000/api';
+  return 'https://56.228.25.105.sslip.io/api';
 };
 
 const API_BASE_URL = getBaseUrl();

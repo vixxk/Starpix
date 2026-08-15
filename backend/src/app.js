@@ -51,14 +51,21 @@ app.use('/api/creations', creationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/uploads', uploadRoutes);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
+// Home and Health check endpoints
+const healthCheckHandler = (req, res) => {
   res.status(200).json({
-    status: 'OK',
+    success: true,
+    status: 'online',
     app: 'Statuzzz Backend API',
-    timestamp: new Date(),
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
   });
-});
+};
+
+app.get('/', healthCheckHandler);
+app.get('/api', healthCheckHandler);
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 // Error handling
 app.use(notFound);
