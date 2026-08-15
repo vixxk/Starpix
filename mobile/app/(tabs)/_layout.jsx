@@ -10,7 +10,7 @@ import { hapticTap, hapticImpact } from '../../src/utils/haptics';
 
 const TAB_CONFIG = {
   index: { label: 'Home', active: 'home', inactive: 'home-outline' },
-  explore: { label: 'Explore', active: 'compass', inactive: 'compass-outline' },
+  downloads: { label: 'Downloads', active: 'download', inactive: 'download-outline' },
   trending: { label: 'Trending', active: 'flame', inactive: 'flame-outline' },
   profile: { label: 'Profile', active: 'person', inactive: 'person-outline' },
 };
@@ -30,6 +30,7 @@ function useFocusPop(focused) {
 
 function TabIcon({ route, focused, color }) {
   const config = TAB_CONFIG[route];
+  if (!config) return null;
   const pop = useFocusPop(focused);
 
   return (
@@ -94,8 +95,12 @@ export default function TabLayout() {
         options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="index" focused={focused} color={color} /> }}
       />
       <Tabs.Screen
+        name="downloads"
+        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="downloads" focused={focused} color={color} /> }}
+      />
+      <Tabs.Screen
         name="explore"
-        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="explore" focused={focused} color={color} /> }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="create"

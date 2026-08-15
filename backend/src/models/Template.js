@@ -22,8 +22,9 @@ const templateSchema = new mongoose.Schema(
       default: 'image',
     },
     accessType: {
+      // free = always unlocked · premium/paid = single unlock (or VIP) · vip = VIP subscription only
       type: String,
-      enum: ['free', 'premium'],
+      enum: ['free', 'premium', 'vip', 'paid'],
       default: 'free',
     },
     price: {

@@ -20,6 +20,16 @@ const createPayment = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
+  // Free templates never need a purchase
+  if (template.accessType === 'free') {
+    return res.status(400).json({ success: false, message: 'This template is free — no unlock needed' });
+  }
+
+  // VIP-only templates can't be unlocked individually — they require the VIP pass
+  if (template.accessType === 'vip') {
+    return res.status(400).json({ success: false, message: 'VIP-only template — subscribe to the VIP Pass to unlock' });
+  }
+
   const transactionId = `txn_dev_${uuidv4().substring(0, 8)}`;
 
   // TODO: Replace development payment success logic with real payment verification before production.
@@ -79,9 +89,33 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if user has active global subscription
+  // Check if user has an active global subscription (VIP Pass)
   const user = await User.findById(userId);
-  if (user && user.isPremium && user.subscriptionStatus === 'active') {
+  const isVip = Boolean(user && user.isPremium && user.subscriptionStatus === 'active');
+
+  if (template.accessType === 'vip') {
+    // VIP-only tier — unlocks exclusively via the VIP Pass
+    if (isVip) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          isUnlocked: true,
+          reason: 'vip_subscription',
+        },
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      data: {
+        isUnlocked: false,
+        price: 199,
+        reason: 'vip_required',
+      },
+    });
+  }
+
+  // premium / paid — unlocked by the VIP Pass or an individual purchase
+  if (isVip) {
     return res.status(200).json({
       success: true,
       data: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +6,7 @@ import AppBackground from '../../src/components/AppBackground';
 import TemplateCard from '../../src/components/TemplateCard';
 import SectionHeader from '../../src/components/SectionHeader';
 import Skeleton from '../../src/components/Skeleton';
+import AppRefreshControl from '../../src/components/AppRefreshControl';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
@@ -18,23 +19,31 @@ export default function TrendingScreen() {
   const insets = useSafeAreaInsets();
   const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const router = useRouter();
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
 
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        const res = await API.get('/templates/trending');
-        if (res.data.success) setTrending(res.data.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTrending();
+  const fetchTrending = useCallback(async () => {
+    try {
+      const res = await API.get('/templates/trending');
+      if (res.data.success) setTrending(res.data.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTrending();
+  }, [fetchTrending]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchTrending();
+  }, [fetchTrending]);
 
   const handleTemplatePress = (template) => {
     setActiveTemplate(template);
@@ -49,11 +58,10 @@ export default function TrendingScreen() {
           icon="🔥"
           title="Trending"
           subtitle="Most popular status templates with high engagement"
-          count={trending.length}
           style={styles.pageHeader}
         />
 
-        {loading ? (
+        {loading && !refreshing ? (
           <View style={styles.loadingGrid}>
             <View style={styles.loadingCol}>
               <Skeleton height={200} width="100%" borderRadius={16} />
@@ -71,6 +79,9 @@ export default function TrendingScreen() {
             keyExtractor={(item) => item._id}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.gridContent}
+            refreshControl={
+              <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
             renderItem={({ item }) => <TemplateCard template={item} onPress={() => handleTemplatePress(item)} />}
             ListEmptyComponent={
               <View style={styles.emptyState}>

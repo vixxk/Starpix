@@ -19,16 +19,23 @@ export const useAuthStore = create((set, get) => ({
         // Refresh profile from API
         try {
           const res = await API.get('/auth/me');
-          if (res.data.success) {
+          if (res.data && res.data.success) {
             set({ user: res.data.data });
             await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
           }
         } catch (e) {
-          // Keep saved user
+          if (e.response && e.response.status === 401) {
+            await AsyncStorage.removeItem('statuzzz_user_token');
+            await AsyncStorage.removeItem('statuzzz_user_data');
+            set({ user: null, token: null });
+          }
         }
+      } else {
+        set({ user: null, token: null });
       }
     } catch (err) {
       console.error('Error restoring auth state:', err);
+      set({ user: null, token: null });
     } finally {
       set({ isLoading: false });
     }
@@ -41,7 +48,7 @@ export const useAuthStore = create((set, get) => ({
       set({ isAuthenticating: false });
       return res.data;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to send OTP';
+      const msg = (err.response && err.response.data && err.response.data.message) || 'Failed to send OTP';
       set({ isAuthenticating: false, error: msg });
       throw new Error(msg);
     }
@@ -59,7 +66,7 @@ export const useAuthStore = create((set, get) => ({
       set({ user, token, isAuthenticating: false });
       return user;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Invalid OTP code';
+      const msg = (err.response && err.response.data && err.response.data.message) || 'Invalid OTP code';
       set({ isAuthenticating: false, error: msg });
       throw new Error(msg);
     }

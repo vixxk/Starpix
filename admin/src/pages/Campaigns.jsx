@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
+import ConfirmModal from '../components/ConfirmModal';
+import MediaUploadZone from '../components/MediaUploadZone';
+import { GridSkeleton } from '../components/Skeleton';
+import { useToast } from '../context/ToastContext';
 import {
   MegaphoneSimple,
   Plus,
@@ -13,10 +17,13 @@ import {
 } from '@phosphor-icons/react';
 
 export default function Campaigns() {
+  const { toast } = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -89,17 +96,22 @@ export default function Campaigns() {
       setIsModalOpen(false);
       fetchCampaigns();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error saving campaign');
+      toast.error(err.response?.data?.message || 'Error saving campaign');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this campaign?')) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await API.delete(`/campaigns/${id}`);
+      await API.delete(`/campaigns/${deleteTarget._id}`);
+      toast.success('Campaign deleted successfully');
+      setDeleteTarget(null);
       fetchCampaigns();
     } catch (err) {
-      alert('Error deleting campaign');
+      toast.error(err.response?.data?.message || 'Error deleting campaign');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -117,29 +129,34 @@ export default function Campaigns() {
       />
 
       {loading ? (
-        <div className="py-16 flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-glow-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-night-400">Loading campaigns…</p>
-        </div>
-      ) :campaigns.length === 0 ? (
+        <GridSkeleton count={4} />
+      ) : campaigns.length === 0 ? (
         <div className="panel p-12 text-center">
-          <MegaphoneSimple className="w-8 h-8 text-night-500 mx-auto mb-2" />
-          <p className="text-sm text-night-300 font-medium">No campaigns launched</p>
+          <MegaphoneSimple className="w-8 h-8 text-paper-400 mx-auto mb-2" />
+          <p className="text-sm text-ink-mute font-medium">No campaigns launched</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {campaigns.map((c) => (
             <div key={c._id} className="panel overflow-hidden panel-hover anim">
               <div className="h-44 relative bg-night-950">
-                <img src={c.heroBackground || c.heroImage} alt={c.name} className="w-full h-full object-cover opacity-60" />
+                <img
+                  src={c.heroBackground || c.heroImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80'}
+                  alt={c.name}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80';
+                  }}
+                  className="w-full h-full object-cover opacity-60"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-night-950 via-night-950/30 to-transparent" />
                 <div className="absolute top-3 right-3 flex items-center gap-2">
                   {c.showOnAppOpening && (
-                    <span className="badge-amber backdrop-blur-sm !bg-amber-950/40">
+                    <span className="badge !bg-ink !text-paper-50 !border-paper-50/50">
                       <DeviceMobile className="w-3 h-3" weight="fill" /> App Opening
                     </span>
                   )}
-                  <span className="badge-success backdrop-blur-sm !bg-night-950/40">
+                  <span className="badge-dark">
                     Priority · #{c.priority}
                   </span>
                 </div>
@@ -151,13 +168,13 @@ export default function Campaigns() {
                 </div>
               </div>
 
-              <div className="p-4 flex items-center justify-between gap-3 border-t border-night-600/50">
-                <p className="text-xs text-night-300 line-clamp-1 flex-1 min-w-0">{c.description || 'No description provided.'}</p>
+              <div className="p-4 flex items-center justify-between gap-3 border-t border-paper-200">
+                <p className="text-xs text-ink-soft line-clamp-1 flex-1 min-w-0">{c.description || 'No description provided.'}</p>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button onClick={() => handleOpenEdit(c)} className="p-2 text-night-300 hover:text-glow-300 hover:bg-glow-500/10 rounded-lg transition-colors">
+                  <button onClick={() => handleOpenEdit(c)} className="p-2 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors">
                     <PencilSimple className="w-4 h-4" weight="duotone" />
                   </button>
-                  <button onClick={() => handleDelete(c._id)} className="p-2 text-night-300 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                  <button onClick={() => setDeleteTarget(c)} className="p-2 text-ink-mute hover:text-red-600 hover:bg-red-500/10 rounded-[2px] transition-colors">
                     <Trash className="w-4 h-4" weight="duotone" />
                   </button>
                 </div>
@@ -168,13 +185,13 @@ export default function Campaigns() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-night-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-ink/70 flex items-center justify-center p-4">
           <div className="modal-card max-w-md">
-            <div className="px-6 py-4 border-b border-night-600 flex items-center justify-between bg-night-850/40">
-              <h3 className="display font-bold text-white">
+            <div className="px-6 py-4 border-b border-paper-200 flex items-center justify-between bg-paper-50">
+              <h3 className="display font-bold text-ink">
                 {editingCampaign ? 'Edit Campaign' : 'Launch Campaign'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-night-300 hover:text-white hover:bg-night-700 rounded-lg">
+              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-ink-mute hover:text-ink hover:bg-paper-100 rounded-[2px]">
                 <X className="w-5 h-5" weight="bold" />
               </button>
             </div>
@@ -202,16 +219,13 @@ export default function Campaigns() {
                 />
               </div>
 
-              <div>
-                <label className="field-label">Hero Image / Background URL</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.heroBackground}
-                  onChange={(e) => setFormData({ ...formData, heroBackground: e.target.value })}
-                  className="input"
-                />
-              </div>
+              <MediaUploadZone
+                label="Hero Image / Background Image"
+                value={formData.heroBackground}
+                onChange={(url) => setFormData({ ...formData, heroBackground: url, heroImage: url })}
+                folder="campaigns"
+                accept="image/*"
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -234,8 +248,8 @@ export default function Campaigns() {
                 </div>
               </div>
 
-              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                <label className="flex items-center gap-2.5 cursor-pointer text-sm text-amber-200 font-medium">
+              <div className="p-3.5 bg-paper-100 border-2 border-ink rounded-[2px]">
+                <label className="flex items-center gap-2.5 cursor-pointer text-sm text-ink-soft font-medium">
                   <input
                     type="checkbox"
                     checked={formData.showOnAppOpening}
@@ -258,6 +272,18 @@ export default function Campaigns() {
           </div>
         </div>
       )}
+
+      {/* Themed Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        title="Delete Campaign"
+        message={`Are you sure you want to delete campaign "${deleteTarget?.name || 'this item'}"?`}
+        confirmText="Delete Campaign"
+        danger={true}
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

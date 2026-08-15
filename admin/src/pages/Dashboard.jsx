@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from '../services/api';
+import { DashboardSkeleton } from '../components/Skeleton';
 import {
   UsersThree,
   Sparkle,
@@ -8,6 +9,14 @@ import {
   Flame,
   CrownSimple,
   CaretUp,
+  Square,
+  Confetti,
+  Megaphone,
+  ChartLineUp,
+  DownloadSimple,
+  Eye,
+  ShareNetwork,
+  Image,
 } from '@phosphor-icons/react';
 
 export default function Dashboard() {
@@ -29,100 +38,138 @@ export default function Dashboard() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="py-16 flex flex-col items-center gap-3">
-        <div className="w-9 h-9 border-[3px] border-glow-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-medium text-night-300">Loading dashboard metrics…</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
-  const metrics = stats?.metrics || {
-    totalUsers: 0,
-    activeUsers: 0,
-    totalTemplates: 0,
-    premiumTemplates: 0,
-    totalPurchases: 0,
-    totalRevenue: 0,
-    conversionRate: 0,
-  };
+  const metrics = stats?.metrics || {};
+  const eventCounts = metrics.eventCounts || {};
 
   const cards = [
     {
-      label: 'Total Users',
-      value: metrics.totalUsers,
-      caption: `${metrics.activeUsers} active`,
+      label: 'Registered Users',
+      value: metrics.totalUsers || 0,
+      caption: `${metrics.vipUsers || 0} VIP Members · ${metrics.freeUsers || 0} Free`,
       icon: UsersThree,
-      accent: 'text-glow-300',
-      chip: 'bg-glow-500/10 border-glow-500/25',
+      accent: 'text-flame-400',
     },
     {
       label: 'Templates Live',
-      value: metrics.totalTemplates,
-      caption: `${metrics.premiumTemplates} premium`,
+      value: metrics.totalTemplates || 0,
+      caption: `${metrics.premiumTemplates || 0} Premium · ${metrics.freeTemplates || 0} Free`,
       icon: Sparkle,
-      accent: 'text-violet-300',
-      chip: 'bg-violet-500/10 border-violet-500/25',
+      accent: 'text-flame-400',
     },
     {
-      label: 'Purchases',
-      value: metrics.totalPurchases,
-      caption: `${metrics.conversionRate}% conversion`,
+      label: 'Purchases Completed',
+      value: metrics.totalPurchases || 0,
+      caption: `${metrics.conversionRate || 0}% user conversion`,
       icon: CreditCard,
-      accent: 'text-sky-300',
-      chip: 'bg-sky-500/10 border-sky-500/25',
+      accent: 'text-flame-400',
     },
     {
-      label: 'Estimated Revenue',
-      value: `₹${metrics.totalRevenue.toLocaleString('en-IN')}`,
-      caption: 'simulated dev sales',
+      label: 'Total Platform Revenue',
+      value: `₹${(metrics.totalRevenue || 0).toLocaleString('en-IN')}`,
+      caption: 'Direct template unlocks',
       icon: CurrencyInr,
-      accent: 'text-amber-300',
-      chip: 'bg-amber-500/10 border-amber-500/25',
+      accent: 'text-flame-400',
     },
+  ];
+
+  const subCards = [
+    { label: 'Categories', value: metrics.totalCategories || 0, icon: Square, color: 'text-flame-600' },
+    { label: 'Asset Frames', value: metrics.totalFrames || 0, icon: Image, color: 'text-flame-600' },
+    { label: 'Visual Effects', value: metrics.totalEffects || 0, icon: Confetti, color: 'text-flame-600' },
+    { label: 'Active Campaigns', value: metrics.totalCampaigns || 0, icon: Megaphone, color: 'text-flame-600' },
+  ];
+
+  const telemetry = [
+    { label: 'Template Views', value: eventCounts.template_view || 0, icon: Eye, color: 'text-sky-700' },
+    { label: 'HD Downloads', value: eventCounts.template_download || 0, icon: DownloadSimple, color: 'text-emerald-700' },
+    { label: 'Photo Uploads', value: eventCounts.photo_upload || 0, icon: Image, color: 'text-amber-700' },
+    { label: 'Shares', value: eventCounts.template_share || 0, icon: ShareNetwork, color: 'text-violet-700' },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Hero strip */}
-      <div className="panel p-6 bg-gradient-to-r from-night-800 to-night-850 border-glow-500/15 relative overflow-hidden">
-        <div className="absolute -right-16 -top-16 w-64 h-64 bg-glow-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Hero Banner — solid ink workbench slab */}
+      <div className="relative overflow-hidden bg-ink border-2 border-ink shadow-hard-flame">
+        {/* Flame corner block */}
+        <div className="absolute -right-10 -top-10 w-36 h-36 bg-flame-500 pointer-events-none" />
+        <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="display text-2xl font-bold text-white tracking-tight">Platform Pulse</h2>
-            <p className="text-sm text-night-300 mt-1">Everything running smooth — here’s today’s snapshot.</p>
+            <p className="label !text-flame-300 mb-1.5">Control Room · Live</p>
+            <h2 className="display text-2xl text-paper-50 tracking-tight flex items-center gap-2">
+              Platform Analytics Pulse
+            </h2>
+            <p className="text-sm text-paper-100/70 mt-1">Users, purchases, templates & event telemetry — all in one glance.</p>
           </div>
-          <span className="badge-success w-max">▲ Stable · All systems nominal</span>
+          <span className="inline-flex items-center gap-2 bg-flame-500 text-white border-2 border-ink px-3.5 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] shadow-hard-sm w-max">
+            <span className="w-2.5 h-2.5 bg-white animate-pulse-dot" />
+            Operational · All systems live
+          </span>
         </div>
       </div>
 
-      {/* Metric cards */}
+      {/* Main Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-5">
         {cards.map((c) => (
           <div key={c.label} className="panel panel-hover p-5 flex items-start justify-between">
             <div className="min-w-0">
               <p className="label">{c.label}</p>
-              <h3 className="display text-2xl font-bold text-white mt-1.5 truncate">{c.value}</h3>
-              <p className="text-xs text-night-300 font-medium mt-1.5 flex items-center gap-1">
-                <CaretUp className="w-3 h-3 text-glow-400" weight="bold" />
+              <h3 className="display text-2xl font-bold text-ink mt-1.5 truncate tabular-nums">{c.value}</h3>
+              <p className="text-xs text-ink-mute font-medium mt-1.5 flex items-center gap-1">
+                <CaretUp className="w-3 h-3 text-glow-600" weight="bold" />
                 {c.caption}
               </p>
             </div>
-            <div className={`icon-chip ${c.chip} rounded-xl ${c.accent}`}>
-              <c.icon className="w-6 h-6" weight="duotone" />
+            <div className="icon-chip bg-ink shadow-hard-sm shrink-0">
+              <c.icon className={`w-6 h-6 ${c.accent}`} weight="duotone" />
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Entity Sub-metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
+        {subCards.map((sc) => (
+          <div key={sc.label} className="panel panel-hover p-4 flex items-center gap-3">
+            <div className="w-9 h-9 bg-paper-100 border-2 border-ink flex items-center justify-center shrink-0">
+              <sc.icon className={`w-5 h-5 ${sc.color}`} weight="duotone" />
+            </div>
+            <div>
+              <p className="text-[11px] text-ink-mute font-medium">{sc.label}</p>
+              <p className="text-lg font-bold text-ink tabular-nums">{sc.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Event Telemetry Activity Bar */}
+      <div className="panel p-5">
+        <h3 className="display font-bold text-ink text-sm flex items-center gap-2 mb-4">
+          <ChartLineUp className="w-5 h-5 text-glow-600" weight="duotone" /> Real-Time Event Telemetry
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {telemetry.map((t) => (
+            <div key={t.label} className="bg-paper-100 border-2 border-ink/20 p-3 flex items-center gap-3">
+              <t.icon className={`w-5 h-5 ${t.color}`} weight="duotone" />
+              <div>
+                <p className="text-[10px] text-ink-mute uppercase font-semibold">{t.label}</p>
+                <p className="text-base font-bold text-ink tabular-nums">{t.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Top templates */}
         <div className="panel p-6">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="display font-bold text-white flex items-center gap-2">
-              <Flame className="w-5 h-5 text-amber-400" weight="fill" /> Top Templates
+            <h3 className="display font-bold text-ink flex items-center gap-2">
+              <Flame className="w-5 h-5 text-amber-500" weight="fill" /> Top Templates Overview
             </h3>
-            <span className="label">By usage</span>
+            <span className="label">By usage & views</span>
           </div>
 
           <div className="space-y-4">
@@ -130,20 +177,29 @@ export default function Dashboard() {
               <div key={t._id} className="flex items-center justify-between gap-3 group">
                 <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src={t.thumbnail}
+                    src={t.thumbnail || t.previewAsset || t.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
                     alt={t.name}
-                    className="w-11 h-14 rounded-lg object-cover border border-night-600 group-hover:border-glow-500/50 transition-colors"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
+                    }}
+                    className="w-11 h-14 object-cover border-2 border-ink/20 group-hover:border-flame-500 transition-colors"
                   />
                   <div className="min-w-0">
-                    <h4 className="text-sm font-semibold text-white truncate">{t.name}</h4>
-                    <span className={`badge mt-1 ${t.accessType === 'premium' ? 'badge-amber' : 'badge-success'}`}>
-                      {t.accessType}
-                    </span>
+                    <h4 className="text-sm font-semibold text-ink truncate">{t.name}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`badge ${t.accessType === 'free' ? 'badge-success' : 'badge-amber'}`}>
+                        {t.accessType === 'free' ? 'Free' : t.accessType === 'vip' ? 'VIP' : `₹${t.price}`}
+                      </span>
+                      {t.categoryId?.name && (
+                        <span className="text-[10px] text-ink-mute">{t.categoryId.icon} {t.categoryId.name}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-white">{t.uses} <span className="text-[10px] font-medium text-night-300">uses</span></p>
-                  <p className="text-[11px] text-night-400">{t.views} views</p>
+                  <p className="text-sm font-bold text-ink tabular-nums">{t.uses} <span className="text-[10px] font-medium text-ink-mute">uses</span></p>
+                  <p className="text-[11px] text-ink-mute tabular-nums">{t.views} views</p>
                 </div>
               </div>
             ))}
@@ -153,34 +209,38 @@ export default function Dashboard() {
         {/* Recent purchases */}
         <div className="panel p-6">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="display font-bold text-white flex items-center gap-2">
-              <CrownSimple className="w-5 h-5 text-glow-400" weight="fill" /> Recent Purchases
+            <h3 className="display font-bold text-ink flex items-center gap-2">
+              <CrownSimple className="w-5 h-5 text-glow-600" weight="fill" /> Live Purchase Transactions
             </h3>
             <span className="label">Entitlements</span>
           </div>
 
           {stats?.recentPurchases?.length === 0 ? (
             <div className="py-12 text-center">
-              <CreditCard className="w-8 h-8 text-night-500 mx-auto mb-2" />
-              <p className="text-xs text-night-400">No purchases recorded yet.</p>
+              <CreditCard className="w-8 h-8 text-paper-400 mx-auto mb-2" />
+              <p className="text-xs text-ink-mute">No purchases recorded yet.</p>
             </div>
           ) : (
             <div className="space-y-4">
               {stats?.recentPurchases?.map((p) => (
-                <div key={p._id} className="flex items-center justify-between gap-3 py-2 border-b border-night-600/40 last:border-0">
+                <div key={p._id} className="flex items-center justify-between gap-3 py-2 border-b border-paper-100 last:border-0">
                   <div className="flex items-center gap-3 min-w-0">
                     <img
-                      src={p.templateId?.thumbnail || 'https://via.placeholder.com/40'}
-                      alt=""
-                      className="w-11 h-11 rounded-lg object-cover border border-night-600"
+                      src={p.templateId?.thumbnail || p.finalAssetUrl || p.templateId?.previewAsset || p.templateId?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
+                      alt={p.templateId?.name || 'Template'}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
+                      }}
+                      className="w-11 h-11 object-cover border-2 border-ink/20 shrink-0"
                     />
                     <div className="min-w-0">
-                      <h4 className="text-sm font-semibold text-white truncate">{p.userId?.name || 'User'}</h4>
-                      <p className="text-[11px] text-night-400 truncate">{p.templateId?.name || 'Template'}</p>
+                      <h4 className="text-sm font-semibold text-ink truncate">{p.userId?.name || 'Mobile User'}</h4>
+                      <p className="text-[11px] text-ink-mute truncate">{p.templateId?.name || 'Template'}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-glow-300">₹{p.amount}</p>
+                    <p className="text-sm font-bold text-glow-700 tabular-nums">₹{p.amount}</p>
                     <span className="badge-success text-[10px] px-1.5 py-0.5">Successful</span>
                   </div>
                 </div>

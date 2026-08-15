@@ -7,12 +7,23 @@ const Category = require('../models/Category');
 // @access  Public
 const getTemplates = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
-  const limit = parseInt(req.query.limit, 10) || 20;
+  const limit = parseInt(req.query.limit, 10) || 100;
   const skip = (page - 1) * limit;
 
-  const { search, categoryId, type, accessType, filter, sort } = req.query;
+  const { search, categoryId, type, accessType, filter, sort, active, includeInactive } = req.query;
 
-  const query = { active: true };
+  const query = {};
+
+  if (active === 'true' || active === 'published') {
+    query.active = true;
+  } else if (active === 'false' || active === 'unpublished') {
+    query.active = false;
+  } else if (includeInactive === 'true' || active === 'all') {
+    // Do not set active filter to include both published and unpublished
+  } else {
+    // Default public behavior: only active/published
+    query.active = { $ne: false };
+  }
 
   if (categoryId) {
     query.categoryId = categoryId;
@@ -67,7 +78,7 @@ const getTemplates = asyncHandler(async (req, res) => {
 // @access  Public
 const getTrendingTemplates = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
-  const templates = await Template.find({ active: true })
+  const templates = await Template.find({ active: { $ne: false } })
     .populate('categoryId', 'name slug icon')
     .sort({ isPinned: -1, trendingScore: -1, uses: -1, views: -1 })
     .limit(limit);
@@ -82,44 +93,63 @@ const getTrendingTemplates = asyncHandler(async (req, res) => {
 // @route   GET /api/templates/home-feed
 // @access  Public
 const getHomeFeed = asyncHandler(async (req, res) => {
-  const categories = await Category.find({ slug: { $in: ['good-morning', 'motivation', 'festival'] } }).select('slug');
-  const catIds = {};
-  categories.forEach((cat) => {
-    catIds[cat.slug] = cat._id;
-  });
+  const allCategories = await Category.find({ active: { $ne: false } });
 
-  const [trending, goodMorning, motivation, festival] = await Promise.all([
-    Template.find({ active: true })
+  const findCat = (keywords) => {
+    return allCategories.find((c) =>
+      keywords.some(
+        (k) =>
+          (c.slug && c.slug.toLowerCase().includes(k)) ||
+          (c.name && c.name.toLowerCase().includes(k))
+      )
+    );
+  };
+
+  const gmCat = findCat(['good-morning', 'morning', 'greeting']);
+  const motCat = findCat(['motivation', 'quote', 'inspiration', 'thought']);
+  const festCat = findCat(['festival', 'celebration', 'diwali', 'jayanti', 'event']);
+
+  const [trending, goodMorning, motivation, festival, allRecent] = await Promise.all([
+    Template.find({ active: { $ne: false } })
       .populate('categoryId', 'name slug icon')
       .sort({ isPinned: -1, trendingScore: -1, uses: -1, views: -1 })
       .limit(8),
-    catIds['good-morning']
-      ? Template.find({ active: true, categoryId: catIds['good-morning'] })
+    gmCat
+      ? Template.find({ active: { $ne: false }, categoryId: gmCat._id })
           .populate('categoryId', 'name slug icon')
           .sort({ trendingScore: -1 })
           .limit(6)
       : [],
-    catIds['motivation']
-      ? Template.find({ active: true, categoryId: catIds['motivation'] })
+    motCat
+      ? Template.find({ active: { $ne: false }, categoryId: motCat._id })
           .populate('categoryId', 'name slug icon')
           .sort({ trendingScore: -1 })
           .limit(6)
       : [],
-    catIds['festival']
-      ? Template.find({ active: true, categoryId: catIds['festival'] })
+    festCat
+      ? Template.find({ active: { $ne: false }, categoryId: festCat._id })
           .populate('categoryId', 'name slug icon')
           .sort({ trendingScore: -1 })
           .limit(6)
       : [],
+    Template.find({ active: { $ne: false } })
+      .populate('categoryId', 'name slug icon')
+      .sort({ createdAt: -1 })
+      .limit(12),
   ]);
+
+  // Fallback to recent templates if specific category sections are empty
+  const finalGoodMorning = goodMorning.length > 0 ? goodMorning : allRecent.slice(0, 6);
+  const finalMotivation = motivation.length > 0 ? motivation : allRecent.slice(3, 9);
+  const finalFestival = festival.length > 0 ? festival : allRecent.slice(6, 12);
 
   res.status(200).json({
     success: true,
     data: {
       trending,
-      goodMorning,
-      motivation,
-      festival,
+      goodMorning: finalGoodMorning,
+      motivation: finalMotivation,
+      festival: finalFestival,
     },
   });
 });
@@ -217,7 +247,13 @@ const toggleFavorite = asyncHandler(async (req, res) => {
   }
 
   const user = req.user;
-  const favIndex = user.favorites.indexOf(template._id);
+  const targetIdStr = template._id.toString();
+
+  const favIndex = user.favorites.findIndex((f) => {
+    if (!f) return false;
+    const fId = typeof f === 'object' && f._id ? f._id.toString() : f.toString();
+    return fId === targetIdStr;
+  });
 
   let isFavorited = false;
   if (favIndex >= 0) {

@@ -76,8 +76,8 @@ const seedData = async () => {
     const framesData = [
       {
         name: 'Golden Emerald Royal Frame',
-        thumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-        asset: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=800&q=80',
+        thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80',
+        asset: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80',
         category: catMap['for-you'],
         contentTag: 'general',
         placement: { x: 0.5, y: 0.42, width: 0.72, height: 0.48, zIndex: 10 },
@@ -588,6 +588,63 @@ const seedData = async () => {
     const users = await User.insertMany(usersData);
     console.log(`[Seed] ${users.length} sample users created.`);
 
+    // 8. Create Sample Purchase Transactions & Analytics Events
+    const Purchase = require('./models/Purchase');
+    const Analytics = require('./models/Analytics');
+
+    await Purchase.deleteMany({});
+    await Analytics.deleteMany({});
+
+    const purchasesData = [
+      {
+        userId: users[0]._id,
+        templateId: templates[1]._id,
+        productId: 'statuzzz_single_unlock',
+        amount: 49,
+        currency: 'INR',
+        status: 'successful',
+        paymentProvider: 'UPI',
+        transactionId: 'TXN_' + Date.now() + '_01',
+        finalAssetUrl: templates[1].previewAsset,
+      },
+      {
+        userId: users[0]._id,
+        templateId: templates[4]._id,
+        productId: 'statuzzz_single_unlock',
+        amount: 49,
+        currency: 'INR',
+        status: 'successful',
+        paymentProvider: 'Razorpay',
+        transactionId: 'TXN_' + (Date.now() + 100) + '_02',
+        finalAssetUrl: templates[4].previewAsset,
+      },
+      {
+        userId: users[1]._id,
+        templateId: templates[7]._id,
+        productId: 'statuzzz_single_unlock',
+        amount: 49,
+        currency: 'INR',
+        status: 'successful',
+        paymentProvider: 'UPI',
+        transactionId: 'TXN_' + (Date.now() + 200) + '_03',
+        finalAssetUrl: templates[7].previewAsset,
+      },
+    ];
+
+    const purchases = await Purchase.insertMany(purchasesData);
+    console.log(`[Seed] ${purchases.length} purchase records created.`);
+
+    const analyticsData = [
+      { eventType: 'template_view', userId: users[0]._id, templateId: templates[0]._id },
+      { eventType: 'template_download', userId: users[0]._id, templateId: templates[0]._id },
+      { eventType: 'photo_upload', userId: users[0]._id, templateId: templates[0]._id },
+      { eventType: 'template_view', userId: users[1]._id, templateId: templates[1]._id },
+      { eventType: 'template_share', userId: users[1]._id, templateId: templates[1]._id },
+    ];
+
+    await Analytics.insertMany(analyticsData);
+    console.log(`[Seed] Analytics events recorded.`);
+
     console.log('----------------------------------------------------');
     console.log('✅ DATABASE SEEDING COMPLETED SUCCESSFULLY!');
     console.log(`📊 Admin: ${adminEmail} / ${adminPassword}`);
@@ -597,6 +654,7 @@ const seedData = async () => {
     console.log(`📊 Effects: ${effects.length}`);
     console.log(`📊 Campaigns: ${campaigns.length}`);
     console.log(`📊 Sample Users: ${users.length}`);
+    console.log(`📊 Purchases: ${purchases.length}`);
     console.log('----------------------------------------------------');
 
     process.exit(0);

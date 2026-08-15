@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
+import ConfirmModal from '../components/ConfirmModal';
+import MediaUploadZone from '../components/MediaUploadZone';
+import { GridSkeleton } from '../components/Skeleton';
+import { useToast } from '../context/ToastContext';
 import {
   FolderSimple,
   Plus,
@@ -24,6 +28,7 @@ const CATEGORY_ICONS = [
 const normalizeEmoji = (s) => (s || '').replace(/\uFE0F/g, '');
 
 export default function Categories() {
+  const { toast } = useToast();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,6 +42,9 @@ export default function Categories() {
     featured: false,
     active: true,
   });
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -93,17 +101,22 @@ export default function Categories() {
       setIsModalOpen(false);
       fetchCategories();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error saving category');
+      toast.error(err.response?.data?.message || 'Error saving category');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this category?')) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await API.delete(`/categories/${id}`);
+      await API.delete(`/categories/${deleteTarget._id}`);
+      toast.success('Category deleted successfully');
+      setDeleteTarget(null);
       fetchCategories();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error deleting category');
+      toast.error(err.response?.data?.message || 'Error deleting category');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -121,14 +134,11 @@ export default function Categories() {
       />
 
       {loading ? (
-        <div className="py-16 flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-glow-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-night-400">Loading categories…</p>
-        </div>
+        <GridSkeleton count={8} />
       ) : categories.length === 0 ? (
         <div className="panel p-12 text-center">
-          <FolderSimple className="w-8 h-8 text-night-500 mx-auto mb-2" />
-          <p className="text-sm text-night-300 font-medium">No categories yet</p>
+          <FolderSimple className="w-8 h-8 text-paper-400 mx-auto mb-2" />
+          <p className="text-sm text-ink-mute font-medium">No categories yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
@@ -136,7 +146,7 @@ export default function Categories() {
             <div key={c._id} className="panel panel-hover p-5 flex flex-col justify-between anim">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <span className="w-12 h-12 rounded-2xl bg-night-700/70 border border-night-600 flex items-center justify-center text-2xl">
+                  <span className="w-12 h-12 bg-paper-100 border-2 border-ink flex items-center justify-center text-2xl">
                     {c.icon}
                   </span>
                   <span className={`badge ${c.featured ? 'badge-amber' : 'badge-muted'}`}>
@@ -144,20 +154,20 @@ export default function Categories() {
                     {c.featured ? 'Featured' : 'Standard'}
                   </span>
                 </div>
-                <h4 className="display font-bold text-white text-base">{c.name}</h4>
-                <p className="text-[11px] text-night-400 font-mono mt-0.5 flex items-center gap-1">
+                <h4 className="display font-bold text-ink text-base">{c.name}</h4>
+                <p className="text-[11px] text-ink-mute font-mono mt-0.5 flex items-center gap-1">
                   <HashStraight className="w-3 h-3" /> {c.slug}
                 </p>
-                <p className="text-xs text-night-300 mt-2.5 line-clamp-2 min-h-[2rem]">{c.description || 'No description'}</p>
+                <p className="text-xs text-ink-soft mt-2.5 line-clamp-2 min-h-[2rem]">{c.description || 'No description'}</p>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-night-600/50 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-night-400">Order · #{c.sortOrder}</span>
+              <div className="mt-5 pt-4 border-t border-paper-200 flex items-center justify-between">
+                <span className="text-[11px] font-medium text-ink-mute">Order · #{c.sortOrder}</span>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => handleOpenEdit(c)} className="p-2 text-night-300 hover:text-glow-300 hover:bg-glow-500/10 rounded-lg transition-colors">
+                  <button onClick={() => handleOpenEdit(c)} className="p-2 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors">
                     <PencilSimple className="w-4 h-4" weight="duotone" />
                   </button>
-                  <button onClick={() => handleDelete(c._id)} className="p-2 text-night-300 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                  <button onClick={() => setDeleteTarget(c)} className="p-2 text-ink-mute hover:text-red-600 hover:bg-red-500/10 rounded-[2px] transition-colors">
                     <Trash className="w-4 h-4" weight="duotone" />
                   </button>
                 </div>
@@ -168,13 +178,13 @@ export default function Categories() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-night-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-ink/70 flex items-center justify-center p-4">
           <div className="modal-card max-w-md">
-            <div className="px-6 py-4 border-b border-night-600 flex items-center justify-between bg-night-850/40">
-              <h3 className="display font-bold text-white">
+            <div className="px-6 py-4 border-b border-paper-200 flex items-center justify-between bg-paper-50">
+              <h3 className="display font-bold text-ink">
                 {editingCategory ? 'Edit Category' : 'Create Category'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-night-300 hover:text-white hover:bg-night-700 rounded-lg">
+              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-ink-mute hover:text-ink hover:bg-paper-100 rounded-[2px]">
                 <X className="w-5 h-5" weight="bold" />
               </button>
             </div>
@@ -196,86 +206,90 @@ export default function Categories() {
                 <div>
                   <label className="field-label">Icon Emoji</label>
                   <div className="flex items-center gap-2">
-                    <span className="w-10 h-10 shrink-0 rounded-xl bg-night-700/70 border border-night-600 flex items-center justify-center text-xl">
+                    <span className="w-10 h-10 shrink-0 bg-paper-100 border-2 border-ink flex items-center justify-center text-xl">
                       {formData.icon || '✨'}
                     </span>
                     <input
                       type="text"
+                      maxLength={4}
                       value={formData.icon}
                       onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                      className="input text-center"
-                      placeholder="🔥"
-                      maxLength={8}
+                      className="input"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="field-label">Sort Order</label>
+                  <label className="field-label">Display Sort Order</label>
                   <input
                     type="number"
                     value={formData.sortOrder}
-                    onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value, 10) })}
+                    onChange={(e) => setFormData({ ...formData, sortOrder: Number(e.target.value) })}
                     className="input"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="field-label">Preset Icons</label>
-                <div className="grid grid-cols-8 gap-1.5">
-                  {CATEGORY_ICONS.map((emoji) => {
-                    const selected = normalizeEmoji(formData.icon) === normalizeEmoji(emoji);
-                    return (
-                      <button
-                        type="button"
-                        key={emoji}
-                        onClick={() => setFormData({ ...formData, icon: emoji })}
-                        className={`h-9 rounded-lg text-lg flex items-center justify-center transition-all ${
-                          selected
-                            ? 'bg-glow-500/15 border border-glow-500/70 ring-2 ring-glow-500/30'
-                            : 'bg-night-700/50 border border-night-600 hover:bg-night-600/60 hover:border-night-500'
-                        }`}
-                        title={emoji}
-                      >
-                        {emoji}
-                      </button>
-                    );
-                  })}
+                <label className="field-label">Quick Preset Icon</label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-paper-100 border-2 border-ink rounded-[2px] max-h-28 overflow-y-auto">
+                  {CATEGORY_ICONS.map((emoji, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, icon: emoji })}
+                      className={`w-7 h-7 flex items-center justify-center text-base rounded-[2px] transition-transform active:scale-95 ${
+                        normalizeEmoji(formData.icon) === normalizeEmoji(emoji)
+                          ? 'bg-flame-500 border border-ink text-white'
+                          : 'hover:bg-paper-200'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div>
                 <label className="field-label">Description</label>
                 <textarea
-                  rows="2"
+                  rows={2}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="textarea"
+                  placeholder="Brief summary of this content grouping..."
                 />
               </div>
 
-              <div className="flex items-center gap-5 pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-night-200 font-medium">
+              <MediaUploadZone
+                label="Category Header / Cover Image"
+                value={formData.thumbnail}
+                onChange={(url) => setFormData({ ...formData, thumbnail: url })}
+                folder="categories"
+                accept="image/*"
+              />
+
+              <div className="flex items-center gap-6 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-ink">
                   <input
                     type="checkbox"
                     checked={formData.featured}
                     onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                    className="w-4 h-4 rounded accent-glow-500"
+                    className="w-4 h-4 accent-flame-500 rounded-[2px]"
                   />
-                  Featured pill
+                  Featured Section
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-night-200 font-medium">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-ink">
                   <input
                     type="checkbox"
                     checked={formData.active}
                     onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                    className="w-4 h-4 rounded accent-glow-500"
+                    className="w-4 h-4 accent-flame-500 rounded-[2px]"
                   />
                   Active
                 </label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-night-600/60">
+              <div className="flex justify-end gap-3 pt-4 border-t border-paper-200">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
                   Cancel
                 </button>
@@ -287,6 +301,18 @@ export default function Categories() {
           </div>
         </div>
       )}
+
+      {/* Themed Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        title="Delete Category"
+        message={`Are you sure you want to delete category "${deleteTarget?.name || 'this item'}"?`}
+        confirmText="Delete Category"
+        danger={true}
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

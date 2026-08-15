@@ -30,6 +30,26 @@ export const COLORS = {
   error: '#EF4444',
 };
 
+// Neo-Brutalist Workbench palette — mirrors the admin panel redesign.
+// Used by the auth/splash screens (login, verify).
+export const BRUTAL = {
+  bone: '#F5F1E8', // page background
+  paper: '#FFFFFF', // card surface
+  paperAlt: '#EBE4D6',
+  ink: '#17120C', // near-black (borders / slabs / hard shadows)
+  inkSoft: '#40382E',
+  inkMute: '#6F6354',
+  inkFaint: '#A29683',
+  flame: '#F05A0C', // flat brand orange
+  flameDark: '#B93A08',
+  flameLight: '#F8761F',
+  white: '#FFFFFF',
+  error: '#DC2626',
+};
+
+// Brutalist display face (Anton — same as the admin panel)
+export const BRUTAL_FONT = 'Anton_400Regular';
+
 export const GRADIENTS = {
   primary: ['#F97316', '#FB923C', '#FDBA74'],
   deep: ['#EA580C', '#F97316'],
@@ -43,6 +63,7 @@ export const FONTS = {
   bold: 'Poppins_700Bold',
   extrabold: 'Poppins_800ExtraBold',
   black: 'Poppins_900Black',
+  display: BRUTAL_FONT, // Anton — condensed caps, brutalist headlines
 };
 
 // Global type scale — every screen reuses these so typography stays consistent.

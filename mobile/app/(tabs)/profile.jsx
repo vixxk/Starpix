@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
@@ -7,52 +7,64 @@ import PressableScale from '../../src/components/PressableScale';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD, SPACING, CARD_SHADOW } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
-import AppButton from '../../src/components/AppButton';
+import ConfirmModal from '../../src/components/ConfirmModal';
+import AppRefreshControl from '../../src/components/AppRefreshControl';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 const MENU = [
-  { icon: 'heart-outline', label: 'My Saved Favorites' },
-  { icon: 'card-outline', label: 'Unlocked Entitlements' },
-  { icon: 'crown-outline', label: 'VIP Pass Subscription' },
+  { icon: 'heart-outline', label: 'My Saved Favorites', route: '/favorites' },
+  { icon: 'card-outline', label: 'Unlocked Entitlements', route: '/entitlements' },
+  { icon: 'trophy-outline', label: 'VIP Pass Subscription', route: '/vip' },
 ];
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuthStore();
+  const { user, logout, fetchUser } = useAuthStore();
   const router = useRouter();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  if (!user) {
-    return (
-      <AppBackground>
-        <StatusBar style="dark" />
-        <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-          <View style={styles.guestContainer}>
-            <View style={styles.guestAvatar}>
-              <Ionicons name="person" size={40} color={COLORS.orange} />
-            </View>
-            <Text style={styles.guestTitle}>Sign in to Statuzzz</Text>
-            <Text style={styles.guestSubtitle}>
-              Save favourites, track HD creations & manage your subscription.
-            </Text>
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    if (fetchUser) {
+      try {
+        await fetchUser();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    setRefreshing(false);
+  }, [fetchUser]);
 
-            <AppButton
-              title="Sign In with Phone Number"
-              onPress={() => router.push('/(auth)/login')}
-              style={{ marginTop: hp(0.03) }}
-            />
-          </View>
-        </View>
-      </AppBackground>
-    );
-  }
+  const handleLogoutPress = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      await logout();
+      setShowLogoutModal(false);
+      router.replace('/(auth)/login');
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
 
   return (
     <AppBackground>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
           {/* Profile header */}
           <View style={styles.profileCard}>
             <View style={styles.profileTop}>
@@ -78,6 +90,7 @@ export default function ProfileScreen() {
             {MENU.map((item, idx) => (
               <PressableScale
                 key={item.label}
+                onPress={() => router.push(item.route)}
                 scaleTo={0.97}
                 style={[styles.optionRow, idx === MENU.length - 1 && styles.optionRowLast]}
                 contentStyle={styles.optionContent}
@@ -91,12 +104,26 @@ export default function ProfileScreen() {
             ))}
           </View>
 
-          <PressableScale onPress={logout} scaleTo={0.97} style={styles.logoutButton} contentStyle={styles.logoutContent}>
-            <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
+          <PressableScale onPress={handleLogoutPress} scaleTo={0.97} haptic="impact" style={styles.logoutButton} contentStyle={styles.logoutContent}>
+            <Ionicons name="log-out-outline" size={18} color={COLORS.orange} />
             <Text style={styles.logoutText}>Log Out Account</Text>
           </PressableScale>
         </ScrollView>
       </View>
+
+      {/* Themed Logout Confirmation */}
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of your Statuzzz account? You can sign back in anytime with your phone number."
+        confirmText="Log Out"
+        cancelText="Cancel"
+        icon="log-out-outline"
+        iconColor={COLORS.orange}
+        confirmLoading={logoutLoading}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={handleConfirmLogout}
+      />
     </AppBackground>
   );
 }
@@ -106,40 +133,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SCREEN_PAD,
     paddingBottom: hp(0.05),
-  },
-  guestContainer: {
-    flex: 1,
-    paddingHorizontal: SCREEN_PAD,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  guestAvatar: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    borderColor: COLORS.borderStrong,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: hp(0.022),
-    ...CARD_SHADOW,
-  },
-  guestTitle: {
-    color: COLORS.ink,
-    fontSize: fontScale(22),
-    fontFamily: FONTS.extrabold,
-    letterSpacing: -0.4,
-    textAlign: 'center',
-  },
-  guestSubtitle: {
-    color: COLORS.inkMuted,
-    fontSize: fontScale(13),
-    fontFamily: FONTS.medium,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
-    paddingHorizontal: 12,
   },
   profileCard: {
     backgroundColor: COLORS.surface,
@@ -265,7 +258,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderColor: 'rgba(249, 115, 22, 0.35)',
     marginTop: SPACING.xxl,
   },
   logoutContent: {
@@ -275,7 +268,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoutText: {
-    color: COLORS.error,
+    color: COLORS.orange,
     fontSize: fontScale(14),
     fontFamily: FONTS.bold,
   },

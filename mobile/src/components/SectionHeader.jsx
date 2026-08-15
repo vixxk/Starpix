@@ -4,7 +4,7 @@ import { COLORS, FONTS, TYPO } from '../constants/colors';
 import { fontScale, wp, hp } from '../utils/responsive';
 import PressableScale from './PressableScale';
 
-export default function SectionHeader({ title, subtitle, onSeeAll, icon, count, style }) {
+export default function SectionHeader({ title, subtitle, onSeeAll, seeAllText = 'See All', icon, style }) {
   return (
     <View style={[styles.container, style]}>
       <View style={styles.leftWrap}>
@@ -16,11 +16,6 @@ export default function SectionHeader({ title, subtitle, onSeeAll, icon, count, 
         <View style={styles.textWrap}>
           <View style={styles.titleRow}>
             <Text style={[TYPO.h2, styles.title]} numberOfLines={1}>{title}</Text>
-            {typeof count === 'number' && count > 0 && (
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>{count}</Text>
-              </View>
-            )}
           </View>
           {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
         </View>
@@ -32,8 +27,8 @@ export default function SectionHeader({ title, subtitle, onSeeAll, icon, count, 
           style={styles.seeAllBtn}
           contentStyle={styles.seeAllContent}
         >
-          <Text style={styles.seeAll}>See All</Text>
-          <Text style={styles.seeAllArrow}>›</Text>
+          <Text style={styles.seeAll}>{seeAllText}</Text>
+          {seeAllText === 'See All' && <Text style={styles.seeAllArrow}>›</Text>}
         </PressableScale>
       )}
     </View>
@@ -81,20 +76,6 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.ink,
     flexShrink: 1,
-  },
-  countBadge: {
-    minWidth: wp(0.055),
-    height: wp(0.055),
-    paddingHorizontal: wp(0.015),
-    borderRadius: wp(0.028),
-    backgroundColor: COLORS.orange,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  countText: {
-    color: COLORS.white,
-    fontSize: fontScale(10.5),
-    fontFamily: FONTS.bold,
   },
   subtitle: {
     color: COLORS.inkMuted,

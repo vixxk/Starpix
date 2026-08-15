@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, StyleSheet, SafeAreaView, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -7,10 +7,15 @@ import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
 import TemplateRenderer from '../../src/components/TemplateRenderer';
 import AppButton from '../../src/components/AppButton';
+import ConfirmModal from '../../src/components/ConfirmModal';
+import PaywallModal from '../../src/components/PaywallModal';
+import Toast from '../../src/components/Toast';
+import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
+import { useAuthStore } from '../../src/store/useAuthStore';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -29,16 +34,88 @@ const TABS = [
 export default function TemplateEditorScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
+  const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState('photo');
   const [frames, setFrames] = useState([]);
   const [effects, setEffects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isEntitled, setIsEntitled] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const [alertInfo, setAlertInfo] = useState(null); // { kind: 'permission' }
+  const [isFav, setIsFav] = useState(false);
+  const [toastInfo, setToastInfo] = useState(null);
 
   const router = useRouter();
+
+  const handleToastDone = useCallback(() => setToastInfo(null), []);
+
+  const showToast = (message, icon = 'heart') => {
+    setToastInfo({ message, icon, key: Date.now() });
+  };
+
+  useEffect(() => {
+    if (activeTemplate && user && Array.isArray(user.favorites)) {
+      const activeId = String(activeTemplate._id || activeTemplate.id || '');
+      const isAlreadyFav = user.favorites.some((f) => {
+        const fId = String(typeof f === 'string' ? f : f?._id || f?.id || '');
+        return fId && activeId && fId === activeId;
+      });
+      setIsFav(isAlreadyFav);
+    }
+  }, [activeTemplate?._id, user?.favorites]);
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    if (!activeTemplate) return;
+
+    const prevFav = isFav;
+    const nextFav = !prevFav;
+    const targetId = String(activeTemplate._id || activeTemplate.id);
+
+    // 1. Instant local state & Toast update
+    setIsFav(nextFav);
+    showToast(
+      nextFav ? 'Added to favorites' : 'Removed from favorites',
+      nextFav ? 'heart' : 'heart-dislike'
+    );
+
+    // 2. Optimistic update to Zustand store user favorites array
+    const storeUser = useAuthStore.getState().user;
+    if (storeUser) {
+      let currentFavs = Array.isArray(storeUser.favorites) ? [...storeUser.favorites] : [];
+      if (nextFav) {
+        if (!currentFavs.some((f) => String(typeof f === 'string' ? f : f._id || f.id) === targetId)) {
+          currentFavs.push(activeTemplate);
+        }
+      } else {
+        currentFavs = currentFavs.filter((f) => String(typeof f === 'string' ? f : f._id || f.id) !== targetId);
+      }
+      useAuthStore.setState({ user: { ...storeUser, favorites: currentFavs } });
+    }
+
+    try {
+      const res = await API.post(`/templates/${activeTemplate._id}/favorite`);
+      const serverFavStatus = res.data?.data?.isFavorited ?? res.data?.isFavorited;
+      if (typeof serverFavStatus === 'boolean') {
+        setIsFav(serverFavStatus);
+      }
+    } catch (err) {
+      // Rollback on failure
+      setIsFav(prevFav);
+      if (storeUser) {
+        useAuthStore.setState({ user: storeUser });
+      }
+      console.error('Error toggling favorite:', err);
+    }
+  };
 
   const {
     activeTemplate,
     setActiveTemplate,
+    setEntitlementStatus,
     userPhotoUri,
     setUserPhotoUri,
     userNameText,
@@ -50,6 +127,16 @@ export default function TemplateEditorScreen() {
     selectedEffect,
     setSelectedEffect,
     photoScale,
+    photoRotation,
+    photoOffsetX,
+    photoOffsetY,
+    setPhotoTransform,
+    removePhoto,
+    nameOffsetX,
+    nameOffsetY,
+    nameFontSizeScale,
+    setNameTransform,
+    removeName,
   } = useCreationStore();
 
   useEffect(() => {
@@ -61,7 +148,32 @@ export default function TemplateEditorScreen() {
           API.get('/effects'),
         ]);
 
-        if (resT.data.success) setActiveTemplate(resT.data.data);
+        if (resT.data.success) {
+          const storeState = useCreationStore.getState();
+          const isRestored = storeState.isRestoredSession && storeState.activeTemplate && (storeState.activeTemplate._id === id || storeState.activeTemplate.id === id);
+          if (!isRestored) {
+            const profileName = user?.name || user?.displayName || null;
+            setActiveTemplate(resT.data.data, profileName);
+          }
+
+          if (resT.data.data.accessType === 'free') {
+            setIsEntitled(true);
+            setEntitlementStatus(true);
+          } else {
+            try {
+              const resVerify = await API.get(`/payments/verify/${id}`);
+              if (resVerify.data && resVerify.data.success && resVerify.data.data.isUnlocked) {
+                setIsEntitled(true);
+                setEntitlementStatus(true);
+              } else {
+                setIsEntitled(false);
+                setEntitlementStatus(false);
+              }
+            } catch (errVer) {
+              console.log('Verify entitlement error:', errVer?.message);
+            }
+          }
+        }
         if (resF.data.success) setFrames(resF.data.data);
         if (resE.data.success) setEffects(resE.data.data);
       } catch (err) {
@@ -71,24 +183,34 @@ export default function TemplateEditorScreen() {
       }
     };
     fetchTemplateDetails();
-  }, [id]);
+  }, [id, user]);
 
   const handlePickPhoto = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      alert('Permission to access photo library is required!');
-      return;
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        setAlertInfo({ kind: 'permission' });
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
+        setUserPhotoUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.error('Error launching image picker:', err);
     }
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      setUserPhotoUri(result.assets[0].uri);
+  const handleResetTemplate = () => {
+    if (activeTemplate) {
+      const profileName = user?.name || user?.displayName || null;
+      setActiveTemplate(activeTemplate, profileName);
     }
   };
 
@@ -97,16 +219,54 @@ export default function TemplateEditorScreen() {
     router.push({ pathname: `/preview/${activeTemplate._id}` });
   };
 
+  const handlePrimaryAction = () => {
+    if (!activeTemplate) return;
+    if (isEntitled || activeTemplate.accessType === 'free') {
+      handleProceedToPreview();
+    } else {
+      setPaywallVisible(true);
+    }
+  };
+
   if (loading || !activeTemplate) {
     return (
       <AppBackground>
         <StatusBar style="dark" />
-        <View style={[styles.centerContainer, { paddingTop: Math.max(insets.top, hp(0.015)) }]}>
-          <Text style={styles.loadingText}>Loading template editor…</Text>
+        <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, hp(0.012)) }]}>
+          {/* Header Skeleton */}
+          <View style={styles.header}>
+            <View style={styles.headerLeftGroup}>
+              <Skeleton height={24} width={24} borderRadius={12} />
+              <Skeleton height={20} width={wp(0.35)} borderRadius={6} style={{ marginLeft: 8 }} />
+            </View>
+            <Skeleton height={32} width={64} borderRadius={12} />
+          </View>
+
+          {/* Canvas Skeleton */}
+          <View style={styles.canvasContainer}>
+            <Skeleton height={CANVAS_HEIGHT} width={CANVAS_WIDTH} borderRadius={24} />
+          </View>
+
+          {/* Editor Panel Skeleton */}
+          <View style={styles.editorPanel}>
+            <View style={styles.tabsRow}>
+              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
+              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
+              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
+              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
+            </View>
+            <View style={{ marginTop: 16 }}>
+              <Skeleton height={46} width="100%" borderRadius={14} style={{ marginBottom: 10 }} />
+              <Skeleton height={44} width="100%" borderRadius={14} />
+            </View>
+          </View>
         </View>
       </AppBackground>
     );
   }
+
+  const isFreeOrUnlocked = isEntitled || activeTemplate.accessType === 'free';
+  const itemPrice = activeTemplate.price || 49;
 
   return (
     <AppBackground>
@@ -114,14 +274,31 @@ export default function TemplateEditorScreen() {
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, hp(0.012)) }]}>
         {/* Header */}
         <View style={styles.header}>
-          <PressableScale onPress={() => router.back()} scaleTo={0.88} style={styles.headerBtn} contentStyle={styles.iconContent}>
-            <Ionicons name="chevron-back" size={22} color={COLORS.orange} />
-          </PressableScale>
-          <Text numberOfLines={1} style={styles.templateTitle}>{activeTemplate.name}</Text>
-          <PressableScale onPress={handleProceedToPreview} scaleTo={0.93} style={styles.previewBtn} contentStyle={styles.previewContent}>
-            <Text style={styles.previewBtnText}>Preview</Text>
-            <Ionicons name="arrow-forward" size={14} color={COLORS.white} />
-          </PressableScale>
+          <View style={styles.headerLeftGroup}>
+            <PressableScale onPress={() => router.back()} scaleTo={0.88} style={styles.headerBtn} contentStyle={styles.iconContent}>
+              <Ionicons name="chevron-back" size={24} color={COLORS.orange} />
+            </PressableScale>
+            <Text numberOfLines={1} style={styles.templateTitle}>{activeTemplate.name}</Text>
+          </View>
+          <View style={styles.headerRightGroup}>
+            <PressableScale
+              onPress={handleToggleFavorite}
+              scaleTo={0.88}
+              style={styles.favHeaderBtn}
+              contentStyle={styles.favHeaderContent}
+            >
+              <Ionicons
+                name={isFav ? "heart" : "heart-outline"}
+                size={18}
+                color={isFav ? COLORS.error || '#ef4444' : COLORS.orange}
+              />
+            </PressableScale>
+
+            <PressableScale onPress={handleResetTemplate} scaleTo={0.93} style={styles.resetHeaderBtn} contentStyle={styles.resetHeaderContent}>
+              <Ionicons name="refresh-outline" size={14} color={COLORS.orange} />
+              <Text style={styles.resetHeaderBtnText}>Reset</Text>
+            </PressableScale>
+          </View>
         </View>
 
         {/* Live canvas */}
@@ -133,54 +310,234 @@ export default function TemplateEditorScreen() {
             userQuoteText={userQuoteText}
             selectedFrame={selectedFrame}
             selectedEffect={selectedEffect}
-            photoTransform={{ scale: photoScale }}
+            photoTransform={{ scale: photoScale, rotation: photoRotation, offsetX: photoOffsetX, offsetY: photoOffsetY }}
+            nameTransform={{ offsetX: nameOffsetX, offsetY: nameOffsetY, fontSizeScale: nameFontSizeScale }}
             canvasWidth={CANVAS_WIDTH}
             canvasHeight={CANVAS_HEIGHT}
+            showWatermark={!isFreeOrUnlocked}
+            onPressPhotoSlot={handlePickPhoto}
+            onPhotoTransformChange={setPhotoTransform}
+            onNameTransformChange={setNameTransform}
           />
         </View>
 
         {/* Edit panel */}
         <View style={styles.editorPanel}>
-          <View style={styles.tabHeader}>
-            {TABS.map((tab) => (
-              <PressableScale
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key)}
-                scaleTo={0.94}
-                style={[styles.tabItem, activeTab === tab.key && styles.activeTabItem]}
-                contentStyle={styles.tabItemContent}
-              >
-                <Ionicons
-                  name={tab.icon}
-                  size={18}
-                  color={activeTab === tab.key ? COLORS.orange : COLORS.inkMuted}
-                />
-                <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
-                  {tab.label}
-                </Text>
-              </PressableScale>
-            ))}
-          </View>
-
           <View style={styles.tabContent}>
             {activeTab === 'photo' && (
-              <AppButton
-                title={userPhotoUri ? 'Change Selected Photo' : 'Select Photo from Gallery'}
-                onPress={handlePickPhoto}
-                style={{ height: 48 }}
-              />
+              <View style={styles.controlsStack}>
+                <View style={styles.photoActionRow}>
+                  <PressableScale
+                    onPress={handlePickPhoto}
+                    scaleTo={0.96}
+                    style={styles.gallerySelectBtn}
+                    contentStyle={styles.gallerySelectContent}
+                  >
+                    <Ionicons name="images-outline" size={20} color={COLORS.white} />
+                    <Text style={styles.gallerySelectText}>
+                      {userPhotoUri ? 'Change Photo from Gallery' : 'Select Photo from Gallery'}
+                    </Text>
+                  </PressableScale>
+                  {userPhotoUri && (
+                    <PressableScale
+                      onPress={removePhoto}
+                      scaleTo={0.92}
+                      style={styles.deleteIconBtn}
+                      contentStyle={styles.deleteIconContent}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={COLORS.danger || '#ef4444'} />
+                    </PressableScale>
+                  )}
+                </View>
+
+                <PressableScale
+                  onPress={handlePrimaryAction}
+                  scaleTo={0.96}
+                  style={[styles.previewActionBtn, !isFreeOrUnlocked && styles.payActionBtn]}
+                  contentStyle={styles.previewActionContent}
+                >
+                  <Text style={styles.previewActionText}>
+                    {isFreeOrUnlocked ? 'Preview Status' : `Pay ₹${itemPrice} to Unlock`}
+                  </Text>
+                  <Ionicons
+                    name={isFreeOrUnlocked ? 'arrow-forward' : 'card-outline'}
+                    size={18}
+                    color={COLORS.white}
+                  />
+                </PressableScale>
+
+                {userPhotoUri && (
+                  <View style={styles.positioningContainer}>
+                    <Text style={styles.positionTitle}>Photo Placement & Scale</Text>
+                    <View style={styles.positionPadRow}>
+                      <View style={styles.dpadGrid}>
+                        <PressableScale
+                          onPress={() => setPhotoTransform({ photoOffsetY: photoOffsetY - 12 })}
+                          scaleTo={0.9}
+                          style={styles.dpadBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="chevron-up" size={18} color={COLORS.ink} />
+                        </PressableScale>
+
+                        <View style={styles.dpadMidRow}>
+                          <PressableScale
+                            onPress={() => setPhotoTransform({ photoOffsetX: photoOffsetX - 12 })}
+                            scaleTo={0.9}
+                            style={styles.dpadBtn}
+                            contentStyle={styles.dpadContent}
+                          >
+                            <Ionicons name="chevron-back" size={18} color={COLORS.ink} />
+                          </PressableScale>
+                          <PressableScale
+                            onPress={() => setPhotoTransform({ photoOffsetX: 0, photoOffsetY: 0, photoScale: 1 })}
+                            scaleTo={0.9}
+                            style={styles.dpadResetBtn}
+                            contentStyle={styles.dpadContent}
+                          >
+                            <Ionicons name="refresh" size={14} color={COLORS.orange} />
+                          </PressableScale>
+                          <PressableScale
+                            onPress={() => setPhotoTransform({ photoOffsetX: photoOffsetX + 12 })}
+                            scaleTo={0.9}
+                            style={styles.dpadBtn}
+                            contentStyle={styles.dpadContent}
+                          >
+                            <Ionicons name="chevron-forward" size={18} color={COLORS.ink} />
+                          </PressableScale>
+                        </View>
+
+                        <PressableScale
+                          onPress={() => setPhotoTransform({ photoOffsetY: photoOffsetY + 12 })}
+                          scaleTo={0.9}
+                          style={styles.dpadBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="chevron-down" size={18} color={COLORS.ink} />
+                        </PressableScale>
+                      </View>
+
+                      <View style={styles.zoomColumn}>
+                        <Text style={styles.controlSubLabel}>Zoom</Text>
+                        <PressableScale
+                          onPress={() => setPhotoTransform({ photoScale: Math.min(2.5, photoScale + 0.15) })}
+                          scaleTo={0.9}
+                          style={styles.zoomBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="add" size={18} color={COLORS.ink} />
+                        </PressableScale>
+                        <PressableScale
+                          onPress={() => setPhotoTransform({ photoScale: Math.max(0.4, photoScale - 0.15) })}
+                          scaleTo={0.9}
+                          style={styles.zoomBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="remove" size={18} color={COLORS.ink} />
+                        </PressableScale>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
             )}
 
             {activeTab === 'text' && (
-              <View>
+              <View style={styles.controlsStack}>
                 <Text style={styles.inputLabel}>Personalized Name</Text>
-                <TextInput
-                  value={userNameText}
-                  onChangeText={setUserNameText}
-                  placeholder="Enter your name"
-                  placeholderTextColor={COLORS.inkFaint}
-                  style={styles.textInput}
-                />
+                <View style={styles.textInputRow}>
+                  <TextInput
+                    value={userNameText}
+                    onChangeText={setUserNameText}
+                    placeholder="Enter your name"
+                    placeholderTextColor={COLORS.inkFaint}
+                    style={styles.textInputFlex}
+                  />
+                  {userNameText !== '' && (
+                    <PressableScale
+                      onPress={removeName}
+                      scaleTo={0.92}
+                      style={styles.deleteIconBtn}
+                      contentStyle={styles.deleteIconContent}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={COLORS.danger || '#ef4444'} />
+                    </PressableScale>
+                  )}
+                </View>
+
+                {userNameText !== '' && (
+                  <View style={styles.positioningContainer}>
+                    <Text style={styles.positionTitle}>Name Placement & Size</Text>
+                    <View style={styles.positionPadRow}>
+                      <View style={styles.dpadGrid}>
+                        <PressableScale
+                          onPress={() => setNameTransform({ nameOffsetY: nameOffsetY - 10 })}
+                          scaleTo={0.9}
+                          style={styles.dpadBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="chevron-up" size={18} color={COLORS.ink} />
+                        </PressableScale>
+
+                        <View style={styles.dpadMidRow}>
+                          <PressableScale
+                            onPress={() => setNameTransform({ nameOffsetX: nameOffsetX - 10 })}
+                            scaleTo={0.9}
+                            style={styles.dpadBtn}
+                            contentStyle={styles.dpadContent}
+                          >
+                            <Ionicons name="chevron-back" size={18} color={COLORS.ink} />
+                          </PressableScale>
+                          <PressableScale
+                            onPress={() => setNameTransform({ nameOffsetX: 0, nameOffsetY: 0, nameFontSizeScale: 1 })}
+                            scaleTo={0.9}
+                            style={styles.dpadResetBtn}
+                            contentStyle={styles.dpadContent}
+                          >
+                            <Ionicons name="refresh" size={14} color={COLORS.orange} />
+                          </PressableScale>
+                          <PressableScale
+                            onPress={() => setNameTransform({ nameOffsetX: nameOffsetX + 10 })}
+                            scaleTo={0.9}
+                            style={styles.dpadBtn}
+                            contentStyle={styles.dpadContent}
+                          >
+                            <Ionicons name="chevron-forward" size={18} color={COLORS.ink} />
+                          </PressableScale>
+                        </View>
+
+                        <PressableScale
+                          onPress={() => setNameTransform({ nameOffsetY: nameOffsetY + 10 })}
+                          scaleTo={0.9}
+                          style={styles.dpadBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="chevron-down" size={18} color={COLORS.ink} />
+                        </PressableScale>
+                      </View>
+
+                      <View style={styles.zoomColumn}>
+                        <Text style={styles.controlSubLabel}>Size</Text>
+                        <PressableScale
+                          onPress={() => setNameTransform({ nameFontSizeScale: Math.min(2.5, nameFontSizeScale + 0.15) })}
+                          scaleTo={0.9}
+                          style={styles.zoomBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="add" size={18} color={COLORS.ink} />
+                        </PressableScale>
+                        <PressableScale
+                          onPress={() => setNameTransform({ nameFontSizeScale: Math.max(0.5, nameFontSizeScale - 0.15) })}
+                          scaleTo={0.9}
+                          style={styles.zoomBtn}
+                          contentStyle={styles.dpadContent}
+                        >
+                          <Ionicons name="remove" size={18} color={COLORS.ink} />
+                        </PressableScale>
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
 
@@ -196,8 +553,8 @@ export default function TemplateEditorScreen() {
                 </PressableScale>
                 {frames
                   .filter((f) => {
-                    if (!activeTemplate?.categoryId?._id && !activeTemplate?.categoryId) return true;
-                    const catId = activeTemplate.categoryId?._id || activeTemplate.categoryId;
+                    if (!activeTemplate || (!activeTemplate.categoryId && !activeTemplate.categoryId)) return true;
+                    const catId = (activeTemplate.categoryId && activeTemplate.categoryId._id) ? activeTemplate.categoryId._id : activeTemplate.categoryId;
                     return !f.category || f.category._id === catId || f.category === catId;
                   })
                   .map((f) => (
@@ -205,10 +562,10 @@ export default function TemplateEditorScreen() {
                       key={f._id}
                       onPress={() => setSelectedFrame(f)}
                       scaleTo={0.93}
-                      style={[styles.optionChip, selectedFrame?._id === f._id && styles.selectedOptionChip]}
+                      style={[styles.optionChip, Boolean(selectedFrame && selectedFrame._id === f._id) && styles.selectedOptionChip]}
                       contentStyle={styles.chipContent}
                     >
-                      <Text style={[styles.optionChipText, selectedFrame?._id === f._id && styles.selectedOptionChipText]}>
+                      <Text style={[styles.optionChipText, Boolean(selectedFrame && selectedFrame._id === f._id) && styles.selectedOptionChipText]}>
                         {f.name}
                       </Text>
                     </PressableScale>
@@ -231,10 +588,10 @@ export default function TemplateEditorScreen() {
                     key={ef._id}
                     onPress={() => setSelectedEffect(ef)}
                     scaleTo={0.93}
-                    style={[styles.optionChip, selectedEffect?._id === ef._id && styles.selectedOptionChip]}
+                    style={[styles.optionChip, Boolean(selectedEffect && selectedEffect._id === ef._id) && styles.selectedOptionChip]}
                     contentStyle={styles.chipContent}
                   >
-                    <Text style={[styles.optionChipText, selectedEffect?._id === ef._id && styles.selectedOptionChipText]}>
+                    <Text style={[styles.optionChipText, Boolean(selectedEffect && selectedEffect._id === ef._id) && styles.selectedOptionChipText]}>
                       {ef.name}
                     </Text>
                   </PressableScale>
@@ -242,19 +599,57 @@ export default function TemplateEditorScreen() {
               </ScrollView>
             )}
           </View>
-
-          <AppButton
-            title="Proceed to Full Screen Preview"
-            onPress={handleProceedToPreview}
-            style={{ marginTop: hp(0.02) }}
-          />
         </View>
       </View>
+
+      {/* Themed Alert (replaces native Alert) */}
+      <ConfirmModal
+        visible={alertInfo !== null}
+        title={(alertInfo && alertInfo.title) || 'Photo Access Required'}
+        message={(alertInfo && alertInfo.message) || 'Permission to access your photo library is required to add your photo to this status.'}
+        confirmText="Got It"
+        icon={(alertInfo && alertInfo.icon) || 'images-outline'}
+        iconColor={(alertInfo && alertInfo.iconColor) || COLORS.orange}
+        hideCancel
+        onCancel={() => setAlertInfo(null)}
+        onConfirm={() => setAlertInfo(null)}
+      />
+
+      {/* Paywall Unlock Modal */}
+      {activeTemplate && (
+        <PaywallModal
+          visible={paywallVisible}
+          template={activeTemplate}
+          onClose={() => setPaywallVisible(false)}
+          onSuccess={() => {
+            setIsEntitled(true);
+            setEntitlementStatus(true);
+            setAlertInfo({
+              title: 'Template Unlocked!',
+              message: `You now have lifetime access to "${activeTemplate.name}". Watermark removed!`,
+              icon: 'checkmark-circle-outline',
+              iconColor: COLORS.orange,
+            });
+          }}
+        />
+      )}
+
+      {/* Toast Notification */}
+      <Toast
+        message={toastInfo?.message}
+        toastKey={toastInfo?.key}
+        icon={toastInfo?.icon || 'heart'}
+        onDone={handleToastDone}
+      />
     </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  payActionBtn: {
+    backgroundColor: '#dc2626',
+    shadowColor: '#dc2626',
+  },
   safeArea: { flex: 1 },
   centerContainer: {
     flex: 1,
@@ -270,80 +665,114 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: wp(0.05),
+    paddingHorizontal: wp(0.035),
     paddingVertical: hp(0.012),
   },
+  headerLeftGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
   headerBtn: {
-    width: wp(0.105),
-    height: wp(0.105),
-    borderRadius: wp(0.032),
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
+    paddingVertical: 6,
+    paddingRight: 4,
+    paddingLeft: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  templateTitle: {
     flex: 1,
+    color: COLORS.ink,
+    fontSize: fontScale(15.5),
+    fontFamily: FONTS.bold,
+    textAlign: 'left',
+    marginLeft: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  headerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  favHeaderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1.2,
+    borderColor: COLORS.borderStrong,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  favHeaderContent: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  templateTitle: {
-    color: COLORS.ink,
-    fontSize: fontScale(15),
-    fontFamily: FONTS.bold,
-    maxWidth: wp(0.46),
-    textAlign: 'center',
-  },
-  previewBtn: {
-    backgroundColor: COLORS.orange,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+  resetHeaderBtn: {
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 12,
-    elevation: 3,
-    shadowColor: COLORS.orangeDeep,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    borderWidth: 1.2,
+    borderColor: COLORS.borderStrong,
+    alignSelf: 'center',
+    flexShrink: 0,
+    flexGrow: 0,
   },
-  previewContent: {
+  resetHeaderContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     gap: 4,
+    flex: 0,
+    width: 'auto',
+    height: 'auto',
   },
-  previewBtnText: {
-    color: COLORS.white,
+  resetHeaderBtnText: {
+    color: COLORS.orange,
     fontFamily: FONTS.bold,
     fontSize: fontScale(12),
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: fontScale(14),
   },
   canvasContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   editorPanel: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    padding: wp(0.05),
+    padding: wp(0.045),
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingBottom: hp(0.025),
+    paddingBottom: hp(0.02),
   },
   tabHeader: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: COLORS.surfaceAlt,
-    borderRadius: 14,
+    backgroundColor: '#FFF0E0',
+    borderRadius: 16,
     padding: 4,
-    marginBottom: 14,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#FDBA74',
   },
   tabItem: {
     flex: 1,
     paddingVertical: 8,
-    borderRadius: 11,
+    borderRadius: 12,
   },
   tabItemContent: {
     flexDirection: 'row',
@@ -352,34 +781,88 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   activeTabItem: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.orange,
+    elevation: 3,
     shadowColor: COLORS.orangeDeep,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
     shadowRadius: 6,
-    elevation: 2,
   },
   tabText: {
-    color: COLORS.inkMuted,
+    color: '#8A7A68',
     fontFamily: FONTS.semibold,
-    fontSize: fontScale(11.5),
+    fontSize: fontScale(12),
   },
   activeTabText: {
-    color: COLORS.orange,
+    color: COLORS.white,
+    fontFamily: FONTS.bold,
   },
   tabContent: {
-    minHeight: 48,
+    minHeight: 110,
     justifyContent: 'center',
   },
-  inputLabel: {
-    color: COLORS.inkMuted,
-    fontSize: fontScale(10.5),
-    fontFamily: FONTS.semibold,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+  controlsStack: {
+    gap: 8,
   },
-  textInput: {
+  photoActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  gallerySelectBtn: {
+    flex: 1,
+    height: 44,
+    backgroundColor: COLORS.orange,
+    borderRadius: 14,
+    elevation: 3,
+    shadowColor: COLORS.orangeDeep,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  gallerySelectContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  gallerySelectText: {
+    color: COLORS.white,
+    fontFamily: FONTS.bold,
+    fontSize: fontScale(13.5),
+  },
+  previewActionBtn: {
+    height: 44,
+    backgroundColor: COLORS.orange,
+    borderRadius: 14,
+    marginTop: 4,
+    elevation: 3,
+    shadowColor: COLORS.orangeDeep,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  previewActionContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  previewActionText: {
+    color: COLORS.white,
+    fontFamily: FONTS.bold,
+    fontSize: fontScale(14),
+  },
+  textInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  textInputFlex: {
+    flex: 1,
     backgroundColor: COLORS.background,
     borderWidth: 1.5,
     borderColor: COLORS.borderStrong,
@@ -389,6 +872,99 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
     fontSize: fontScale(13),
     fontFamily: FONTS.medium,
+  },
+  deleteIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  deleteIconContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  positioningContainer: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  positionTitle: {
+    fontSize: fontScale(10.5),
+    fontFamily: FONTS.bold,
+    color: COLORS.inkMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  positionPadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  dpadGrid: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dpadMidRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginVertical: 3,
+  },
+  dpadBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+  },
+  dpadResetBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.orangeTint,
+    borderWidth: 1,
+    borderColor: COLORS.orange,
+  },
+  dpadContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  controlSubLabel: {
+    fontSize: fontScale(10),
+    fontFamily: FONTS.semibold,
+    color: COLORS.inkMuted,
+  },
+  zoomBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+  },
+  inputLabel: {
+    color: COLORS.inkMuted,
+    fontSize: fontScale(10.5),
+    fontFamily: FONTS.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   horizontalOptions: {
     gap: 8,

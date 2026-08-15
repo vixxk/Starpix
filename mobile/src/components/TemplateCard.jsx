@@ -1,12 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../constants/colors';
 import { CARD_WIDTH, CARD_SHADOW, fontScale } from '../utils/responsive';
 import PressableScale from './PressableScale';
+import { resolveMediaUrl } from '../utils/media';
 
 export default function TemplateCard({ template, onPress, width, style }) {
-  const isPremium = template.accessType === 'premium';
+  const [imgError, setImgError] = useState(false);
+
+  if (!template) return null;
+
+  const isPremium = template.accessType === 'premium' || template.accessType === 'paid' || template.accessType === 'vip';
   const isVideo = template.type === 'video';
+
+  const rawImage =
+    template.thumbnail ||
+    template.previewAsset ||
+    template.mainMedia ||
+    '';
+
+  const resolvedUri = resolveMediaUrl(rawImage);
+  const imageUri = imgError ? resolveMediaUrl(null) : resolvedUri;
 
   return (
     <PressableScale
@@ -21,11 +35,13 @@ export default function TemplateCard({ template, onPress, width, style }) {
         },
         CARD_SHADOW,
       ]}
+      contentStyle={styles.cardContent}
     >
       <Image
-        source={{ uri: template.thumbnail || template.previewAsset }}
+        source={{ uri: imageUri }}
         style={styles.image}
         resizeMode="cover"
+        onError={() => setImgError(true)}
       />
       <View style={styles.topShade} />
 
@@ -50,7 +66,7 @@ export default function TemplateCard({ template, onPress, width, style }) {
 
       {/* Bottom info */}
       <View style={styles.bottomInfo}>
-        <Text numberOfLines={1} style={styles.categoryText}>{template.categoryId?.name || 'Status'}</Text>
+        <Text numberOfLines={1} style={styles.categoryText}>{(template.categoryId && template.categoryId.name) || 'Status'}</Text>
         <Text numberOfLines={1} style={styles.titleText}>{template.name}</Text>
       </View>
     </PressableScale>
@@ -61,9 +77,15 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surfaceAlt || '#FFF1E4',
     borderWidth: 1,
     borderColor: COLORS.border,
+    position: 'relative',
+  },
+  cardContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     position: 'relative',
   },
   image: {
@@ -75,7 +97,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 64,
-    backgroundColor: 'rgba(20, 10, 2, 0.28)',
+    backgroundColor: 'rgba(20, 10, 2, 0.35)',
+    zIndex: 2,
   },
   badgeRow: {
     position: 'absolute',
@@ -126,9 +149,10 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(247, 227, 208, 0.6)',
+    zIndex: 5,
   },
   categoryText: {
     color: COLORS.orangeDeep,

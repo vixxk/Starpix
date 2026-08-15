@@ -13,7 +13,12 @@ import { fontScale, wp } from '../utils/responsive';
 export default function Toast({ message, toastKey = 0, onDone, duration = 2400, icon = 'information-circle' }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(14)).current;
+  const onDoneRef = useRef(onDone);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     if (!message) return;
@@ -29,11 +34,11 @@ export default function Toast({ message, toastKey = 0, onDone, duration = 2400, 
       Animated.parallel([
         Animated.timing(opacity, { toValue: 0, duration: 160, useNativeDriver: true }),
         Animated.timing(translateY, { toValue: 10, duration: 160, useNativeDriver: true }),
-      ]).start(() => onDone && onDone());
+      ]).start(() => onDoneRef.current && onDoneRef.current());
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [toastKey, message, duration, onDone, opacity, translateY]);
+  }, [toastKey, message, duration, opacity, translateY]);
 
   if (!message) return null;
 

@@ -9,36 +9,42 @@
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #0D0A07;
-    color: #EFE5DC;
+    font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    background-color: #F5F1E8;
+    color: #17120C;
     letter-spacing: -0.01em;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  /* Main page titles can use Anton at large sizes without synthetic bolding */
+  h1 {
+    font-family: 'Anton', 'Space Grotesk', sans-serif;
+    font-weight: 400;
+  }
+
+  /* Content headings use Space Grotesk for razor-sharp clarity and high legibility */
+  h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   }
 
   ::selection {
-    background: rgba(249, 115, 22, 0.35);
-    color: #fff;
+    background: rgba(240, 90, 12, 0.35);
+    color: #17120C;
   }
 
   .devanagari {
-    font-family: 'Noto Sans Devanagari', 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'Noto Sans Devanagari', 'Space Grotesk', system-ui, sans-serif;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #4A392C transparent;
+    scrollbar-color: #C9BAA0 transparent;
   }
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #4A392C;
-    border-radius: 9999px;
+    background: #C9BAA0;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
@@ -46,80 +52,93 @@
 }
 
 @layer components {
-  /* Surface / Card */
+  /* Surface / Card — hard-edged workbench plate */
   .panel {
-    @apply bg-[#221A14] border border-[#4A392C]/60 rounded-2xl shadow-xl;
+    @apply bg-white border-2 border-ink rounded-[2px] shadow-hard;
   }
   .panel-hover {
-    @apply transition-all duration-300 hover:border-[#F97316]/40 hover:shadow-2xl hover:shadow-orange-950/40;
+    @apply transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-lg;
   }
 
   /* Typography helpers */
+  /* Page top banner headers can use .display-hero */
+  .display-hero {
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    @apply uppercase tracking-[0.03em];
+  }
+  /* Content card titles & section headings use Space Grotesk for crisp legibility */
   .display {
-    font-family: 'Outfit', sans-serif;
-    @apply font-extrabold tracking-tight;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-weight: 700;
+    @apply uppercase tracking-[0.02em];
   }
   .label {
-    font-family: 'Outfit', sans-serif;
-    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-[#AD9380];
+    font-family: 'JetBrains Mono', monospace;
+    @apply text-[10px] font-bold uppercase tracking-[0.18em] text-ink-mute;
   }
 
-  /* Buttons */
+  /* Buttons — chunky slabs */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
+    @apply inline-flex items-center justify-center gap-2 rounded-[2px] border-2 border-ink px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-all duration-100 disabled:opacity-50 disabled:pointer-events-none cursor-pointer active:translate-x-0.5 active:translate-y-0.5 active:shadow-none;
   }
   .btn-primary {
-    @apply btn bg-[#F97316] hover:bg-[#FB923C] text-white shadow-[0_8px_24px_-8px_rgba(249,115,22,0.6)];
+    @apply btn bg-flame-500 hover:bg-flame-400 text-white shadow-hard;
   }
   .btn-secondary {
-    @apply btn bg-[#2B2119] hover:bg-[#36291F] text-[#EFE5DC] border border-[#4A392C];
+    @apply btn bg-white hover:bg-paper-100 text-ink shadow-hard;
   }
   .btn-ghost {
-    @apply btn bg-transparent hover:bg-[#2B2119] text-[#AD9380] hover:text-white;
+    @apply btn bg-transparent hover:bg-paper-100 text-ink-mute hover:text-ink border-2 border-ink/30 shadow-none;
   }
   .btn-danger {
-    @apply btn bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30;
+    @apply btn bg-red-500 hover:bg-red-400 text-white shadow-hard;
   }
 
   /* Form controls */
   .field-label {
-    @apply block text-xs font-medium text-[#D4C2B4] mb-1.5;
+    @apply block text-xs font-bold text-ink mb-1.5;
   }
   .input,
   .select,
   .textarea {
-    @apply w-full bg-[#140F0B] border border-[#4A392C] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-[#856C5A]/60 transition-colors duration-200;
+    @apply w-full bg-white border-2 border-ink rounded-[2px] px-3.5 py-2.5 text-sm text-ink placeholder-ink-faint transition-colors duration-100 font-medium;
   }
   .input:focus,
   .select:focus,
   .textarea:focus {
-    @apply outline-none border-[#F97316] ring-1 ring-[#F97316]/40;
+    @apply outline-none border-flame-500 shadow-hard-sm;
   }
   select.select option {
-    background-color: #140F0B;
-    color: #EFE5DC;
+    background-color: #ffffff;
+    color: #17120C;
   }
 
-  /* Badges / Pills */
+  /* Badges / Pills — stamped tags */
   .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold;
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-[2px] border-2 text-[10px] font-bold uppercase tracking-wider;
   }
   .badge-success {
-    @apply badge bg-[#F97316]/15 text-[#FDBA74] border border-[#F97316]/30;
+    @apply badge bg-emerald-100 text-emerald-900 border-emerald-700;
   }
   .badge-amber {
-    @apply badge bg-amber-500/10 text-amber-300 border border-amber-500/30;
+    @apply badge bg-amber-100 text-amber-900 border-amber-600;
   }
   .badge-muted {
-    @apply badge bg-[#2B2119] text-[#AD9380] border border-[#4A392C];
+    @apply badge bg-paper-100 text-ink-mute border-ink/40;
   }
   .badge-red {
-    @apply badge bg-red-500/10 text-red-400 border border-red-500/30;
+    @apply badge bg-red-100 text-red-800 border-red-600;
+  }
+
+  /* Dark-on-dark badge (used over dark media & chrome) */
+  .badge-dark {
+    @apply badge bg-ink text-paper-100 border-paper-100/40;
   }
 
   /* Icon chip */
   .icon-chip {
-    @apply w-11 h-11 rounded-xl flex items-center justify-center text-lg;
+    @apply w-11 h-11 rounded-[2px] border-2 border-ink flex items-center justify-center text-lg;
   }
 
   /* Tables */
@@ -127,16 +146,16 @@
     @apply overflow-x-auto;
   }
   .data-table {
-    @apply w-full text-left text-sm min-w-[720px];
+    @apply w-full text-left text-sm min-w-[720px] border-collapse;
   }
   .data-table thead th {
-    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-[#AD9380] px-5 py-3.5 bg-[#140F0B]/80 border-b border-[#4A392C]/70 whitespace-nowrap;
+    @apply font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink px-5 py-3.5 bg-paper-100 border-b-2 border-ink whitespace-nowrap;
   }
   .data-table tbody td {
-    @apply px-5 py-4 border-b border-[#4A392C]/40 text-[#D4C2B4] whitespace-nowrap;
+    @apply px-5 py-4 border-b border-ink/15 text-ink-soft whitespace-nowrap font-medium;
   }
   .data-table tbody tr {
-    @apply transition-colors hover:bg-[#2B2119]/60;
+    @apply transition-colors hover:bg-flame-500/5;
   }
   .data-table tbody tr:last-child td {
     border-bottom: none;
@@ -144,20 +163,106 @@
 
   /* Modal */
   .modal-backdrop {
-    @apply fixed inset-0 z-50 bg-[#0D0A07]/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto;
+    @apply fixed inset-0 z-50 bg-ink/70 flex items-center justify-center p-4 overflow-y-auto;
   }
   .modal-card {
-    @apply bg-[#221A14] border border-[#4A392C] rounded-3xl shadow-2xl w-full max-h-[90vh] flex flex-col overflow-hidden anim;
+    @apply bg-white border-2 border-ink rounded-[2px] shadow-hard-lg w-full max-h-[90vh] flex flex-col overflow-hidden anim;
   }
 
   /* Misc */
   .chip-divider {
-    @apply h-3.5 w-px bg-[#4A392C];
+    @apply h-3.5 w-px bg-ink/25;
   }
   .anim {
     animation: fade-up 0.3s ease-out both;
   }
   .link-chip {
-    @apply text-xs font-medium text-[#AD9380] hover:text-[#FB923C] transition-colors;
+    @apply text-xs font-semibold text-ink-mute hover:text-flame-600 underline underline-offset-4 transition-colors;
+  }
+
+  /* Skeleton — hard-edged block, diagonal stripe shimmer */
+  .skeleton {
+    @apply relative overflow-hidden rounded-[2px] bg-paper-200;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(23, 18, 12, 0.06) 0px,
+      rgba(23, 18, 12, 0.06) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    animation: skeleton-stripes 1s linear infinite;
+  }
+}
+
+@keyframes skeleton-stripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 32px 0;
+  }
+}
+
+/* ============================================================
+   Print — used by the invoice view (see InvoiceModal.jsx).
+   Scoped to body.printing-invoice (added right before window.print())
+   so regular pages keep printing normally.
+   ============================================================ */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  body.printing-invoice {
+    background: #ffffff !important;
+  }
+
+  /* Hide the entire app chrome + modal shell */
+  body.printing-invoice * {
+    visibility: hidden;
+  }
+
+  /* Reveal only the print document (invoice or report) */
+  body.printing-invoice #invoice-print-area,
+  body.printing-invoice #invoice-print-area *,
+  body.printing-invoice #report-print-area,
+  body.printing-invoice #report-print-area * {
+    visibility: visible;
+  }
+
+  body.printing-invoice #invoice-print-area,
+  body.printing-invoice #report-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+  }
+
+  /* Avoid splitting report blocks across pages */
+  body.printing-invoice #report-print-area .panel {
+    break-inside: avoid;
+  }
+
+  /* Un-clip the modal so multi-page invoices can break across pages */
+  body.printing-invoice #invoice-modal-card {
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  /* Force color retention for all backgrounds & text fills when printing */
+  body.printing-invoice #invoice-print-area,
+  body.printing-invoice #invoice-print-area *,
+  body.printing-invoice #report-print-area,
+  body.printing-invoice #report-print-area * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 }

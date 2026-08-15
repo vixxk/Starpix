@@ -4,10 +4,9 @@ import { CurrencyInr, FloppyDisk, LockKey, CheckCircle, Tag } from '@phosphor-ic
 
 export default function Pricing() {
   const [pricing, setPricing] = useState({
-    defaultSinglePrice: 49,
     vipPassPrice: 199,
     currency: 'INR',
-    freeTemplateLimit: 5,
+    freeTemplateLimit: 0,
     previewProtectionEnabled: true,
   });
   const [saved, setSaved] = useState(false);
@@ -28,7 +27,7 @@ export default function Pricing() {
 
       <div className="panel p-6">
         {saved && (
-          <div className="mb-5 p-3.5 bg-glow-500/10 border border-glow-500/30 rounded-xl text-glow-300 text-xs font-semibold flex items-center gap-2 anim">
+          <div className="mb-5 p-3.5 bg-emerald-100 border-2 border-emerald-700 text-emerald-900 text-xs font-semibold flex items-center gap-2 anim">
             <CheckCircle className="w-4 h-4" weight="fill" /> Pricing settings saved successfully!
           </div>
         )}
@@ -37,19 +36,7 @@ export default function Pricing() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="field-label flex items-center gap-1.5">
-                <CurrencyInr className="w-3.5 h-3.5 text-glow-400" weight="duotone" /> Single Unlock Price
-              </label>
-              <input
-                type="number"
-                value={pricing.defaultSinglePrice}
-                onChange={(e) => setPricing({ ...pricing, defaultSinglePrice: parseInt(e.target.value, 10) })}
-                className="input"
-              />
-            </div>
-
-            <div>
-              <label className="field-label flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-glow-400" weight="duotone" /> VIP Pass Price
+                <Tag className="w-3.5 h-3.5 text-glow-600" weight="duotone" /> VIP Pass Price
               </label>
               <input
                 type="number"
@@ -76,17 +63,17 @@ export default function Pricing() {
               <input
                 type="number"
                 value={pricing.freeTemplateLimit}
-                onChange={(e) => setPricing({ ...pricing, freeTemplateLimit: parseInt(e.target.value, 10) })}
+                onChange={(e) => setPricing({ ...pricing, freeTemplateLimit: parseInt(e.target.value, 10) || 0 })}
                 className="input"
               />
             </div>
           </div>
 
-          <div className="p-4 bg-glow-500/[0.06] border border-glow-500/20 rounded-2xl space-y-3">
-            <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-              <LockKey className="w-4 h-4 text-glow-400" weight="duotone" /> Screenshot & Preview Security
+          <div className="p-4 bg-paper-100 border-2 border-ink rounded-[2px] space-y-3">
+            <h4 className="font-semibold text-sm text-ink flex items-center gap-2">
+              <LockKey className="w-4 h-4 text-glow-600" weight="duotone" /> Screenshot & Preview Security
             </h4>
-            <label className="flex items-center gap-2.5 cursor-pointer text-sm text-night-200 font-medium">
+            <label className="flex items-center gap-2.5 cursor-pointer text-sm text-ink-soft font-medium">
               <input
                 type="checkbox"
                 checked={pricing.previewProtectionEnabled}

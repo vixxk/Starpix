@@ -54,7 +54,7 @@ export default function CreateHubScreen() {
 
           <AppButton
             title="Browse Templates"
-            onPress={() => router.push('/(tabs)/explore')}
+            onPress={() => router.push('/(tabs)')}
             style={{ marginTop: hp(0.03) }}
           />
 

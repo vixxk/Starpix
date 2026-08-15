@@ -1,13 +1,19 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { COLORS } from '../constants/colors';
+import { COLORS, BRUTAL } from '../constants/colors';
 
-export default function AppBackground({ children, style }) {
+export default function AppBackground({ children, style, variant = 'soft' }) {
+  const isBrutal = variant === 'bone';
+
   return (
-    <View style={[styles.container, style]}>
-      {/* Soft orange radial glows */}
-      <View style={[styles.glow, styles.glowTop]} />
-      <View style={[styles.glow, styles.glowBottom]} />
+    <View style={[styles.container, isBrutal && styles.brutalContainer, style]}>
+      {!isBrutal && (
+        <>
+          {/* Soft orange radial glows */}
+          <View style={[styles.glow, styles.glowTop]} />
+          <View style={[styles.glow, styles.glowBottom]} />
+        </>
+      )}
 
       {/* Screen Content */}
       <View style={styles.content}>{children}</View>
@@ -21,6 +27,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     position: 'relative',
     overflow: 'hidden',
+  },
+  brutalContainer: {
+    backgroundColor: BRUTAL.bone,
   },
   glow: {
     position: 'absolute',

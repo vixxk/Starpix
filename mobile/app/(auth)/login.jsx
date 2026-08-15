@@ -5,19 +5,23 @@ import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
 import AppButton from '../../src/components/AppButton';
-import { COLORS, FONTS } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD, CARD_SHADOW } from '../../src/utils/responsive';
+import BrutalCard from '../../src/components/BrutalCard';
+import ConfirmModal from '../../src/components/ConfirmModal';
+import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
+import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('9876543210');
   const [name, setName] = useState('Vivek Sharma');
+  const [focusedInput, setFocusedInput] = useState(null);
+  const [alertMessage, setAlertMessage] = useState(null);
   const { requestOtp, isAuthenticating, error } = useAuthStore();
   const router = useRouter();
 
   const handleSendOtp = async () => {
     if (phone.length < 10) {
-      alert('Please enter a valid 10-digit mobile number');
+      setAlertMessage('Please enter a valid 10-digit mobile number');
       return;
     }
     try {
@@ -28,71 +32,116 @@ export default function LoginScreen() {
     }
   };
 
+  const inputBorder = (key) => (focusedInput === key ? { borderColor: BRUTAL.flame, borderLeftWidth: 2 } : null);
+
   return (
-    <AppBackground>
+    <AppBackground variant="bone">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+        {/* Watermark */}
+        <Text style={styles.watermark} numberOfLines={1}>
+          STATUZZZ
+        </Text>
+
         <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoLetter}>S</Text>
+          <View style={styles.logoWrap}>
+            <View style={styles.logoPlate} pointerEvents="none" />
+            <View style={styles.logoBadge}>
+              <Text style={styles.logoLetter}>S</Text>
+            </View>
           </View>
-          <Text style={styles.brandTitle}>Statuzzz</Text>
-          <Text style={styles.brandSubtitle}>Personalized statuses & creative quotes</Text>
+          <Text style={styles.brandTitle}>STATUZZZ</Text>
+          <Text style={styles.brandSubtitle}>CONTROL ROOM // STATUS ENGINE</Text>
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>Sign up / Log in</Text>
+        <BrutalCard offset={wp(0.018)}>
+          {/* Ink slab header strip */}
+          <View style={styles.cardHeader}>
+            <View style={styles.flameCorner} pointerEvents="none" />
+            <Text style={styles.cardHeaderText}>Sign up / Log in</Text>
             <View style={styles.otpBadge}>
               <Text style={styles.otpBadgeText}>OTP</Text>
             </View>
           </View>
-          <Text style={styles.cardSubtitle}>
-            New users register automatically. Enter your phone number to receive a 6-digit OTP.
-          </Text>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          <View style={styles.cardBody}>
+            <Text style={styles.cardSubtitle}>
+              New users register automatically. Enter your phone number to receive a 6-digit OTP.
+            </Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Your Name</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Vivek Sharma"
-              placeholderTextColor={COLORS.inkFaint}
-              style={styles.textInput}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Mobile Number</Text>
-            <View style={styles.phoneInputContainer}>
-              <View style={styles.countryCode}>
-                <Text style={styles.countryCodeText}>+91</Text>
+            {error && (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle-outline" size={16} color={BRUTAL.error} />
+                <Text style={styles.errorText}>{error}</Text>
               </View>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Your Name</Text>
               <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                maxLength={10}
-                placeholder="9876543210"
-                placeholderTextColor={COLORS.inkFaint}
-                style={[styles.textInput, styles.phoneInput]}
+                value={name}
+                onChangeText={setName}
+                onFocus={() => setFocusedInput('name')}
+                onBlur={() => setFocusedInput(null)}
+                placeholder="e.g. Vivek Sharma"
+                placeholderTextColor={BRUTAL.inkFaint}
+                style={[styles.textInput, inputBorder('name')]}
               />
             </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Mobile Number</Text>
+              <View style={styles.phoneInputContainer}>
+                <View style={styles.countryCode}>
+                  <Text style={styles.countryCodeText}>+91</Text>
+                </View>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  onFocus={() => setFocusedInput('phone')}
+                  onBlur={() => setFocusedInput(null)}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  placeholder="9876543210"
+                  placeholderTextColor={BRUTAL.inkFaint}
+                  style={[styles.textInput, styles.phoneInput, inputBorder('phone')]}
+                />
+              </View>
+            </View>
+
+            <AppButton
+              title={isAuthenticating ? 'Sending OTP…' : 'Get Verification Code'}
+              onPress={handleSendOtp}
+              loading={isAuthenticating}
+              variant="brutal"
+              style={{ marginTop: hp(0.014) }}
+            />
+
+            <PressableScale
+              onPress={() => router.replace('/(tabs)')}
+              scaleTo={0.94}
+              style={styles.skipButton}
+              contentStyle={styles.skipContent}
+            >
+              <Text style={styles.skipText}>Skip for now · explore as guest</Text>
+            </PressableScale>
           </View>
+        </BrutalCard>
 
-          <AppButton
-            title={isAuthenticating ? 'Sending OTP…' : 'Get Verification Code'}
-            onPress={handleSendOtp}
-            loading={isAuthenticating}
-            style={{ marginTop: hp(0.014) }}
-          />
-
-          <PressableScale onPress={() => router.replace('/(tabs)')} scaleTo={0.94} style={styles.skipButton} contentStyle={styles.skipContent}>
-            <Text style={styles.skipText}>Skip for now · explore as guest</Text>
-          </PressableScale>
-        </View>
+        <Text style={styles.footerStamp}>© STATUZZZ · MOBILE STATUS PLATFORM</Text>
       </KeyboardAvoidingView>
+
+      {/* Themed Validation Alert */}
+      <ConfirmModal
+        visible={alertMessage !== null}
+        title="Invalid Input"
+        message={alertMessage}
+        confirmText="OK"
+        icon="alert-circle-outline"
+        iconColor={COLORS.orange}
+        hideCancel
+        onCancel={() => setAlertMessage(null)}
+        onConfirm={() => setAlertMessage(null)}
+      />
     </AppBackground>
   );
 }
@@ -102,105 +151,150 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: SCREEN_PAD,
+    paddingVertical: hp(0.02),
+  },
+  watermark: {
+    position: 'absolute',
+    bottom: -hp(0.01),
+    left: -wp(0.02),
+    fontSize: fontScale(110),
+    fontFamily: FONTS.display,
+    color: 'rgba(23, 18, 12, 0.05)',
+    letterSpacing: -2,
+    zIndex: 0,
   },
   header: {
     alignItems: 'center',
-    marginBottom: hp(0.04),
+    marginBottom: hp(0.035),
+    zIndex: 1,
+  },
+  logoWrap: {
+    position: 'relative',
+    marginBottom: 14,
+  },
+  logoPlate: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    right: 0,
+    bottom: 0,
+    backgroundColor: BRUTAL.ink,
   },
   logoBadge: {
-    width: 66,
-    height: 66,
-    borderRadius: 22,
-    backgroundColor: COLORS.orange,
+    width: 68,
+    height: 68,
+    borderRadius: 2,
+    backgroundColor: BRUTAL.flame,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
-    ...CARD_SHADOW,
-    shadowOpacity: 0.3,
   },
   logoLetter: {
-    color: COLORS.white,
-    fontSize: fontScale(33),
-    fontFamily: FONTS.black,
+    color: BRUTAL.ink,
+    fontSize: fontScale(36),
+    fontFamily: FONTS.display,
   },
   brandTitle: {
-    color: COLORS.ink,
-    fontSize: fontScale(28),
-    fontFamily: FONTS.extrabold,
-    letterSpacing: 0.5,
+    color: BRUTAL.ink,
+    fontSize: fontScale(30),
+    fontFamily: FONTS.display,
+    letterSpacing: 1,
   },
   brandSubtitle: {
-    color: COLORS.orange,
-    fontSize: fontScale(13),
+    color: BRUTAL.flame,
+    fontSize: fontScale(9.5),
     fontFamily: FONTS.semibold,
-    marginTop: 4,
+    letterSpacing: 2.2,
+    marginTop: 6,
+    textTransform: 'uppercase',
   },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    padding: wp(0.06),
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...CARD_SHADOW,
-  },
-  cardTitleRow: {
+  cardHeader: {
+    backgroundColor: BRUTAL.ink,
+    paddingHorizontal: wp(0.05),
+    paddingVertical: hp(0.016),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
   },
-  cardTitle: {
-    color: COLORS.ink,
-    fontSize: fontScale(19),
-    fontFamily: FONTS.extrabold,
-    letterSpacing: -0.3,
+  flameCorner: {
+    position: 'absolute',
+    right: -22,
+    top: -22,
+    width: 64,
+    height: 64,
+    backgroundColor: BRUTAL.flame,
+  },
+  cardHeaderText: {
+    color: BRUTAL.paper,
+    fontSize: fontScale(18),
+    fontFamily: FONTS.display,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   otpBadge: {
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
+    backgroundColor: BRUTAL.flame,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 10,
+    zIndex: 1,
   },
   otpBadgeText: {
-    color: COLORS.orange,
+    color: BRUTAL.ink,
     fontSize: fontScale(10),
     fontFamily: FONTS.bold,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+  },
+  cardBody: {
+    padding: wp(0.05),
   },
   cardSubtitle: {
-    color: COLORS.inkMuted,
+    color: BRUTAL.inkMute,
     fontSize: fontScale(12),
     fontFamily: FONTS.medium,
-    marginTop: 6,
-    marginBottom: hp(0.024),
-    lineHeight: 18,
+    lineHeight: 19,
+    marginBottom: hp(0.02),
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FDECEC',
+    borderWidth: 2,
+    borderColor: BRUTAL.error,
+    borderRadius: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: hp(0.016),
   },
   errorText: {
-    color: COLORS.error,
+    color: BRUTAL.error,
     fontSize: fontScale(12),
-    fontFamily: FONTS.medium,
-    marginBottom: 12,
+    fontFamily: FONTS.semibold,
+    flex: 1,
   },
   inputGroup: {
     marginBottom: hp(0.018),
   },
   inputLabel: {
-    color: COLORS.inkMuted,
-    fontSize: fontScale(11),
+    color: BRUTAL.inkSoft,
+    fontSize: fontScale(10.5),
     fontFamily: FONTS.semibold,
     marginBottom: 7,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 1.6,
   },
   textInput: {
-    backgroundColor: COLORS.background,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderStrong,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 50,
-    color: COLORS.ink,
+    backgroundColor: BRUTAL.bone,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
+    borderRadius: 2,
+    paddingHorizontal: 15,
+    height: 52,
+    color: BRUTAL.ink,
     fontSize: fontScale(14),
     fontFamily: FONTS.medium,
   },
@@ -209,18 +303,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   countryCode: {
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderStrong,
+    backgroundColor: BRUTAL.ink,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
     borderRightWidth: 0,
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
+    borderRadius: 2,
     paddingHorizontal: 14,
-    height: 50,
+    height: 52,
     justifyContent: 'center',
   },
   countryCodeText: {
-    color: COLORS.orange,
+    color: BRUTAL.flame,
     fontSize: fontScale(14),
     fontFamily: FONTS.bold,
   },
@@ -231,15 +324,26 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
   },
   skipButton: {
-    marginTop: 18,
+    marginTop: 16,
     paddingVertical: 6,
   },
   skipContent: {
     alignItems: 'center',
   },
   skipText: {
-    color: COLORS.inkMuted,
-    fontSize: fontScale(12),
+    color: BRUTAL.inkMute,
+    fontSize: fontScale(11),
     fontFamily: FONTS.semibold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  footerStamp: {
+    color: 'rgba(23, 18, 12, 0.35)',
+    fontSize: fontScale(8.5),
+    fontFamily: FONTS.bold,
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginTop: hp(0.024),
+    zIndex: 1,
   },
 });

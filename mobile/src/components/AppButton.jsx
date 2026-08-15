@@ -1,6 +1,6 @@
 import React from 'react';
-import { Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { COLORS, FONTS } from '../constants/colors';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { COLORS, FONTS, BRUTAL } from '../constants/colors';
 import { fontScale, wp } from '../utils/responsive';
 import PressableScale from './PressableScale';
 
@@ -15,6 +15,7 @@ export default function AppButton({
 }) {
   const isPrimary = variant === 'primary';
   const isSecondary = variant === 'secondary';
+  const isBrutal = variant === 'brutal';
 
   return (
     <PressableScale
@@ -25,12 +26,26 @@ export default function AppButton({
         styles.button,
         isPrimary && styles.primaryButton,
         isSecondary && styles.secondaryButton,
+        isBrutal && styles.brutalButton,
         disabled && styles.disabledButton,
         style,
       ]}
       contentStyle={styles.content}
     >
-      {loading ? (
+      {isBrutal ? (
+        <View style={styles.brutalWrap}>
+          {/* Hard shadow plate */}
+          <View style={styles.brutalPlate} pointerEvents="none" />
+          {/* Stamped face */}
+          <View style={styles.brutalFace}>
+            {loading ? (
+              <ActivityIndicator color={BRUTAL.ink} />
+            ) : (
+              <Text style={[styles.brutalText, textStyle]}>{title}</Text>
+            )}
+          </View>
+        </View>
+      ) : loading ? (
         <ActivityIndicator color={isPrimary ? COLORS.white : COLORS.orange} />
       ) : (
         <Text style={[styles.text, isSecondary && styles.secondaryText, textStyle]}>
@@ -45,12 +60,18 @@ const styles = StyleSheet.create({
   button: {
     minHeight: 54,
     borderRadius: 16,
-    paddingHorizontal: wp(0.04),
     width: '100%',
-  },
-  content: {
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  content: {
+    width: '100%',
+    minHeight: 54,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: wp(0.04),
   },
   primaryButton: {
     backgroundColor: COLORS.orange,
@@ -70,11 +91,45 @@ const styles = StyleSheet.create({
   },
   text: {
     color: COLORS.white,
-    fontSize: fontScale(15),
+    fontSize: fontScale(15.5),
     fontFamily: FONTS.bold,
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   secondaryText: {
     color: COLORS.orange,
+  },
+  brutalWrap: {
+    position: 'relative',
+    width: '100%',
+  },
+  brutalPlate: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    right: 0,
+    bottom: 0,
+    backgroundColor: BRUTAL.ink,
+  },
+  brutalFace: {
+    minHeight: 54,
+    backgroundColor: BRUTAL.flame,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
+    borderRadius: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: wp(0.04),
+    position: 'relative',
+    zIndex: 2,
+  },
+  brutalText: {
+    color: BRUTAL.ink,
+    fontSize: fontScale(14.5),
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
 });

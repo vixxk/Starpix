@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#07140B"
+        "backgroundColor": "#140F0B"
       },
       "package": "com.statuzzz.app"
     },

@@ -2,16 +2,19 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-// Smart resolution for backend API URL:
-// - Physical device via Expo Go: Automatically detects laptop IP from hostUri (e.g., http://192.168.0.x:5000/api)
-// - Simulator / Web / Localhost: Uses http://localhost:5000/api
 const getBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl && !envUrl.includes('localhost')) {
     return envUrl;
   }
 
-  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  // Detect Expo Go host IP dynamically
+  const hostUri =
+    (Constants.expoConfig && Constants.expoConfig.hostUri) ||
+    (Constants.expoGoConfig && Constants.expoGoConfig.debuggerHost) ||
+    (Constants.manifest && Constants.manifest.debuggerHost) ||
+    (Constants.manifest2 && Constants.manifest2.extra && Constants.manifest2.extra.expoGo && Constants.manifest2.extra.expoGo.debuggerHost);
+
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
@@ -19,7 +22,7 @@ const getBaseUrl = () => {
     }
   }
 
-  return envUrl || 'http://localhost:5000/api';
+  return 'http://192.168.0.120:5000/api';
 };
 
 const API_BASE_URL = getBaseUrl();
@@ -48,6 +51,12 @@ API.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       await AsyncStorage.removeItem('statuzzz_user_token');
       await AsyncStorage.removeItem('statuzzz_user_data');
+      try {
+        const { useAuthStore } = require('../store/useAuthStore');
+        useAuthStore.getState().logout();
+      } catch (e) {
+        // ignore
+      }
     }
     return Promise.reject(error);
   }

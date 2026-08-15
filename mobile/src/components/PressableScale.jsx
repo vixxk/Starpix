@@ -49,7 +49,7 @@ export default function PressableScale({
         onPressOut={handlePressOut}
         disabled={disabled}
         accessibilityRole="button"
-        style={[{ flex: 1 }, contentStyle]}
+        style={contentStyle}
         {...rest}
       >
         {children}

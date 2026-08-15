@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, Modal, StyleSheet, Animated, Pressable, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '../constants/colors';
 import { fontScale, wp, hp } from '../utils/responsive';
 import API from '../utils/api';
@@ -12,6 +13,8 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function PaywallModal({ visible, template, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const router = useRouter();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
@@ -32,7 +35,10 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
   }, [translateY, overlayOpacity]);
 
   useEffect(() => {
-    if (visible) animateIn();
+    if (visible) {
+      setError(null);
+      animateIn();
+    }
   }, [visible, animateIn]);
 
   const handleClose = useCallback(() => {
@@ -43,30 +49,23 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
 
   const handleUnlockSingle = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await API.post('/payments/create-order', {
+      // Backend createPayment auto-grants the entitlement in development mode
+      const res = await API.post('/payments/create', {
         templateId: template._id,
         amount: template.price || 49,
       });
 
-      const { orderId } = res.data.data;
-
-      const verifyRes = await API.post('/payments/verify', {
-        razorpay_order_id: orderId,
-        razorpay_payment_id: `pay_sim_${Date.now()}`,
-        razorpay_signature: 'dev_signature_pass',
-        templateId: template._id,
-      });
-
-      if (verifyRes.data.success) {
+      if (res.data.success) {
         hapticSuccess();
         animateOut(() => {
-          onSuccess && onSuccess(verifyRes.data.data);
+          onSuccess && onSuccess(res.data.data);
           onClose();
         });
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Error processing unlock request');
+      setError((err.response && err.response.data && err.response.data.message) || 'Error processing unlock request. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -85,12 +84,12 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
           <View style={styles.handle} />
           <PressableScale onPress={handleClose} scaleTo={0.85} style={styles.closeBtn} contentStyle={styles.closeContent}>
-            <Ionicons name="close" size={18} color={COLORS.inkMuted} />
+            <Ionicons name="close" size={18} color={COLORS.ink} />
           </PressableScale>
 
           <View style={styles.header}>
             <View style={styles.crownBadge}>
-              <Ionicons name="crown" size={24} color="#000" />
+              <MaterialCommunityIcons name="crown" size={26} color="#1c1917" />
             </View>
             <Text style={styles.title}>Unlock Premium Creation</Text>
             <Text style={styles.subtitle}>
@@ -101,28 +100,45 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
           {/* Pricing Options */}
           <View style={styles.optionsContainer}>
             <View style={[styles.optionCard, styles.selectedOption]}>
-              <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>Single Unlock</Text>
-                <Text style={styles.optionDesc}>Unlimited HD exports for this template</Text>
+              <View style={styles.optionRowContent}>
+                <View style={styles.optionTextWrap}>
+                  <Text style={styles.optionTitle}>Single Unlock</Text>
+                  <Text style={styles.optionDesc}>Unlimited HD exports for this template</Text>
+                </View>
+                <Text style={styles.optionPrice}>₹{template.price || 49}</Text>
               </View>
-              <Text style={styles.optionPrice}>₹{template.price || 49}</Text>
             </View>
 
-            <View style={styles.optionCard}>
+            <PressableScale
+              onPress={() => {
+                animateOut(() => {
+                  onClose();
+                  router.push('/vip');
+                });
+              }}
+              scaleTo={0.97}
+              style={styles.optionCard}
+              contentStyle={styles.optionRowContent}
+            >
               <View style={styles.optionTextWrap}>
                 <Text style={styles.optionTitle}>VIP All-Access Pass</Text>
-                <Text style={styles.optionDesc}>Unlock ALL 100+ premium status templates</Text>
+                <Text style={styles.optionDesc}>Unlock ALL premium + VIP-exclusive templates</Text>
               </View>
-              <Text style={styles.optionPriceAlt}>₹199/mo</Text>
-            </View>
+              <View style={styles.optionRight}>
+                <Text style={styles.optionPriceAlt}>₹199/mo</Text>
+                <Ionicons name="chevron-forward" size={15} color={COLORS.inkFaint} />
+              </View>
+            </PressableScale>
           </View>
 
           <AppButton
             title={loading ? 'Processing Unlock...' : `Unlock Now for ₹${template.price || 49}`}
             onPress={handleUnlockSingle}
             loading={loading}
-            style={{ marginTop: hp(0.02) }}
+            style={{ marginTop: 20 }}
           />
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
 
           <Text style={styles.devNotice}>⚡ Development Mode · Instant Auto-Unlock</Text>
         </Animated.View>
@@ -161,17 +177,19 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     position: 'absolute',
-    top: 24,
-    right: 20,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    top: 18,
+    right: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: 1.2,
+    borderColor: COLORS.borderStrong,
     zIndex: 10,
   },
   closeContent: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -214,14 +232,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 16,
     borderRadius: 16,
     backgroundColor: COLORS.surface,
     borderWidth: 1.5,
     borderColor: COLORS.borderStrong,
+  },
+  optionRowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   selectedOption: {
     borderColor: COLORS.orange,
@@ -258,5 +283,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 14,
     fontFamily: FONTS.medium,
+  },
+  errorText: {
+    color: COLORS.error,
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 17,
+    paddingHorizontal: 10,
   },
 });

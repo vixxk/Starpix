@@ -1,22 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../constants/colors';
 import { wp, hp, fontScale, SCREEN_PAD, SPACING, CARD_SHADOW } from '../utils/responsive';
 import PressableScale from './PressableScale';
 
+import { resolveMediaUrl } from '../utils/media';
+
 export default function CampaignCard({ campaign, onPress }) {
+  const [imgError, setImgError] = useState(false);
+
   if (!campaign) return null;
+
+  const rawImage = campaign.heroBackground || campaign.heroImage;
+  const resolvedUri = resolveMediaUrl(rawImage);
+  const imageUri = imgError ? resolveMediaUrl(null) : resolvedUri;
 
   return (
     <PressableScale
       onPress={onPress}
       scaleTo={0.97}
       style={styles.container}
+      contentStyle={styles.cardContent}
     >
       <Image
-        source={{ uri: campaign.heroBackground || campaign.heroImage }}
+        source={{ uri: imageUri }}
         style={styles.image}
         resizeMode="cover"
+        onError={() => setImgError(true)}
       />
       <View style={styles.overlay} />
 
@@ -49,6 +59,12 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     position: 'relative',
     ...CARD_SHADOW,
+  },
+  cardContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    position: 'relative',
   },
   image: {
     ...StyleSheet.absoluteFillObject,

@@ -24,8 +24,10 @@ const getActiveOpeningCampaign = asyncHandler(async (req, res) => {
   const campaign = await Campaign.findOne({
     active: true,
     showOnAppOpening: true,
-    $or: [{ startDate: { $lte: now } }, { startDate: null }],
-    $or: [{ endDate: { $gte: now } }, { endDate: null }],
+    $and: [
+      { $or: [{ startDate: { $lte: now } }, { startDate: null }] },
+      { $or: [{ endDate: { $gte: now } }, { endDate: null }] },
+    ],
   })
     .populate('featuredTemplates')
     .populate('featuredCategories')
@@ -34,6 +36,24 @@ const getActiveOpeningCampaign = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: campaign || null,
+  });
+});
+
+// @desc    Get single campaign by ID (mobile campaign detail page)
+// @route   GET /api/campaigns/:id
+// @access  Public
+const getCampaignById = asyncHandler(async (req, res) => {
+  const campaign = await Campaign.findById(req.params.id)
+    .populate('featuredTemplates')
+    .populate('featuredCategories');
+
+  if (!campaign) {
+    return res.status(404).json({ success: false, message: 'Campaign not found' });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: campaign,
   });
 });
 
@@ -94,6 +114,7 @@ const deleteCampaign = asyncHandler(async (req, res) => {
 
 module.exports = {
   getCampaigns,
+  getCampaignById,
   getActiveOpeningCampaign,
   createCampaign,
   updateCampaign,
