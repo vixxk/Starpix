@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
   },
   cardLeft: {
     width: wp(0.22),
-    aspectRatio: 0.75,
+    aspectRatio: 9 / 16,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: COLORS.surfaceLight,

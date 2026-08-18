@@ -3,6 +3,7 @@ import API from '../services/api';
 import PageHead from '../components/PageHead';
 import { TableSkeleton } from '../components/Skeleton';
 import InvoiceModal from '../components/InvoiceModal';
+import { printDocument } from '../utils/print';
 import {
   CreditCard,
   CheckCircle,
@@ -21,6 +22,17 @@ export default function Purchases() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [invoicePurchase, setInvoicePurchase] = useState(null);
+
+  const handleInvoiceClick = (p) => {
+    setInvoicePurchase(p);
+    if (window.innerWidth < 640) {
+      setTimeout(() => {
+        printDocument(() => {
+          setInvoicePurchase(null);
+        });
+      }, 150);
+    }
+  };
 
   const fetchPurchases = async () => {
     setLoading(true);
@@ -46,7 +58,7 @@ export default function Purchases() {
   }, [search, statusFilter]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3.5 sm:space-y-5">
       <PageHead
         icon={<CreditCard className="w-6 h-6" weight="duotone" />}
         title="Purchases & Financial Ledger"
@@ -54,33 +66,46 @@ export default function Purchases() {
       />
 
       {/* Financial Summary Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="panel p-4 flex items-center justify-between border-amber-500/20 bg-amber-500/5">
-          <div>
-            <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Total Revenue</p>
-            <h3 className="text-2xl font-bold text-ink mt-1 tabular-nums">₹{(metrics.totalRevenue || 0).toLocaleString('en-IN')}</h3>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-4">
+        <div className="panel p-1.5 sm:p-4 flex items-center justify-between border-amber-500/20 bg-amber-500/5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[8px] sm:text-xs font-semibold text-amber-600 uppercase tracking-wide truncate">
+              <span className="hidden sm:inline">Total </span>Revenue
+            </p>
+            <h3 className="text-xs sm:text-2xl font-bold text-ink mt-0.5 sm:mt-1 tabular-nums truncate">
+              ₹{(metrics.totalRevenue || 0).toLocaleString('en-IN')}
+            </h3>
           </div>
-          <div className="p-3 bg-amber-500/10 rounded-xl text-amber-600">
+          <div className="hidden sm:flex p-3 bg-amber-500/10 rounded-xl text-amber-600 shrink-0">
             <CurrencyInr className="w-6 h-6" weight="bold" />
           </div>
         </div>
 
-        <div className="panel p-4 flex items-center justify-between border-glow-500/20 bg-glow-500/5">
-          <div>
-            <p className="text-xs font-semibold text-glow-600 uppercase tracking-wide">Successful Unlocks</p>
-            <h3 className="text-2xl font-bold text-ink mt-1 tabular-nums">{metrics.successfulCount || 0}</h3>
+        <div className="panel p-1.5 sm:p-4 flex items-center justify-between border-glow-500/20 bg-glow-500/5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[8px] sm:text-xs font-semibold text-glow-600 uppercase tracking-wide truncate">
+              <span className="hidden sm:inline">Successful </span>Unlocks
+            </p>
+            <h3 className="text-xs sm:text-2xl font-bold text-ink mt-0.5 sm:mt-1 tabular-nums truncate">
+              {metrics.successfulCount || 0}
+            </h3>
           </div>
-          <div className="p-3 bg-ink rounded-[2px] text-flame-400">
+          <div className="hidden sm:flex p-3 bg-ink rounded-[2px] text-flame-400 shrink-0">
             <Receipt className="w-6 h-6" weight="duotone" />
           </div>
         </div>
 
-        <div className="panel p-4 flex items-center justify-between border-sky-500/20 bg-sky-500/5">
-          <div>
-            <p className="text-xs font-semibold text-sky-600 uppercase tracking-wide">Avg Order Value (AOV)</p>
-            <h3 className="text-2xl font-bold text-ink mt-1 tabular-nums">₹{metrics.avgOrderValue || 0}</h3>
+        <div className="panel p-1.5 sm:p-4 flex items-center justify-between border-sky-500/20 bg-sky-500/5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[8px] sm:text-xs font-semibold text-sky-600 uppercase tracking-wide truncate">
+              <span className="sm:hidden">Avg Order</span>
+              <span className="hidden sm:inline">Avg Order Value (AOV)</span>
+            </p>
+            <h3 className="text-xs sm:text-2xl font-bold text-ink mt-0.5 sm:mt-1 tabular-nums truncate">
+              ₹{metrics.avgOrderValue || 0}
+            </h3>
           </div>
-          <div className="p-3 bg-sky-500/10 rounded-xl text-sky-600">
+          <div className="hidden sm:flex p-3 bg-sky-500/10 rounded-xl text-sky-600 shrink-0">
             <CreditCard className="w-6 h-6" weight="duotone" />
           </div>
         </div>
@@ -207,7 +232,7 @@ export default function Purchases() {
                     <td>
                       <div className="flex items-center justify-end">
                         <button
-                          onClick={() => setInvoicePurchase(p)}
+                          onClick={() => handleInvoiceClick(p)}
                           title="View / print invoice"
                           className="inline-flex items-center gap-1.5 border-2 border-ink bg-paper-50 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink hover:bg-flame-500 hover:shadow-hard-sm transition-all"
                         >

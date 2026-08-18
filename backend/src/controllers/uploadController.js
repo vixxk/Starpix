@@ -23,6 +23,35 @@ const uploadSingleMedia = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Proxy media image for CORS-safe processing
+// @route   GET /api/uploads/proxy-image
+// @access  Public / Admin
+const proxyImage = asyncHandler(async (req, res) => {
+  const { url } = req.query;
+  if (!url) {
+    return res.status(400).json({ success: false, message: 'URL parameter is required' });
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(response.status).json({ success: false, message: `Failed to fetch image: ${response.statusText}` });
+    }
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(buffer);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch image from URL: ' + err.message });
+  }
+});
+
 module.exports = {
   uploadSingleMedia,
+  proxyImage,
 };
+

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, SafeAreaView, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet, SafeAreaView, Dimensions, Image, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,9 +16,24 @@ import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { resolveMediaUrl } from '../../src/utils/media';
+import { hapticTap } from '../../src/utils/haptics';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+
+const isVideoUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const clean = url.split('?')[0].toLowerCase();
+  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov') || clean.includes('/video/');
+};
+
+const getFooterThumbnail = (foot) => {
+  if (!foot) return null;
+  if (foot.thumbnail && !isVideoUrl(foot.thumbnail)) return resolveMediaUrl(foot.thumbnail);
+  if (foot.videoAsset && !isVideoUrl(foot.videoAsset)) return resolveMediaUrl(foot.videoAsset);
+  return null;
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CANVAS_WIDTH = SCREEN_WIDTH * 0.72;
@@ -27,8 +42,7 @@ const CANVAS_HEIGHT = CANVAS_WIDTH * (16 / 9);
 const TABS = [
   { key: 'photo', label: 'Photo', icon: 'image-outline' },
   { key: 'text', label: 'Text', icon: 'text-outline' },
-  { key: 'frames', label: 'Frames', icon: 'square-outline' },
-  { key: 'effects', label: 'Effects', icon: 'sparkles-outline' },
+  { key: 'footers', label: 'Footers', icon: 'film-outline' },
 ];
 
 export default function TemplateEditorScreen() {
@@ -149,11 +163,16 @@ export default function TemplateEditorScreen() {
         ]);
 
         if (resT.data.success) {
+          const tData = resT.data.data;
           const storeState = useCreationStore.getState();
           const isRestored = storeState.isRestoredSession && storeState.activeTemplate && (storeState.activeTemplate._id === id || storeState.activeTemplate.id === id);
           if (!isRestored) {
             const profileName = user?.name || user?.displayName || null;
-            setActiveTemplate(resT.data.data, profileName);
+            const existingFooter = storeState.selectedFooter || storeState.selectedEffect;
+            setActiveTemplate(tData, profileName);
+            if (existingFooter !== undefined) {
+              setSelectedEffect(existingFooter);
+            }
           }
 
           if (resT.data.data.accessType === 'free') {
@@ -244,7 +263,7 @@ export default function TemplateEditorScreen() {
 
           {/* Canvas Skeleton */}
           <View style={styles.canvasContainer}>
-            <Skeleton height={CANVAS_HEIGHT} width={CANVAS_WIDTH} borderRadius={24} />
+            <Skeleton height={CANVAS_HEIGHT} width={CANVAS_WIDTH} borderRadius={0} />
           </View>
 
           {/* Editor Panel Skeleton */}
@@ -293,11 +312,6 @@ export default function TemplateEditorScreen() {
                 color={isFav ? COLORS.error || '#ef4444' : COLORS.orange}
               />
             </PressableScale>
-
-            <PressableScale onPress={handleResetTemplate} scaleTo={0.93} style={styles.resetHeaderBtn} contentStyle={styles.resetHeaderContent}>
-              <Ionicons name="refresh-outline" size={14} color={COLORS.orange} />
-              <Text style={styles.resetHeaderBtnText}>Reset</Text>
-            </PressableScale>
           </View>
         </View>
 
@@ -323,6 +337,38 @@ export default function TemplateEditorScreen() {
 
         {/* Edit panel */}
         <View style={styles.editorPanel}>
+          <View style={styles.tabHeader}>
+            <PressableScale
+              onPress={() => setActiveTab('photo')}
+              scaleTo={0.95}
+              style={[styles.tabItem, activeTab === 'photo' && styles.activeTabItem]}
+              contentStyle={styles.tabItemContent}
+            >
+              <Ionicons name="camera-outline" size={15} color={activeTab === 'photo' ? COLORS.white : '#8A7A68'} />
+              <Text style={[styles.tabText, activeTab === 'photo' && styles.activeTabText]}>Photo</Text>
+            </PressableScale>
+
+            <PressableScale
+              onPress={() => setActiveTab('text')}
+              scaleTo={0.95}
+              style={[styles.tabItem, activeTab === 'text' && styles.activeTabItem]}
+              contentStyle={styles.tabItemContent}
+            >
+              <Ionicons name="text-outline" size={15} color={activeTab === 'text' ? COLORS.white : '#8A7A68'} />
+              <Text style={[styles.tabText, activeTab === 'text' && styles.activeTabText]}>Name</Text>
+            </PressableScale>
+
+            <PressableScale
+              onPress={() => setActiveTab('footers')}
+              scaleTo={0.95}
+              style={[styles.tabItem, (activeTab === 'footers' || activeTab === 'effects') && styles.activeTabItem]}
+              contentStyle={styles.tabItemContent}
+            >
+              <Ionicons name="film-outline" size={15} color={(activeTab === 'footers' || activeTab === 'effects') ? COLORS.white : '#8A7A68'} />
+              <Text style={[styles.tabText, (activeTab === 'footers' || activeTab === 'effects') && styles.activeTabText]}>Footers</Text>
+            </PressableScale>
+          </View>
+
           <View style={styles.tabContent}>
             {activeTab === 'photo' && (
               <View style={styles.controlsStack}>
@@ -366,79 +412,6 @@ export default function TemplateEditorScreen() {
                   />
                 </PressableScale>
 
-                {userPhotoUri && (
-                  <View style={styles.positioningContainer}>
-                    <Text style={styles.positionTitle}>Photo Placement & Scale</Text>
-                    <View style={styles.positionPadRow}>
-                      <View style={styles.dpadGrid}>
-                        <PressableScale
-                          onPress={() => setPhotoTransform({ photoOffsetY: photoOffsetY - 12 })}
-                          scaleTo={0.9}
-                          style={styles.dpadBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="chevron-up" size={18} color={COLORS.ink} />
-                        </PressableScale>
-
-                        <View style={styles.dpadMidRow}>
-                          <PressableScale
-                            onPress={() => setPhotoTransform({ photoOffsetX: photoOffsetX - 12 })}
-                            scaleTo={0.9}
-                            style={styles.dpadBtn}
-                            contentStyle={styles.dpadContent}
-                          >
-                            <Ionicons name="chevron-back" size={18} color={COLORS.ink} />
-                          </PressableScale>
-                          <PressableScale
-                            onPress={() => setPhotoTransform({ photoOffsetX: 0, photoOffsetY: 0, photoScale: 1 })}
-                            scaleTo={0.9}
-                            style={styles.dpadResetBtn}
-                            contentStyle={styles.dpadContent}
-                          >
-                            <Ionicons name="refresh" size={14} color={COLORS.orange} />
-                          </PressableScale>
-                          <PressableScale
-                            onPress={() => setPhotoTransform({ photoOffsetX: photoOffsetX + 12 })}
-                            scaleTo={0.9}
-                            style={styles.dpadBtn}
-                            contentStyle={styles.dpadContent}
-                          >
-                            <Ionicons name="chevron-forward" size={18} color={COLORS.ink} />
-                          </PressableScale>
-                        </View>
-
-                        <PressableScale
-                          onPress={() => setPhotoTransform({ photoOffsetY: photoOffsetY + 12 })}
-                          scaleTo={0.9}
-                          style={styles.dpadBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="chevron-down" size={18} color={COLORS.ink} />
-                        </PressableScale>
-                      </View>
-
-                      <View style={styles.zoomColumn}>
-                        <Text style={styles.controlSubLabel}>Zoom</Text>
-                        <PressableScale
-                          onPress={() => setPhotoTransform({ photoScale: Math.min(2.5, photoScale + 0.15) })}
-                          scaleTo={0.9}
-                          style={styles.zoomBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="add" size={18} color={COLORS.ink} />
-                        </PressableScale>
-                        <PressableScale
-                          onPress={() => setPhotoTransform({ photoScale: Math.max(0.4, photoScale - 0.15) })}
-                          scaleTo={0.9}
-                          style={styles.zoomBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="remove" size={18} color={COLORS.ink} />
-                        </PressableScale>
-                      </View>
-                    </View>
-                  </View>
-                )}
               </View>
             )}
 
@@ -464,139 +437,93 @@ export default function TemplateEditorScreen() {
                     </PressableScale>
                   )}
                 </View>
-
-                {userNameText !== '' && (
-                  <View style={styles.positioningContainer}>
-                    <Text style={styles.positionTitle}>Name Placement & Size</Text>
-                    <View style={styles.positionPadRow}>
-                      <View style={styles.dpadGrid}>
-                        <PressableScale
-                          onPress={() => setNameTransform({ nameOffsetY: nameOffsetY - 10 })}
-                          scaleTo={0.9}
-                          style={styles.dpadBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="chevron-up" size={18} color={COLORS.ink} />
-                        </PressableScale>
-
-                        <View style={styles.dpadMidRow}>
-                          <PressableScale
-                            onPress={() => setNameTransform({ nameOffsetX: nameOffsetX - 10 })}
-                            scaleTo={0.9}
-                            style={styles.dpadBtn}
-                            contentStyle={styles.dpadContent}
-                          >
-                            <Ionicons name="chevron-back" size={18} color={COLORS.ink} />
-                          </PressableScale>
-                          <PressableScale
-                            onPress={() => setNameTransform({ nameOffsetX: 0, nameOffsetY: 0, nameFontSizeScale: 1 })}
-                            scaleTo={0.9}
-                            style={styles.dpadResetBtn}
-                            contentStyle={styles.dpadContent}
-                          >
-                            <Ionicons name="refresh" size={14} color={COLORS.orange} />
-                          </PressableScale>
-                          <PressableScale
-                            onPress={() => setNameTransform({ nameOffsetX: nameOffsetX + 10 })}
-                            scaleTo={0.9}
-                            style={styles.dpadBtn}
-                            contentStyle={styles.dpadContent}
-                          >
-                            <Ionicons name="chevron-forward" size={18} color={COLORS.ink} />
-                          </PressableScale>
-                        </View>
-
-                        <PressableScale
-                          onPress={() => setNameTransform({ nameOffsetY: nameOffsetY + 10 })}
-                          scaleTo={0.9}
-                          style={styles.dpadBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="chevron-down" size={18} color={COLORS.ink} />
-                        </PressableScale>
-                      </View>
-
-                      <View style={styles.zoomColumn}>
-                        <Text style={styles.controlSubLabel}>Size</Text>
-                        <PressableScale
-                          onPress={() => setNameTransform({ nameFontSizeScale: Math.min(2.5, nameFontSizeScale + 0.15) })}
-                          scaleTo={0.9}
-                          style={styles.zoomBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="add" size={18} color={COLORS.ink} />
-                        </PressableScale>
-                        <PressableScale
-                          onPress={() => setNameTransform({ nameFontSizeScale: Math.max(0.5, nameFontSizeScale - 0.15) })}
-                          scaleTo={0.9}
-                          style={styles.zoomBtn}
-                          contentStyle={styles.dpadContent}
-                        >
-                          <Ionicons name="remove" size={18} color={COLORS.ink} />
-                        </PressableScale>
-                      </View>
-                    </View>
-                  </View>
-                )}
               </View>
             )}
 
-            {activeTab === 'frames' && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalOptions}>
-                <PressableScale
-                  onPress={() => setSelectedFrame(null)}
-                  scaleTo={0.93}
-                  style={[styles.optionChip, !selectedFrame && styles.selectedOptionChip]}
-                  contentStyle={styles.chipContent}
+            {(activeTab === 'footers' || activeTab === 'effects') && (
+              <View style={styles.footersContainer}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.footerScrollContent}
                 >
-                  <Text style={[styles.optionChipText, !selectedFrame && styles.selectedOptionChipText]}>None</Text>
-                </PressableScale>
-                {frames
-                  .filter((f) => {
-                    if (!activeTemplate || (!activeTemplate.categoryId && !activeTemplate.categoryId)) return true;
-                    const catId = (activeTemplate.categoryId && activeTemplate.categoryId._id) ? activeTemplate.categoryId._id : activeTemplate.categoryId;
-                    return !f.category || f.category._id === catId || f.category === catId;
-                  })
-                  .map((f) => (
-                    <PressableScale
-                      key={f._id}
-                      onPress={() => setSelectedFrame(f)}
-                      scaleTo={0.93}
-                      style={[styles.optionChip, Boolean(selectedFrame && selectedFrame._id === f._id) && styles.selectedOptionChip]}
-                      contentStyle={styles.chipContent}
-                    >
-                      <Text style={[styles.optionChipText, Boolean(selectedFrame && selectedFrame._id === f._id) && styles.selectedOptionChipText]}>
-                        {f.name}
-                      </Text>
-                    </PressableScale>
-                  ))}
-              </ScrollView>
-            )}
-
-            {activeTab === 'effects' && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalOptions}>
-                <PressableScale
-                  onPress={() => setSelectedEffect(null)}
-                  scaleTo={0.93}
-                  style={[styles.optionChip, !selectedEffect && styles.selectedOptionChip]}
-                  contentStyle={styles.chipContent}
-                >
-                  <Text style={[styles.optionChipText, !selectedEffect && styles.selectedOptionChipText]}>None</Text>
-                </PressableScale>
-                {effects.map((ef) => (
-                  <PressableScale
-                    key={ef._id}
-                    onPress={() => setSelectedEffect(ef)}
-                    scaleTo={0.93}
-                    style={[styles.optionChip, Boolean(selectedEffect && selectedEffect._id === ef._id) && styles.selectedOptionChip]}
-                    contentStyle={styles.chipContent}
+                  {/* Box #1: None option (Default state: selectedEffect === null) */}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      hapticTap();
+                      setSelectedEffect(null);
+                    }}
+                    style={[
+                      styles.footerBox,
+                      selectedEffect === null && styles.footerBoxActive,
+                    ]}
                   >
-                    <Text style={[styles.optionChipText, Boolean(selectedEffect && selectedEffect._id === ef._id) && styles.selectedOptionChipText]}>
-                      {ef.name}
-                    </Text>
-                  </PressableScale>
-                ))}
-              </ScrollView>
+                    <Ionicons
+                      name="ban-outline"
+                      size={fontScale(17)}
+                      color={selectedEffect === null ? COLORS.orange : '#64748B'}
+                    />
+                    {selectedEffect === null && (
+                      <View style={styles.checkBadge}>
+                        <Ionicons name="checkmark" size={8} color={COLORS.white} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Admin Uploaded Footer Thumbnail Boxes */}
+                  {((activeTemplate && activeTemplate.footers && activeTemplate.footers.length > 0)
+                    ? activeTemplate.footers
+                    : (activeTemplate?.availableFilters || effects || [])
+                  ).map((ft, idx) => {
+                    const isSelected = Boolean(
+                      selectedEffect &&
+                        (selectedEffect === ft ||
+                          (selectedEffect._id && ft._id && selectedEffect._id === ft._id) ||
+                          (selectedEffect.videoAsset && ft.videoAsset && selectedEffect.videoAsset === ft.videoAsset) ||
+                          (selectedEffect.name && ft.name && selectedEffect.name === ft.name))
+                    );
+                    const thumbUri = getFooterThumbnail(ft);
+
+                    return (
+                      <TouchableOpacity
+                        key={ft._id || ft.videoAsset || idx}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          hapticTap();
+                          setSelectedEffect(ft);
+                        }}
+                        style={[
+                          styles.footerBox,
+                          isSelected && styles.footerBoxActive,
+                        ]}
+                      >
+                        {thumbUri ? (
+                          <Image
+                            source={{ uri: thumbUri }}
+                            style={styles.footerBoxThumb}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.fallbackIconContainer}>
+                            <Ionicons
+                              name="sparkles"
+                              size={fontScale(16)}
+                              color={isSelected ? COLORS.orange : '#64748B'}
+                            />
+                          </View>
+                        )}
+
+                        {isSelected && (
+                          <View style={styles.checkBadge}>
+                            <Ionicons name="checkmark" size={8} color={COLORS.white} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             )}
           </View>
         </View>
@@ -967,8 +894,80 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   horizontalOptions: {
-    gap: 8,
+    gap: 10,
     paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  footersContainer: {
+    gap: 8,
+  },
+  footerSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 2,
+    marginBottom: 2,
+  },
+  footerSectionTitle: {
+    color: COLORS.ink,
+    fontSize: fontScale(12),
+    fontFamily: FONTS.bold,
+  },
+  footerScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  footerBox: {
+    width: hp(0.046),
+    height: hp(0.046),
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  footerBoxActive: {
+    borderColor: COLORS.orange,
+    borderWidth: 2,
+    backgroundColor: '#FFF7ED',
+    shadowColor: COLORS.orange,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  footerBoxThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  fallbackIconContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    backgroundColor: COLORS.orange,
+    borderRadius: 6,
+    width: 12,
+    height: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
   optionChip: {
     backgroundColor: COLORS.surfaceAlt,

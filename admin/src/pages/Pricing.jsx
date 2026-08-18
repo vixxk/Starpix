@@ -18,14 +18,14 @@ export default function Pricing() {
   };
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-2xl space-y-3.5 sm:space-y-5">
       <PageHead
         icon={<Tag className="w-6 h-6" weight="duotone" />}
         title="Pricing & Paywall"
         subtitle="Global unlock pricing & paywall security rules"
       />
 
-      <div className="panel p-6">
+      <div className="panel p-3.5 sm:p-6">
         {saved && (
           <div className="mb-5 p-3.5 bg-emerald-100 border-2 border-emerald-700 text-emerald-900 text-xs font-semibold flex items-center gap-2 anim">
             <CheckCircle className="w-4 h-4" weight="fill" /> Pricing settings saved successfully!

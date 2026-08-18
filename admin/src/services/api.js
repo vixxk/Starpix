@@ -29,6 +29,7 @@ API.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('statuzzz_admin_token');
       localStorage.removeItem('statuzzz_admin_user');
+      localStorage.removeItem('statuzzz_admin_expiry');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

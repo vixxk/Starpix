@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ModalPortal from './ModalPortal';
 import {
   ChartBar,
   Sparkle,
@@ -132,7 +133,8 @@ export default function Sidebar({ open, onClose }) {
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 bg-ink/70 flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-ink/70 flex items-center justify-center p-4">
           <div className="max-w-sm w-full p-6 text-center rounded-[2px] bg-white border-2 border-ink shadow-hard-lg anim">
             <div className="w-12 h-12 rounded-[2px] bg-flame-500 border-2 border-ink flex items-center justify-center mx-auto mb-4 shadow-hard-sm">
               <SignOut className="w-6 h-6 text-ink" weight="duotone" />
@@ -162,6 +164,7 @@ export default function Sidebar({ open, onClose }) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   );

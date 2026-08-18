@@ -1,14 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
 import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD, SPACING, CARD_SHADOW } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { useCreationStore } from '../../src/store/useCreationStore';
+import { resolveMediaUrl } from '../../src/utils/media';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
+import Toast from '../../src/components/Toast';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -21,17 +25,32 @@ const MENU = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout, fetchUser, isLoading } = useAuthStore();
+  const { user, logout, fetchUser, updateUserProfile, isLoading } = useAuthStore();
+  const defaultUserPhotoUri = useCreationStore((state) => state.defaultUserPhotoUri);
+  const setDefaultUserPhotoUri = useCreationStore((state) => state.setDefaultUserPhotoUri);
+
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [toastMessage, setToastMessage] = useState(null);
+  const [toastKey, setToastKey] = useState(0);
+
+  const effectivePhotoUri = defaultUserPhotoUri || user?.profilePhoto || null;
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.replace('/(auth)/login');
     }
   }, [user, isLoading, router]);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setToastKey((k) => k + 1);
+  };
+
+  const handleToastDone = useCallback(() => setToastMessage(null), []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -44,6 +63,43 @@ export default function ProfileScreen() {
     }
     setRefreshing(false);
   }, [fetchUser]);
+
+  const handlePickProfileImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        showToast('Gallery access permission is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
+        const uri = result.assets[0].uri;
+        setDefaultUserPhotoUri(uri);
+        if (updateUserProfile) {
+          await updateUserProfile({ profilePhoto: uri });
+        }
+        showToast('Default photo updated! Applied to all template previews.');
+      }
+    } catch (err) {
+      console.error('Error picking profile image:', err);
+      showToast('Failed to select image from gallery.');
+    }
+  };
+
+  const handleRemoveProfileImage = async () => {
+    setDefaultUserPhotoUri(null);
+    if (updateUserProfile) {
+      await updateUserProfile({ profilePhoto: '' });
+    }
+    showToast('Default status photo removed.');
+  };
 
   const handleLogoutPress = () => {
     setShowLogoutModal(true);
@@ -76,23 +132,37 @@ export default function ProfileScreen() {
           }
         >
           {/* Profile header */}
-          <View style={styles.profileCard}>
+          <PressableScale onPress={() => router.push('/edit-profile')} scaleTo={0.98} style={styles.profileCard}>
             <View style={styles.profileTop}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{user.name ? user.name.substring(0, 1) : 'U'}</Text>
+              <View style={styles.avatarWrapper}>
+                {effectivePhotoUri ? (
+                  <Image
+                    source={{ uri: resolveMediaUrl(effectivePhotoUri) }}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{user.name ? user.name.substring(0, 1) : 'U'}</Text>
+                  </View>
+                )}
+                <View style={styles.cameraBadge}>
+                  <Ionicons name="pencil" size={12} color={COLORS.white} />
+                </View>
               </View>
+
               <View style={styles.identity}>
                 <Text style={styles.userName}>{user.name || 'User'}</Text>
                 <Text style={styles.userPhone}>{user.phoneNumber || '+91'}</Text>
               </View>
+
               <View style={[styles.badge, user.isPremium ? styles.premiumBadge : styles.freeBadge]}>
                 <Text style={[styles.badgeText, user.isPremium ? styles.premiumText : styles.freeText]}>
                   {user.isPremium ? 'VIP' : 'FREE'}
                 </Text>
               </View>
             </View>
-            <Text style={styles.memberSince}>Member — Statuzzz Community</Text>
-          </View>
+          </PressableScale>
 
           {/* Menu */}
           <Text style={styles.sectionLabel}>Your Account</Text>
@@ -120,6 +190,9 @@ export default function ProfileScreen() {
           </PressableScale>
         </ScrollView>
       </View>
+
+      {/* Toast Notification */}
+      <Toast message={toastMessage} toastKey={toastKey} onDone={handleToastDone} />
 
       {/* Themed Logout Confirmation */}
       <ConfirmModal
@@ -157,20 +230,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  avatarWrapper: {
+    position: 'relative',
+  },
   avatar: {
-    width: wp(0.15),
-    height: wp(0.15),
-    borderRadius: wp(0.075),
+    width: wp(0.16),
+    height: wp(0.16),
+    borderRadius: wp(0.08),
     backgroundColor: COLORS.orange,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
     borderColor: COLORS.orangeSoft,
   },
+  avatarImage: {
+    width: wp(0.16),
+    height: wp(0.16),
+    borderRadius: wp(0.08),
+    borderWidth: 3,
+    borderColor: COLORS.orange,
+  },
   avatarText: {
     color: COLORS.white,
     fontSize: fontScale(24),
     fontFamily: FONTS.extrabold,
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: COLORS.orangeDeep || '#d97706',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   identity: {
     flex: 1,
@@ -187,6 +283,14 @@ const styles = StyleSheet.create({
     fontSize: fontScale(13),
     fontFamily: FONTS.medium,
     marginTop: 2,
+  },
+  changePhotoBtn: {
+    marginTop: 6,
+  },
+  changePhotoText: {
+    color: COLORS.orange,
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.bold,
   },
   badge: {
     paddingHorizontal: 10,
@@ -224,9 +328,88 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginTop: hp(0.032),
+    marginTop: hp(0.028),
     marginBottom: 10,
     marginLeft: 4,
+  },
+  photoSettingsCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: wp(0.045),
+    ...CARD_SHADOW,
+  },
+  photoSettingsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  photoPreviewThumbWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: COLORS.orangeSoft,
+  },
+  photoPreviewThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  emptyPhotoThumb: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.orangeTint,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoSettingsTextWrap: {
+    flex: 1,
+  },
+  photoSettingsTitle: {
+    color: COLORS.ink,
+    fontSize: fontScale(14),
+    fontFamily: FONTS.bold,
+  },
+  photoSettingsSub: {
+    color: COLORS.inkMuted,
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+    marginTop: 2,
+    lineHeight: fontScale(16),
+  },
+  photoActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+  },
+  pickPhotoBtn: {
+    flex: 1,
+    backgroundColor: COLORS.orange,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  pickPhotoBtnText: {
+    color: COLORS.white,
+    fontSize: fontScale(12.5),
+    fontFamily: FONTS.bold,
+  },
+  removePhotoBtn: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  btnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   optionsCard: {
     backgroundColor: COLORS.surface,
@@ -283,3 +466,4 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
   },
 });
+

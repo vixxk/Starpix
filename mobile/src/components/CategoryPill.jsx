@@ -4,7 +4,7 @@ import { COLORS, FONTS } from '../constants/colors';
 import { fontScale } from '../utils/responsive';
 import { hapticImpact } from '../utils/haptics';
 
-export default function CategoryPill({ category, isSelected, onPress }) {
+export default function CategoryPill({ category, isSelected, onPress, small = false }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -34,12 +34,16 @@ export default function CategoryPill({ category, isSelected, onPress }) {
         }}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        style={[styles.pill, isSelected ? styles.selectedPill : styles.unselectedPill]}
+        style={[
+          styles.pill,
+          small && styles.smallPill,
+          isSelected ? styles.selectedPill : styles.unselectedPill,
+        ]}
       >
-        <View style={[styles.iconWrap, isSelected && styles.selectedIconWrap]}>
-          <Text style={styles.icon}>{category.icon || '✨'}</Text>
+        <View style={[styles.iconWrap, small && styles.smallIconWrap, isSelected && styles.selectedIconWrap]}>
+          <Text style={[styles.icon, small && styles.smallIcon]}>{category.icon || '✨'}</Text>
         </View>
-        <Text style={[styles.text, isSelected ? styles.selectedText : styles.unselectedText]}>
+        <Text style={[styles.text, small && styles.smallText, isSelected ? styles.selectedText : styles.unselectedText]}>
           {category.name}
         </Text>
       </Pressable>
@@ -58,6 +62,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
     gap: 5,
   },
+  smallPill: {
+    height: 26,
+    paddingHorizontal: 9,
+    borderRadius: 13,
+    marginRight: 6,
+    borderWidth: 1,
+    gap: 4,
+  },
   iconWrap: {
     width: 20,
     height: 20,
@@ -65,6 +77,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.orangeTint,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  smallIconWrap: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   selectedIconWrap: {
     backgroundColor: 'rgba(255, 255, 255, 0.24)',
@@ -86,11 +103,17 @@ const styles = StyleSheet.create({
     fontSize: fontScale(11),
     textAlign: 'center',
   },
+  smallIcon: {
+    fontSize: fontScale(9.5),
+  },
   text: {
     fontSize: fontScale(11.5),
     fontFamily: FONTS.semibold,
     includeFontPadding: false,
     textAlignVertical: 'center',
+  },
+  smallText: {
+    fontSize: fontScale(10),
   },
   selectedText: {
     color: COLORS.white,

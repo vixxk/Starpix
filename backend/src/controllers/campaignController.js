@@ -1,14 +1,14 @@
 const asyncHandler = require('../utils/asyncHandler');
 const Campaign = require('../models/Campaign');
 
-// @desc    Get active campaigns
+// @desc    Get all campaigns (Admin view & list)
 // @route   GET /api/campaigns
 // @access  Public
 const getCampaigns = asyncHandler(async (req, res) => {
-  const campaigns = await Campaign.find({ active: true })
+  const campaigns = await Campaign.find({})
     .populate('featuredTemplates')
     .populate('featuredCategories')
-    .sort({ priority: -1, createdAt: -1 });
+    .sort({ active: -1, createdAt: -1 });
 
   res.status(200).json({
     success: true,
@@ -61,10 +61,15 @@ const getCampaignById = asyncHandler(async (req, res) => {
 // @route   POST /api/campaigns
 // @access  Private (Admin)
 const createCampaign = asyncHandler(async (req, res) => {
-  const campaignData = req.body;
+  const campaignData = {
+    ...req.body,
+    active: req.body.active !== undefined ? req.body.active : true,
+    showOnAppOpening: true,
+  };
 
-  if (campaignData.showOnAppOpening) {
-    // Optionally unmark other opening campaigns if priority is highest
+  if (campaignData.active) {
+    // Only 1 campaign active at a time - deactivate all others
+    await Campaign.updateMany({}, { active: false, showOnAppOpening: false });
   }
 
   const campaign = await Campaign.create(campaignData);
@@ -79,7 +84,14 @@ const createCampaign = asyncHandler(async (req, res) => {
 // @route   PUT /api/campaigns/:id
 // @access  Private (Admin)
 const updateCampaign = asyncHandler(async (req, res) => {
-  const campaign = await Campaign.findByIdAndUpdate(req.params.id, req.body, {
+  const updateData = { ...req.body };
+  if (updateData.active) {
+    updateData.showOnAppOpening = true;
+    // Only 1 campaign active at a time - deactivate all others
+    await Campaign.updateMany({ _id: { $ne: req.params.id } }, { active: false, showOnAppOpening: false });
+  }
+
+  const campaign = await Campaign.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true,
   });

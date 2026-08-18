@@ -47,7 +47,7 @@ function ProtectedLayout() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8 anim">
+        <main className="flex-1 px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 lg:py-8">
           <div className="max-w-[1440px] mx-auto">
             <Outlet />
           </div>

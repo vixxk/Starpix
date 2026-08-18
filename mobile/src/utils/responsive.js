@@ -40,8 +40,8 @@ export const SCREEN_DIMENSIONS = {
 
 // ---- Consistent layout tokens ---------------------------------------------
 
-// Uniform horizontal page padding (18.75px on a 375 screen)
-export const SCREEN_PAD = wp(0.05);
+// Uniform horizontal page padding
+export const SCREEN_PAD = wp(0.035);
 
 // Standard spacing scale (4pt base)
 export const SPACING = {
@@ -55,10 +55,12 @@ export const SPACING = {
 };
 
 // Consistent grid gutters
-export const GRID_GAP = 12;
+export const GRID_GAP = 8;
 
-// Perfectly aligned two-column card width
-export const CARD_WIDTH = (wp(1) - SCREEN_PAD * 2 - GRID_GAP) / 2;
+// Pure percentage-based responsive layout tokens (Exact 1:1 snap alignment for zero cumulative drift)
+export const CARD_WIDTH = wp(0.72);
+export const CARD_HEIGHT = CARD_WIDTH * (16 / 9);
+export const SINGLE_CARD_SNAP_HEIGHT = CARD_HEIGHT + hp(0.125);
 
 // Shared surface shadow (subtle, warm-neutral)
 export const CARD_SHADOW = {

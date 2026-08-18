@@ -22,6 +22,10 @@ export const useAuthStore = create((set, get) => ({
           if (res.data && res.data.success) {
             set({ user: res.data.data });
             await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
+            if (res.data.data.profilePhoto) {
+              const { useCreationStore } = require('./useCreationStore');
+              useCreationStore.getState().setDefaultUserPhotoUri(res.data.data.profilePhoto);
+            }
           }
         } catch (e) {
           if (e.response && e.response.status === 401) {
@@ -84,6 +88,10 @@ export const useAuthStore = create((set, get) => ({
       if (res.data.success) {
         set({ user: res.data.data });
         await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
+        if (updatedData.profilePhoto) {
+          const { useCreationStore } = require('./useCreationStore');
+          useCreationStore.getState().setDefaultUserPhotoUri(updatedData.profilePhoto);
+        }
       }
     } catch (e) {
       console.error('Error updating user profile:', e);

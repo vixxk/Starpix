@@ -1,85 +1,240 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { CARD_WIDTH, CARD_HEIGHT, CARD_SHADOW, SINGLE_CARD_SNAP_HEIGHT, hp, wp, fontScale } from '../utils/responsive';
 import { COLORS, FONTS } from '../constants/colors';
-import { CARD_WIDTH, CARD_SHADOW, fontScale } from '../utils/responsive';
+import { hapticTap } from '../utils/haptics';
 import PressableScale from './PressableScale';
+import TemplateRenderer from './TemplateRenderer';
+import { useCreationStore } from '../store/useCreationStore';
 import { resolveMediaUrl } from '../utils/media';
 
-export default function TemplateCard({ template, onPress, width, style }) {
-  const [imgError, setImgError] = useState(false);
+const isVideoUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  return Boolean(
+    url.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) ||
+    url.includes('/video/') ||
+    url.includes('.mp4')
+  );
+};
+
+const getFooterThumbnail = (foot) => {
+  if (foot && foot.thumbnail && !isVideoUrl(foot.thumbnail)) {
+    return resolveMediaUrl(foot.thumbnail);
+  }
+  if (foot && foot.videoAsset && !isVideoUrl(foot.videoAsset)) {
+    return resolveMediaUrl(foot.videoAsset);
+  }
+  return null;
+};
+
+const DEFAULT_FOOTERS = [
+  {
+    _id: 'def_1',
+    name: 'Mahadev Trishul',
+    videoAsset: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=800&q=80',
+    thumbnail: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=300&q=80',
+    heightPercent: 35,
+    objectFit: 'contain',
+  },
+  {
+    _id: 'def_2',
+    name: 'Golden Smoke',
+    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=300&q=80',
+    heightPercent: 40,
+    objectFit: 'cover',
+  },
+  {
+    _id: 'def_3',
+    name: 'Sparkle Waves',
+    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    thumbnail: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=300&q=80',
+    heightPercent: 38,
+    objectFit: 'contain',
+  },
+];
+
+export default function TemplateCard({ template, onPress, width, height, style, shouldPlay = true }) {
+  const router = useRouter();
+  const storeUserPhotoUri = useCreationStore((s) => s.userPhotoUri || s.defaultUserPhotoUri);
+  const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
+
+  const availableFooters = (template && template.footers && template.footers.length > 0) ? template.footers : DEFAULT_FOOTERS;
+  // By default, None (null) is selected
+  const [selectedFooter, setSelectedFooter] = useState(null);
 
   if (!template) return null;
 
-  const isPremium = template.accessType === 'premium' || template.accessType === 'paid' || template.accessType === 'vip';
-  const isVideo = template.type === 'video';
+  const cardWidth = width || CARD_WIDTH;
+  const cardHeight = height || (width ? width * (16 / 9) : CARD_HEIGHT);
 
-  const rawImage =
-    template.thumbnail ||
-    template.previewAsset ||
-    template.mainMedia ||
-    '';
+  const handleEditDetails = () => {
+    hapticTap();
+    router.push('/edit-profile');
+  };
 
-  const resolvedUri = resolveMediaUrl(rawImage);
-  const imageUri = imgError ? resolveMediaUrl(null) : resolvedUri;
+  const handleDownload = () => {
+    hapticTap();
+    useCreationStore.getState().setSelectedFooter(selectedFooter);
+    if (onPress) {
+      onPress(selectedFooter);
+    } else {
+      router.push(`/template/${template._id}`);
+    }
+  };
 
   return (
-    <PressableScale
-      onPress={onPress}
-      scaleTo={0.95}
-      style={[
-        styles.card,
-        style,
-        {
-          width: width || CARD_WIDTH,
-          aspectRatio: 0.72,
-        },
-        CARD_SHADOW,
-      ]}
-      contentStyle={styles.cardContent}
-    >
-      <Image
-        source={{ uri: imageUri }}
-        style={styles.image}
-        resizeMode="cover"
-        onError={() => setImgError(true)}
-      />
-      <View style={styles.topShade} />
+    <View style={[styles.cardWrapper, { width: cardWidth }, style]}>
+      {/* Main Template Card Frame */}
+      <PressableScale
+        onPress={handleDownload}
+        scaleTo={0.98}
+        style={[
+          styles.card,
+          {
+            width: cardWidth,
+            height: cardHeight,
+          },
+          CARD_SHADOW,
+        ]}
+        contentStyle={styles.cardContent}
+      >
+        <TemplateRenderer
+          template={template}
+          userPhotoUri={storeUserPhotoUri}
+          userNameText={storeUserNameText || 'Your Status'}
+          selectedFooter={selectedFooter}
+          canvasWidth={cardWidth}
+          canvasHeight={cardHeight}
+          showWatermark={false}
+          isMuted={true}
+          shouldPlay={shouldPlay}
+        />
+      </PressableScale>
 
-      {/* Top badges */}
-      <View style={styles.badgeRow}>
-        {isPremium ? (
-          <View style={[styles.badge, styles.premiumBadge]}>
-            <Text style={styles.premiumText}>PREMIUM</Text>
-          </View>
-        ) : (
-          <View style={[styles.badge, styles.freeBadge]}>
-            <Text style={styles.freeText}>FREE</Text>
-          </View>
-        )}
+      {/* Separated Action Buttons Row directly under every template card */}
+      <View style={[styles.actionRow, { width: cardWidth }]}>
+        <PressableScale
+          onPress={handleEditDetails}
+          scaleTo={0.95}
+          style={styles.editBtn}
+          contentStyle={styles.btnContent}
+        >
+          <Ionicons name="create-outline" size={fontScale(16)} color={COLORS.ink} />
+          <Text style={styles.editBtnText}>Edit Details</Text>
+        </PressableScale>
 
-        {isVideo && (
-          <View style={[styles.badge, styles.videoBadge]}>
-            <Text style={styles.videoText}>VIDEO</Text>
-          </View>
-        )}
+        <PressableScale
+          onPress={handleDownload}
+          scaleTo={0.95}
+          style={styles.downloadBtn}
+          contentStyle={styles.btnContent}
+        >
+          <Ionicons name="arrow-down-circle-outline" size={fontScale(17)} color={COLORS.white} />
+          <Text style={styles.downloadBtnText}>Download</Text>
+        </PressableScale>
       </View>
 
-      {/* Bottom info */}
-      <View style={styles.bottomInfo}>
-        <Text numberOfLines={1} style={styles.categoryText}>{(template.categoryId && template.categoryId.name) || 'Status'}</Text>
-        <Text numberOfLines={1} style={styles.titleText}>{template.name}</Text>
+      {/* Footer Thumbnail Selector Row under the two buttons */}
+      <View style={[styles.footerSelectorRow, { width: cardWidth }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          contentContainerStyle={styles.footerScrollContent}
+        >
+          {/* Box #1: None option (Default state: selectedFooter === null) */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              hapticTap();
+              setSelectedFooter(null);
+            }}
+            style={[
+              styles.footerBox,
+              selectedFooter === null && styles.footerBoxActive,
+            ]}
+          >
+            <Ionicons
+              name="ban-outline"
+              size={fontScale(17)}
+              color={selectedFooter === null ? COLORS.orange : '#64748B'}
+            />
+            {selectedFooter === null && (
+              <View style={styles.checkBadge}>
+                <Ionicons name="checkmark" size={8} color={COLORS.white} />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Admin Uploaded Footer Thumbnail Boxes */}
+          {availableFooters.map((foot, idx) => {
+            const isSelected = Boolean(
+              selectedFooter &&
+                ((selectedFooter._id && foot._id && selectedFooter._id === foot._id) ||
+                  selectedFooter.name === foot.name)
+            );
+            const thumbUri = getFooterThumbnail(foot);
+
+            return (
+              <TouchableOpacity
+                key={foot._id || `foot_${idx}`}
+                activeOpacity={0.7}
+                onPress={() => {
+                  hapticTap();
+                  setSelectedFooter(foot);
+                }}
+                style={[
+                  styles.footerBox,
+                  isSelected && styles.footerBoxActive,
+                ]}
+              >
+                {thumbUri ? (
+                  <Image
+                    source={{ uri: thumbUri }}
+                    style={styles.footerBoxThumb}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.fallbackIconContainer}>
+                    <Ionicons
+                      name="sparkles"
+                      size={fontScale(16)}
+                      color={isSelected ? COLORS.orange : '#64748B'}
+                    />
+                  </View>
+                )}
+
+                {isSelected && (
+                  <View style={styles.checkBadge}>
+                    <Ionicons name="checkmark" size={8} color={COLORS.white} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
-    </PressableScale>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  cardWrapper: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: SINGLE_CARD_SNAP_HEIGHT,
+    marginVertical: 0,
+  },
   card: {
-    borderRadius: 16,
+    borderRadius: 0,
     overflow: 'hidden',
-    backgroundColor: COLORS.surfaceAlt || '#FFF1E4',
+    backgroundColor: '#1E1005',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     position: 'relative',
   },
   cardContent: {
@@ -88,83 +243,105 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  image: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topShade: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 64,
-    backgroundColor: 'rgba(20, 10, 2, 0.35)',
-    zIndex: 2,
-  },
-  badgeRow: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
+  actionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 10,
+    justifyContent: 'space-between',
+    gap: wp(0.025),
+    marginTop: hp(0.008),
   },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  editBtn: {
+    flex: 1,
+    height: hp(0.044),
+    borderRadius: hp(0.012),
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 0, 0, 0.12)',
   },
-  premiumBadge: {
-    backgroundColor: COLORS.gold,
-  },
-  premiumText: {
-    color: '#000',
-    fontSize: fontScale(9),
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.4,
-  },
-  freeBadge: {
-    backgroundColor: COLORS.orange,
-  },
-  freeText: {
-    color: COLORS.white,
-    fontSize: fontScale(9),
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.4,
-  },
-  videoBadge: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  videoText: {
-    color: COLORS.white,
-    fontSize: fontScale(9),
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.4,
-  },
-  bottomInfo: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(247, 227, 208, 0.6)',
-    zIndex: 5,
-  },
-  categoryText: {
-    color: COLORS.orangeDeep,
-    fontSize: fontScale(9),
-    fontFamily: FONTS.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  titleText: {
+  editBtnText: {
     color: COLORS.ink,
-    fontSize: fontScale(12.5),
+    fontSize: fontScale(12),
     fontFamily: FONTS.bold,
-    marginTop: 2,
+  },
+  downloadBtn: {
+    flex: 1,
+    height: hp(0.044),
+    borderRadius: hp(0.012),
+    backgroundColor: COLORS.orange,
+    elevation: 3,
+    shadowColor: COLORS.orange,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+  },
+  downloadBtnText: {
+    color: COLORS.white,
+    fontSize: fontScale(12),
+    fontFamily: FONTS.bold,
+  },
+  btnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: '100%',
+  },
+  footerSelectorRow: {
+    marginTop: hp(0.008),
+  },
+  footerScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  footerBox: {
+    width: hp(0.046),
+    height: hp(0.046),
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  footerBoxActive: {
+    borderColor: COLORS.orange,
+    borderWidth: 2,
+    backgroundColor: '#FFF7ED',
+    shadowColor: COLORS.orange,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  footerBoxThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  fallbackIconContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    backgroundColor: COLORS.orange,
+    borderRadius: 6,
+    width: 12,
+    height: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
 });

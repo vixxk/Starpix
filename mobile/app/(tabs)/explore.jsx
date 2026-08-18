@@ -10,15 +10,38 @@ import TemplateCard from '../../src/components/TemplateCard';
 import Skeleton from '../../src/components/Skeleton';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
 import { COLORS, FONTS } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING } from '../../src/utils/responsive';
+import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, SINGLE_CARD_SNAP_HEIGHT, CARD_WIDTH, CARD_HEIGHT } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
+import { useRef } from 'react';
+import { hapticTap } from '../../src/utils/haptics';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
+  const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
+  const dragStartY = useRef(0);
+
+  const handleScrollBeginDrag = (e) => {
+    dragStartY.current = e.nativeEvent.contentOffset.y;
+  };
+
+  const handleScroll = (e) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    const index = Math.round(offsetY / SINGLE_CARD_SNAP_HEIGHT);
+    if (index !== activeIndexRef.current && index >= 0) {
+      activeIndexRef.current = index;
+      hapticTap();
+    }
+
+    if (offsetY > dragStartY.current + 4) {
+      if (!disableVerticalInterval) setDisableVerticalInterval(true);
+    } else if (offsetY < dragStartY.current - 4) {
+      if (disableVerticalInterval) setDisableVerticalInterval(false);
+    }
+  };
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [templates, setTemplates] = useState([]);
@@ -107,23 +130,26 @@ export default function ExploreScreen() {
         </View>
 
         {loading && !refreshing ? (
-          <View style={styles.loadingGrid}>
-            <View style={styles.loadingCol}>
-              <Skeleton height={200} width="100%" borderRadius={16} />
-              <Skeleton height={200} width="100%" borderRadius={16} style={{ marginTop: GRID_GAP }} />
-            </View>
-            <View style={styles.loadingCol}>
-              <Skeleton height={200} width="100%" borderRadius={16} />
-              <Skeleton height={200} width="100%" borderRadius={16} style={{ marginTop: GRID_GAP }} />
+          <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 12 }}>
+            <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
+            <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
+              <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+              <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
             </View>
           </View>
         ) : (
           <FlatList
             data={templates}
-            numColumns={2}
+            numColumns={1}
             keyExtractor={(item) => item._id}
-            columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.gridContent}
+            snapToInterval={SINGLE_CARD_SNAP_HEIGHT}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum={disableVerticalInterval}
+            onScrollBeginDrag={handleScrollBeginDrag}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             refreshControl={
               <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
@@ -186,6 +212,7 @@ const styles = StyleSheet.create({
     marginBottom: GRID_GAP,
   },
   gridContent: {
+    paddingHorizontal: SCREEN_PAD,
     paddingBottom: hp(0.04),
   },
   loadingGrid: {

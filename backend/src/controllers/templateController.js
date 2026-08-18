@@ -158,7 +158,8 @@ const getHomeFeed = asyncHandler(async (req, res) => {
 // @route   GET /api/templates/:id
 // @access  Public
 const getTemplateById = asyncHandler(async (req, res) => {
-  const template = await Template.findById(req.params.id).populate('categoryId', 'name slug icon');
+  const template = await Template.findById(req.params.id)
+    .populate('categoryId', 'name slug icon');
 
   if (!template) {
     return res.status(404).json({ success: false, message: 'Template not found' });

@@ -20,6 +20,30 @@ const SAMPLE_VIDEOS = [
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdown.mp4',
 ];
 
+const SAMPLE_FOOTERS = [
+  {
+    name: 'Mahadev Trishul Parchment',
+    videoAsset: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=800&q=80',
+    blendMode: 'normal',
+    heightPercent: 35,
+    objectFit: 'contain',
+  },
+  {
+    name: 'Golden Smoke Clouds',
+    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    blendMode: 'screen',
+    heightPercent: 40,
+    objectFit: 'cover',
+  },
+  {
+    name: 'Festive Sparkle Waves',
+    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    blendMode: 'screen',
+    heightPercent: 38,
+    objectFit: 'contain',
+  },
+];
+
 const seedData = async () => {
   try {
     await connectDB();
@@ -225,7 +249,7 @@ const seedData = async () => {
     const templatesData = [
       {
         name: 'विजयी भव: Daily Motivation Status',
-        description: 'Inspiring Hindi quote status card with your photo slot & custom signature',
+        description: 'Inspiring Hindi status card with your photo slot & custom signature',
         categoryId: catMap['motivation'],
         type: 'image',
         accessType: 'free',
@@ -239,8 +263,7 @@ const seedData = async () => {
           backgroundImage: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.38, width: 0.65, height: 0.42, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.72, width: 0.85, height: 0.1, defaultValue: 'सफलता का रहस्य लगातार प्रयास है! 🔥', fieldName: 'quote', fontSize: 20, fontColor: '#6ED47F', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.84, width: 0.7, height: 0.08, defaultValue: 'Vivek Sharma', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.84, width: 0.7, height: 0.08, defaultValue: 'Vivek Sharma', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['motivation', 'hindi', 'daily', 'success'],
@@ -265,8 +288,7 @@ const seedData = async () => {
           backgroundColor: '#0F351B',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.4, width: 0.7, height: 0.45, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.78, width: 0.8, height: 0.08, defaultValue: 'STATUZZZ CREATOR STUDIO', fieldName: 'subtitle', fontSize: 16, fontColor: '#89E398', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.86, width: 0.8, height: 0.08, defaultValue: 'Your Name Here', fieldName: 'name', fontSize: 26, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.86, width: 0.8, height: 0.08, defaultValue: 'Your Name Here', fieldName: 'name', fontSize: 26, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['reels', 'video', 'emerald', 'vip', 'neon'],
@@ -291,8 +313,7 @@ const seedData = async () => {
           backgroundColor: '#07140B',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.35, width: 0.65, height: 0.4, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.68, width: 0.8, height: 0.1, defaultValue: 'आपका दिन मंगलमय हो! 🌅', fieldName: 'greeting', fontSize: 22, fontColor: '#C8F3D0', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.82, width: 0.8, height: 0.08, defaultValue: 'Aarav Mehta', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.82, width: 0.8, height: 0.08, defaultValue: 'Aarav Mehta', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['good morning', 'hindi', 'wishes', 'sunrise'],
@@ -316,8 +337,7 @@ const seedData = async () => {
           backgroundColor: '#07140B',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.4, width: 0.65, height: 0.42, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.72, width: 0.8, height: 0.1, defaultValue: 'हर हर महादेव! 🕉️', fieldName: 'quote', fontSize: 24, fontColor: '#6ED47F', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.84, width: 0.8, height: 0.08, defaultValue: 'Rohan Verma', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.84, width: 0.8, height: 0.08, defaultValue: 'Rohan Verma', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['devotional', 'shiva', 'mahadev', 'hindi'],
@@ -340,8 +360,7 @@ const seedData = async () => {
           backgroundColor: '#0F351B',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.38, width: 0.6, height: 0.4, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.7, width: 0.8, height: 0.1, defaultValue: 'HAPPY BIRTHDAY! 🎉', fieldName: 'title', fontSize: 26, fontColor: '#89E398', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.82, width: 0.8, height: 0.08, defaultValue: 'Birthday Star', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.82, width: 0.8, height: 0.08, defaultValue: 'Birthday Star', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['birthday', 'video', 'party', 'premium'],
@@ -365,8 +384,7 @@ const seedData = async () => {
           backgroundColor: '#1F0B12',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.4, width: 0.7, height: 0.45, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.75, width: 0.85, height: 0.1, defaultValue: 'तुम्हारे बिना हर खुशी अधूरी है ❤️', fieldName: 'quote', fontSize: 20, fontColor: '#FF85A1', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.86, width: 0.8, height: 0.08, defaultValue: 'Forever Together', fieldName: 'subtitle', fontSize: 22, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.86, width: 0.8, height: 0.08, defaultValue: 'Forever Together', fieldName: 'name', fontSize: 22, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['love', 'couple', 'romantic', 'hindi'],
@@ -389,8 +407,7 @@ const seedData = async () => {
           backgroundColor: '#070F14',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.42, width: 0.68, height: 0.45, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.74, width: 0.85, height: 0.1, defaultValue: 'हमारा नाम ही हमारी पहचान है 😎🔥', fieldName: 'attitude', fontSize: 22, fontColor: '#F59E0B', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.85, width: 0.8, height: 0.08, defaultValue: 'Karan Singh Rajput', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.85, width: 0.8, height: 0.08, defaultValue: 'Karan Singh Rajput', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['attitude', 'swagger', 'royal', 'hindi'],
@@ -413,8 +430,7 @@ const seedData = async () => {
           backgroundColor: '#1E1408',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.38, width: 0.65, height: 0.4, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.7, width: 0.85, height: 0.1, defaultValue: 'शुभ दीपावली की हार्दिक शुभकामनाएं 🪔', fieldName: 'wishes', fontSize: 22, fontColor: '#FBBF24', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.82, width: 0.8, height: 0.08, defaultValue: 'Sharma Family', fieldName: 'family', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.82, width: 0.8, height: 0.08, defaultValue: 'Sharma Family', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['festival', 'diwali', 'video', 'festive'],
@@ -438,8 +454,7 @@ const seedData = async () => {
           backgroundColor: '#0A121E',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.36, width: 0.65, height: 0.4, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.7, width: 0.85, height: 0.12, defaultValue: 'सत्य की राह कठिन हो सकती है पर मंजिल खूबसूरत होती है 📖', fieldName: 'thought', fontSize: 19, fontColor: '#60A5FA', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.84, width: 0.8, height: 0.08, defaultValue: 'विचार क्रांति', fieldName: 'author', fontSize: 22, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.84, width: 0.8, height: 0.08, defaultValue: 'विचार क्रांति', fieldName: 'name', fontSize: 22, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['quotes', 'suvichar', 'hindi', 'thoughts'],
@@ -462,8 +477,7 @@ const seedData = async () => {
           backgroundColor: '#0B132B',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.38, width: 0.68, height: 0.42, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.72, width: 0.85, height: 0.08, defaultValue: 'Build your dream or someone will hire you to build theirs', fieldName: 'quote', fontSize: 18, fontColor: '#38BDF8', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.83, width: 0.8, height: 0.08, defaultValue: 'CEO & Founder · Statuzzz', fieldName: 'title', fontSize: 22, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.83, width: 0.8, height: 0.08, defaultValue: 'CEO & Founder · Statuzzz', fieldName: 'name', fontSize: 22, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['business', 'branding', 'professional', 'corporate'],
@@ -486,8 +500,7 @@ const seedData = async () => {
           backgroundColor: '#080E1A',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.38, width: 0.65, height: 0.4, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.72, width: 0.8, height: 0.1, defaultValue: 'मीठे सपनों के साथ शुभ रात्रि 🌙✨', fieldName: 'nightText', fontSize: 22, fontColor: '#A7F3D0', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.84, width: 0.8, height: 0.08, defaultValue: 'Good Night', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.84, width: 0.8, height: 0.08, defaultValue: 'Good Night', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['good night', 'peaceful', 'hindi', 'moon'],
@@ -510,8 +523,7 @@ const seedData = async () => {
           backgroundColor: '#0F172A',
           layers: [
             { id: 'l1', type: 'photo', x: 0.5, y: 0.4, width: 0.7, height: 0.45, zIndex: 1 },
-            { id: 'l2', type: 'text', x: 0.5, y: 0.76, width: 0.8, height: 0.08, defaultValue: 'CINEMATIC CREATION', fieldName: 'title', fontSize: 22, fontColor: '#38BDF8', zIndex: 2 },
-            { id: 'l3', type: 'text', x: 0.5, y: 0.86, width: 0.8, height: 0.08, defaultValue: 'Statuzzz Video Hub', fieldName: 'sub', fontSize: 20, fontColor: '#FFFFFF', zIndex: 3 },
+            { id: 'l2', type: 'text', x: 0.5, y: 0.86, width: 0.8, height: 0.08, defaultValue: 'Statuzzz Video Hub', fieldName: 'name', fontSize: 20, fontColor: '#FFFFFF', zIndex: 2 },
           ],
         },
         tags: ['reels', 'cinematic', 'video', 'motion'],
@@ -522,7 +534,9 @@ const seedData = async () => {
       },
     ];
 
-    const templates = await Template.insertMany(templatesData);
+    const templates = await Template.insertMany(
+      templatesData.map((t) => ({ ...t, footers: SAMPLE_FOOTERS }))
+    );
     console.log(`[Seed] ${templates.length} templates inserted.`);
 
     // 6. Create 3 Active Campaigns

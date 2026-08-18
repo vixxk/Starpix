@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Envelope, LockKey, ArrowRight, WarningCircle, Crown, Eye, EyeSlash, Stamp, CheckCircle } from '@phosphor-icons/react';
@@ -9,8 +9,14 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { admin, login, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && admin) {
+      navigate('/', { replace: true });
+    }
+  }, [admin, authLoading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,13 +24,26 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to authenticate admin');
     } finally {
       setLoading(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-paper-50 gap-3">
+        <div className="w-9 h-9 border-[3px] border-ink border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-bold text-ink-mute tracking-wide uppercase">Checking Session…</p>
+      </div>
+    );
+  }
+
+  if (admin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-paper-50 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
@@ -102,6 +121,13 @@ export default function Login() {
                     {showPw ? <EyeSlash className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs py-1">
+                <span className="inline-flex items-center gap-1.5 text-ink-soft font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                  Session remembered for 7 days
+                </span>
               </div>
 
               <button

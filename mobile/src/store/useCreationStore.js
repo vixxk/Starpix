@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DOWNLOADS_KEY = 'statuzzz_downloaded_creations';
+const DEFAULT_PHOTO_KEY = 'statuzzz_default_user_photo';
+const DEFAULT_NAME_KEY = 'statuzzz_default_user_name';
 
 // Fire-and-forget persistence for the downloaded creations list.
 const persistDownloads = (creations) => {
@@ -11,19 +13,28 @@ const persistDownloads = (creations) => {
 };
 
 /**
- * Load saved downloads from AsyncStorage into the store.
+ * Load saved downloads and default user photo/name from AsyncStorage into the store.
  * Call once at app startup (see app/_layout.jsx).
  */
 export const hydrateDownloadedCreations = async () => {
   try {
     const raw = await AsyncStorage.getItem(DOWNLOADS_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      useCreationStore.setState({ downloadedCreations: parsed });
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        useCreationStore.setState({ downloadedCreations: parsed });
+      }
+    }
+    const defaultPhoto = await AsyncStorage.getItem(DEFAULT_PHOTO_KEY);
+    if (defaultPhoto) {
+      useCreationStore.setState({ defaultUserPhotoUri: defaultPhoto });
+    }
+    const defaultName = await AsyncStorage.getItem(DEFAULT_NAME_KEY);
+    if (defaultName) {
+      useCreationStore.setState({ defaultUserNameText: defaultName, userNameText: defaultName });
     }
   } catch (e) {
-    console.error('Failed to hydrate downloads:', e);
+    console.error('Failed to hydrate store state:', e);
   }
 };
 
@@ -31,7 +42,9 @@ export const useCreationStore = create((set, get) => ({
   activeTemplate: null,
   userNameText: '',
   userQuoteText: '',
-  selectedFrame: null,
+  userPhotoUri: null,
+  defaultUserPhotoUri: null,
+  defaultUserNameText: '',
   selectedEffect: null,
 
   // Photo placement controls
@@ -50,16 +63,35 @@ export const useCreationStore = create((set, get) => ({
   downloadedCreations: [],
   isRestoredSession: false,
 
-  setActiveTemplate: (template, profileName = null) => {
+  setDefaultUserPhotoUri: (uri) => {
+    set({ defaultUserPhotoUri: uri, userPhotoUri: uri || get().userPhotoUri });
+    if (uri) {
+      AsyncStorage.setItem(DEFAULT_PHOTO_KEY, uri).catch((e) => console.error(e));
+    } else {
+      AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch((e) => console.error(e));
+    }
+  },
+
+  setDefaultUserNameText: (name) => {
+    set({ defaultUserNameText: name, userNameText: name || get().userNameText });
+    if (name) {
+      AsyncStorage.setItem(DEFAULT_NAME_KEY, name).catch((e) => console.error(e));
+    } else {
+      AsyncStorage.removeItem(DEFAULT_NAME_KEY).catch((e) => console.error(e));
+    }
+  },
+
+  setActiveTemplate: (template, profileName = null, initialPhoto = null) => {
     const nameLayer = template && template.canvasConfig && template.canvasConfig.layers && template.canvasConfig.layers.find((l) => l.fieldName === 'name');
     const defaultName = profileName || (nameLayer && nameLayer.defaultValue) || 'Your Name';
+    const defaultPhoto = initialPhoto || get().defaultUserPhotoUri || null;
     set({
       activeTemplate: template,
       userNameText: defaultName,
       userQuoteText: '',
-      userPhotoUri: null,
-      selectedFrame: null,
-      selectedEffect: null,
+      userPhotoUri: defaultPhoto,
+      selectedEffect: get().selectedEffect || get().selectedFooter || null,
+      selectedFooter: get().selectedFooter || get().selectedEffect || null,
       photoScale: 1,
       photoRotation: 0,
       photoOffsetX: 0,
@@ -77,14 +109,27 @@ export const useCreationStore = create((set, get) => ({
   setUserPhotoUri: (uri) => set({ userPhotoUri: uri }),
   setUserNameText: (text) => set({ userNameText: text }),
   setUserQuoteText: (text) => set({ userQuoteText: text }),
-  setSelectedFrame: (frame) => set({ selectedFrame: frame }),
-  setSelectedEffect: (effect) => set({ selectedEffect: effect }),
+  setSelectedEffect: (effect) => set({ selectedEffect: effect, selectedFooter: effect }),
+  setSelectedFooter: (footer) => set({ selectedFooter: footer, selectedEffect: footer }),
 
   // Layer-specific independent transforms
   layerTransforms: {},
 
-  setPhotoTransform: (transform) => set((state) => ({ ...state, ...transform })),
-  setNameTransform: (transform) => set((state) => ({ ...state, ...transform })),
+  setPhotoTransform: (transform) =>
+    set((state) => ({
+      photoScale: transform.photoScale !== undefined ? transform.photoScale : state.photoScale,
+      photoRotation: transform.photoRotation !== undefined ? transform.photoRotation : state.photoRotation,
+      photoOffsetX: transform.photoOffsetX !== undefined ? transform.photoOffsetX : state.photoOffsetX,
+      photoOffsetY: transform.photoOffsetY !== undefined ? transform.photoOffsetY : state.photoOffsetY,
+    })),
+
+  setNameTransform: (transform) =>
+    set((state) => ({
+      nameOffsetX: transform.nameOffsetX !== undefined ? transform.nameOffsetX : state.nameOffsetX,
+      nameOffsetY: transform.nameOffsetY !== undefined ? transform.nameOffsetY : state.nameOffsetY,
+      nameFontSizeScale: transform.nameFontSizeScale !== undefined ? transform.nameFontSizeScale : state.nameFontSizeScale,
+    })),
+
   setLayerTransform: (layerId, transform) =>
     set((state) => ({
       layerTransforms: {
@@ -96,37 +141,24 @@ export const useCreationStore = create((set, get) => ({
       },
     })),
 
-  removePhoto: () =>
-    set({
-      userPhotoUri: null,
-      photoScale: 1,
-      photoRotation: 0,
-      photoOffsetX: 0,
-      photoOffsetY: 0,
+  removePhoto: () => set({ userPhotoUri: null, photoScale: 1, photoRotation: 0, photoOffsetX: 0, photoOffsetY: 0 }),
+  removeName: () => set({ userNameText: '', nameOffsetX: 0, nameOffsetY: 0, nameFontSizeScale: 1 }),
+
+  addDownloadedCreation: (creation) =>
+    set((state) => {
+      const exists = state.downloadedCreations.some((item) => item.id === creation.id || item.creationId === creation.creationId);
+      if (exists) return state;
+      const updated = [creation, ...state.downloadedCreations];
+      persistDownloads(updated);
+      return { downloadedCreations: updated };
     }),
 
-  removeName: () =>
-    set({
-      userNameText: '',
-      nameOffsetX: 0,
-      nameOffsetY: 0,
-      nameFontSizeScale: 1,
+  removeDownloadedCreation: (id) =>
+    set((state) => {
+      const updated = state.downloadedCreations.filter((item) => item.id !== id && item.creationId !== id);
+      persistDownloads(updated);
+      return { downloadedCreations: updated };
     }),
-
-  addDownloadedCreation: (creationItem) => {
-    const { downloadedCreations } = get();
-    const exists = downloadedCreations.some((item) => item.id === creationItem.id);
-    if (exists) return;
-    const next = [creationItem, ...downloadedCreations];
-    set({ downloadedCreations: next });
-    persistDownloads(next);
-  },
-
-  removeDownloadedCreation: (id) => {
-    const next = get().downloadedCreations.filter((item) => item.id !== id);
-    set({ downloadedCreations: next });
-    persistDownloads(next);
-  },
 
   clearDownloadedCreations: () => {
     set({ downloadedCreations: [] });
@@ -142,7 +174,6 @@ export const useCreationStore = create((set, get) => ({
       userPhotoUri: savedState.userPhotoUri || savedState.editedPhoto || null,
       userNameText: savedState.userNameText || savedState.editedText || '',
       userQuoteText: savedState.userQuoteText || '',
-      selectedFrame: savedState.selectedFrame || null,
       selectedEffect: savedState.selectedEffect || null,
       photoScale: savedState.photoScale || 1,
       photoRotation: savedState.photoRotation || 0,
@@ -156,12 +187,12 @@ export const useCreationStore = create((set, get) => ({
     });
   },
 
-  resetCreation: () =>
+  resetCreation: () => {
+    const defaultPhoto = get().defaultUserPhotoUri || null;
     set({
       activeTemplate: null,
-      userPhotoUri: null,
+      userPhotoUri: defaultPhoto,
       userNameText: 'Your Name',
-      selectedFrame: null,
       selectedEffect: null,
       photoScale: 1,
       photoRotation: 0,
@@ -172,6 +203,7 @@ export const useCreationStore = create((set, get) => ({
       nameFontSizeScale: 1,
       isUnlocked: false,
       unlockedDownloadUrl: null,
-    }),
+    });
+  },
 }));
 

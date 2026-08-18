@@ -3,8 +3,10 @@ import API from '../services/api';
 import CanvasEditor from '../components/CanvasEditor';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
+import ModalPortal from '../components/ModalPortal';
 import MediaUploadZone from '../components/MediaUploadZone';
 import { TableSkeleton } from '../components/Skeleton';
+import Pagination from '../components/Pagination';
 import { useToast } from '../context/ToastContext';
 import {
   Sparkle,
@@ -31,6 +33,7 @@ const initialForm = (firstCategoryId) => ({
   thumbnail: '',
   previewAsset: '',
   mainMedia: '',
+  footers: [],
   isPinned: false,
   active: true,
   canvasConfig: {
@@ -38,8 +41,8 @@ const initialForm = (firstCategoryId) => ({
     backgroundColor: '#07140B',
     backgroundImage: '',
     layers: [
-      { id: 'l1', type: 'photo', x: 0.5, y: 0.4, width: 0.65, height: 0.42, zIndex: 1 },
-      { id: 'l2', type: 'text', x: 0.5, y: 0.8, width: 0.8, height: 0.1, defaultValue: 'Your Name', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 2 },
+      { id: 'l1', type: 'photo', x: 0.5, y: 0.4, width: 0.65, height: 0.42, zIndex: 15 },
+      { id: 'l2', type: 'text', x: 0.5, y: 0.8, width: 0.8, height: 0.1, defaultValue: 'User Name', fieldName: 'name', fontSize: 24, fontColor: '#FFFFFF', zIndex: 20 },
     ],
   },
 });
@@ -52,6 +55,8 @@ export default function Templates() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'published', 'unpublished'
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalItems: 0, limit: 10 });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -63,17 +68,26 @@ export default function Templates() {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const params = { active: statusFilter };
+      const params = { page, limit: 10 };
       if (search) params.search = search;
       if (selectedCategory) params.categoryId = selectedCategory;
+      if (statusFilter !== 'all') params.active = statusFilter;
 
       const [resT, resC] = await Promise.all([
         API.get('/templates', { params }),
         API.get('/categories'),
       ]);
 
-      setTemplates(resT.data.data);
-      setCategories(resC.data.data);
+      setTemplates(resT.data.data || []);
+      setCategories(resC.data.data || []);
+      if (resT.data.pagination) {
+        setPagination({
+          page: resT.data.pagination.page || page,
+          totalPages: resT.data.pagination.pages || 1,
+          totalItems: resT.data.pagination.total || (resT.data.data || []).length,
+          limit: resT.data.pagination.limit || 10,
+        });
+      }
     } catch (err) {
       console.error('Error loading templates:', err);
     } finally {
@@ -82,8 +96,12 @@ export default function Templates() {
   };
 
   useEffect(() => {
-    fetchTemplates();
+    setPage(1);
   }, [search, selectedCategory, statusFilter]);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [page, search, selectedCategory, statusFilter]);
 
   const handleOpenCreate = () => {
     setEditingTemplate(null);
@@ -103,6 +121,7 @@ export default function Templates() {
       thumbnail: t.thumbnail,
       previewAsset: t.previewAsset,
       mainMedia: t.mainMedia,
+      footers: t.footers || [],
       isPinned: t.isPinned || false,
       active: t.active !== undefined ? t.active : true,
       canvasConfig: t.canvasConfig || {
@@ -201,11 +220,11 @@ export default function Templates() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3.5 sm:space-y-5">
       <PageHead
         icon={<Sparkle className="w-6 h-6" weight="duotone" />}
         title="Template Studio"
-        subtitle={`${templates.length} templates shown`}
+        subtitle={`Showing page ${pagination.page} of ${pagination.totalPages} (${pagination.totalItems} total templates)`}
         actions={
           <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
             <Plus className="w-4 h-4" weight="bold" /> New Template
@@ -214,7 +233,7 @@ export default function Templates() {
       />
 
       {/* Toolbar with Search, Category filter, and Status filter */}
-      <div className="panel p-4 flex flex-col sm:flex-row gap-3">
+      <div className="panel p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="flex-1 relative">
           <MagnifyingGlass className="w-4 h-4 text-ink-mute absolute left-3.5 top-3" />
           <input
@@ -225,32 +244,34 @@ export default function Templates() {
             className="input pl-10"
           />
         </div>
-        <div className="relative">
-          <FunnelSimple className="w-4 h-4 text-ink-mute absolute left-3.5 top-3 pointer-events-none" />
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="select pl-10 sm:w-48"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="relative">
-          <Eye className="w-4 h-4 text-ink-mute absolute left-3.5 top-3 pointer-events-none" />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="select pl-10 sm:w-48 font-semibold"
-          >
-            <option value="all">All Statuses</option>
-            <option value="published">Published Only</option>
-            <option value="unpublished">Unpublished / Hidden</option>
-          </select>
+        <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3">
+          <div className="relative">
+            <FunnelSimple className="w-4 h-4 text-ink-mute absolute left-3 sm:left-3.5 top-3 pointer-events-none" />
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="select pl-8 sm:pl-10 w-full sm:w-48 text-xs sm:text-sm"
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.icon} {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative">
+            <Eye className="w-4 h-4 text-ink-mute absolute left-3 sm:left-3.5 top-3 pointer-events-none" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="select pl-8 sm:pl-10 w-full sm:w-48 text-xs sm:text-sm font-semibold"
+            >
+              <option value="all">All Statuses</option>
+              <option value="published">Published Only</option>
+              <option value="unpublished">Unpublished / Hidden</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -294,7 +315,7 @@ export default function Templates() {
                             e.target.onerror = null;
                             e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
                           }}
-                          className="w-12 h-14 object-cover border-2 border-ink/20 shrink-0"
+                          className="w-10 aspect-[9/16] object-cover border-2 border-ink/20 shrink-0 rounded-[2px]"
                         />
                         <div>
                           <p className="font-semibold text-ink line-clamp-1">{t.name}</p>
@@ -338,21 +359,31 @@ export default function Templates() {
           </div>
         )}
 
+      {/* Pagination component with page numbers */}
+      <Pagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.totalItems}
+        limit={pagination.limit}
+        onPageChange={(newPage) => setPage(newPage)}
+      />
+
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-ink/70 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="modal-card max-w-5xl">
-            <div className="px-6 py-4 border-b border-paper-200 flex items-center justify-between bg-paper-50">
-              <h3 className="display font-bold text-ink flex items-center gap-2.5">
-                <Sparkle className="w-5 h-5 text-glow-600" weight="duotone" />
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-ink/70 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div className="modal-card max-w-5xl my-auto w-full">
+            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-paper-200 flex items-center justify-between bg-paper-50">
+              <h3 className="display font-bold text-ink flex items-center gap-2 text-sm sm:text-base">
+                <Sparkle className="w-4 h-4 sm:w-5 sm:h-5 text-glow-600 shrink-0" weight="duotone" />
                 {editingTemplate ? 'Edit Template' : 'Create New Status Template'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-ink-mute hover:text-ink hover:bg-paper-100 rounded-[2px]">
+              <button onClick={() => setIsModalOpen(false)} className="p-1 text-ink-mute hover:text-ink hover:bg-paper-100 rounded-[2px]">
                 <X className="w-5 h-5" weight="bold" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-6 overflow-y-auto space-y-6 flex-1">
+            <form onSubmit={handleSave} className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="field-label">Template Name</label>
@@ -470,8 +501,133 @@ export default function Templates() {
                   mainMedia={formData.mainMedia}
                   previewAsset={formData.previewAsset}
                   thumbnail={formData.thumbnail}
-                  onChange={(config) => setFormData({ ...formData, canvasConfig: config })}
+                  footers={formData.footers}
+                  onFootersChange={(nextFooters) => setFormData((prev) => ({ ...prev, footers: nextFooters }))}
+                  onChange={(config) => setFormData((prev) => ({ ...prev, canvasConfig: config }))}
                 />
+              </div>
+
+              {/* Template Specific Footers */}
+              <div className="p-4 bg-paper-100 border-2 border-ink rounded-[2px] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-sm text-ink">Template Footers</h4>
+                    <p className="text-[11px] text-ink-mute">Upload image or video footers specific to this template (e.g. clouds, smoke, glowing waves, overlays)</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        footers: [
+                          ...(formData.footers || []),
+                          {
+                            name: `Footer ${(formData.footers || []).length + 1}`,
+                            videoAsset: '',
+                            thumbnail: '',
+                            heightPercent: 40,
+                            objectFit: 'contain',
+                          },
+                        ],
+                      })
+                    }
+                    className="btn-secondary text-xs"
+                  >
+                    + Add Footer
+                  </button>
+                </div>
+
+                {(formData.footers || []).length === 0 ? (
+                  <p className="text-xs text-ink-mute italic">No footers added for this template yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {formData.footers.map((footerItem, idx) => (
+                      <div key={idx} className="p-3 bg-white border border-ink/20 rounded-[2px] space-y-3 relative">
+                        <div className="flex items-center justify-between gap-3">
+                          <input
+                            type="text"
+                            value={footerItem.name}
+                            onChange={(e) => {
+                              const next = [...formData.footers];
+                              next[idx].name = e.target.value;
+                              setFormData({ ...formData, footers: next });
+                            }}
+                            placeholder="Footer Name (e.g. Cloud Footer)"
+                            className="input py-1 text-xs font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = formData.footers.filter((_, i) => i !== idx);
+                              setFormData({ ...formData, footers: next });
+                            }}
+                            className="text-red-600 text-xs hover:underline font-bold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <MediaUploadZone
+                            label="Footer Overlay Asset (.png / .mp4)"
+                            value={footerItem.videoAsset}
+                            onChange={(url) => {
+                              const next = [...formData.footers];
+                              next[idx].videoAsset = url;
+                              setFormData({ ...formData, footers: next });
+                            }}
+                            folder="footers"
+                            accept="image/*,video/mp4,video/webm"
+                          />
+                          <MediaUploadZone
+                            label="Footer Thumbnail Image (App Box Selector)"
+                            value={footerItem.thumbnail}
+                            onChange={(url) => {
+                              const next = [...formData.footers];
+                              next[idx].thumbnail = url;
+                              setFormData({ ...formData, footers: next });
+                            }}
+                            folder="footer-thumbnails"
+                            accept="image/*"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="field-label text-[10px]">Height Coverage (%)</label>
+                            <input
+                              type="number"
+                              min={10}
+                              max={100}
+                              value={footerItem.heightPercent || 40}
+                              onChange={(e) => {
+                                const next = [...formData.footers];
+                                next[idx].heightPercent = Number(e.target.value);
+                                setFormData({ ...formData, footers: next });
+                              }}
+                              className="input text-xs py-1"
+                            />
+                          </div>
+                          <div>
+                            <label className="field-label text-[10px]">Object Fit</label>
+                            <select
+                              value={footerItem.objectFit || 'contain'}
+                              onChange={(e) => {
+                                const next = [...formData.footers];
+                                next[idx].objectFit = e.target.value;
+                                setFormData({ ...formData, footers: next });
+                              }}
+                              className="select text-xs py-1"
+                            >
+                              <option value="contain">Contain (Leaves sides visible)</option>
+                              <option value="cover">Cover (Full stretch)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-6 pt-2">
@@ -510,6 +666,7 @@ export default function Templates() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Themed Confirm Delete Modal */}

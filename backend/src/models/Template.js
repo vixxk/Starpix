@@ -62,9 +62,9 @@ const templateSchema = new mongoose.Schema(
           height: { type: Number, default: 0.4 }, // normalized height (0..1)
           rotation: { type: Number, default: 0 },
           opacity: { type: Number, default: 1 },
-          zIndex: { type: Number, default: 1 },
+          zIndex: { type: Number, default: 15 },
           // Text specific properties
-          defaultValue: { type: String, default: 'Your Name' },
+          defaultValue: { type: String, default: 'User Name' },
           fieldName: { type: String, default: 'name' }, // dynamic field identifier (e.g. name, quote, greeting)
           fontSize: { type: Number, default: 22 },
           fontColor: { type: String, default: '#FFFFFF' },
@@ -76,6 +76,20 @@ const templateSchema = new mongoose.Schema(
         },
       ],
     },
+    footers: [
+      {
+        name: { type: String, default: 'Cloud Footer' },
+        videoAsset: { type: String, required: true },
+        thumbnail: { type: String, default: '' },
+        heightPercent: { type: Number, default: 40 },
+        objectFit: { type: String, default: 'contain' },
+        x: { type: Number, default: 0.5 },
+        y: { type: Number, default: 0.8 },
+        width: { type: Number, default: 1.0 },
+        height: { type: Number, default: 0.4 },
+        zIndex: { type: Number, default: 10 },
+      },
+    ],
     tags: [String],
     views: { type: Number, default: 0 },
     uses: { type: Number, default: 0 },

@@ -146,11 +146,9 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     paddingHorizontal: SCREEN_PAD,
-    rowGap: GRID_GAP,
+    rowGap: 16,
   },
   cardWrap: {
     width: CARD_WIDTH,

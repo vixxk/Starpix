@@ -214,34 +214,96 @@
    ============================================================ */
 @media print {
   @page {
-    size: A4;
-    margin: 10mm;
+    size: A4 portrait;
+    margin: 5mm;
   }
 
-  body.printing-invoice {
+  html, body.printing-invoice {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide header, sidebar, and print-hidden elements */
+  body.printing-invoice header,
+  body.printing-invoice aside,
+  body.printing-invoice .print\:hidden {
+    display: none !important;
+  }
+
+  /* When printing an invoice (outside #root) */
+  body.printing-invoice:has(#invoice-print-area) #root {
+    display: none !important;
+  }
+
+  /* Reveal invoice print document */
+  body.printing-invoice #invoice-print-area,
+  body.printing-invoice #invoice-print-area * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body.printing-invoice #invoice-print-area {
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Reveal revenue report print document */
+  body.printing-invoice #report-print-area,
+  body.printing-invoice #report-print-area * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body.printing-invoice #report-print-area {
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
     background: #ffffff !important;
   }
 
-  /* Hide the entire app chrome + modal shell */
-  body.printing-invoice * {
-    visibility: hidden;
+  /* Force desktop print grid layouts regardless of screen viewport width */
+  body.printing-invoice #invoice-print-area .grid-meta-billed {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1.5rem !important;
   }
 
-  /* Reveal only the print document (invoice or report) */
-  body.printing-invoice #invoice-print-area,
-  body.printing-invoice #invoice-print-area *,
-  body.printing-invoice #report-print-area,
-  body.printing-invoice #report-print-area * {
-    visibility: visible;
+  body.printing-invoice #invoice-print-area .grid-meta-info {
+    grid-column: span 2 / span 2 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
   }
 
-  body.printing-invoice #invoice-print-area,
-  body.printing-invoice #report-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    box-shadow: none !important;
+  body.printing-invoice #invoice-print-area .totals-box {
+    width: 18rem !important;
+    margin-left: auto !important;
+  }
+
+  body.printing-invoice #invoice-print-area .grid-trail {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
   }
 
   /* Avoid splitting report blocks across pages */
@@ -249,20 +311,31 @@
     break-inside: avoid;
   }
 
-  /* Un-clip the modal so multi-page invoices can break across pages */
-  body.printing-invoice #invoice-modal-card {
-    max-height: none !important;
-    overflow: visible !important;
-    box-shadow: none !important;
+  /* Force exact color retention when printing */
+  body.printing-invoice #invoice-print-area .invoice-ink-slab,
+  body.printing-invoice #invoice-print-area .bg-ink,
+  body.printing-invoice #report-print-area .bg-ink {
+    background-color: #17120C !important;
+    color: #FBF9F4 !important;
   }
 
-  /* Force color retention for all backgrounds & text fills when printing */
-  body.printing-invoice #invoice-print-area,
-  body.printing-invoice #invoice-print-area *,
-  body.printing-invoice #report-print-area,
-  body.printing-invoice #report-print-area * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
+  body.printing-invoice #invoice-print-area .bg-flame-500,
+  body.printing-invoice #report-print-area .bg-flame-500 {
+    background-color: #FF5500 !important;
+  }
+
+  body.printing-invoice #invoice-print-area .bg-paper-100,
+  body.printing-invoice #report-print-area .bg-paper-100 {
+    background-color: #F5F1E8 !important;
+  }
+
+  body.printing-invoice #invoice-print-area .bg-paper-50,
+  body.printing-invoice #report-print-area .bg-paper-50 {
+    background-color: #FBF9F4 !important;
+  }
+
+  body.printing-invoice #invoice-print-area .text-white,
+  body.printing-invoice #report-print-area .text-white {
+    color: #ffffff !important;
   }
 }

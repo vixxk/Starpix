@@ -35,7 +35,9 @@ const adminLogin = asyncHandler(async (req, res) => {
     admin.lastLoginAt = new Date();
     await admin.save();
 
-    const token = generateToken(admin._id, admin.role);
+    const token = generateToken(admin._id, admin.role, '7d');
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + SEVEN_DAYS_MS).toISOString();
 
     return res.status(200).json({
       success: true,
@@ -47,6 +49,8 @@ const adminLogin = asyncHandler(async (req, res) => {
           role: admin.role,
         },
         token,
+        expiresAt,
+        expiresInDays: 7,
       },
     });
   }

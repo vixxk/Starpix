@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
+import ModalPortal from '../components/ModalPortal';
 import MediaUploadZone from '../components/MediaUploadZone';
 import { GridSkeleton } from '../components/Skeleton';
 import { useToast } from '../context/ToastContext';
@@ -121,7 +122,7 @@ export default function Categories() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3.5 sm:space-y-5">
       <PageHead
         icon={<FolderSimple className="w-6 h-6" weight="duotone" />}
         title="Categories"
@@ -141,34 +142,44 @@ export default function Categories() {
           <p className="text-sm text-ink-mute font-medium">No categories yet</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
           {categories.map((c) => (
-            <div key={c._id} className="panel panel-hover p-5 flex flex-col justify-between anim">
+            <div key={c._id} className="panel panel-hover p-2.5 sm:p-5 flex flex-col justify-between anim">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="w-12 h-12 bg-paper-100 border-2 border-ink flex items-center justify-center text-2xl">
+                <div className="flex items-center justify-between mb-2 sm:mb-4 gap-1">
+                  <span className="w-8 h-8 sm:w-12 sm:h-12 bg-paper-100 border-2 border-ink flex items-center justify-center text-lg sm:text-2xl shrink-0">
                     {c.icon}
                   </span>
-                  <span className={`badge ${c.featured ? 'badge-amber' : 'badge-muted'}`}>
-                    {c.featured ? <Star className="w-3 h-3" weight="fill" /> : null}
-                    {c.featured ? 'Featured' : 'Standard'}
-                  </span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                    <span className="text-[9px] sm:text-[11px] font-mono font-bold text-flame-700 bg-flame-500/10 border border-flame-500/30 px-1 sm:px-2 py-0.5 rounded-[2px] whitespace-nowrap">
+                      {c.templateCount || 0} <span className="hidden sm:inline">Templates</span><span className="sm:hidden">T</span>
+                    </span>
+                    {c.featured && (
+                      <span className="badge badge-amber text-[9px] sm:text-xs px-1 sm:px-2">
+                        <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3" weight="fill" />
+                        <span className="hidden sm:inline">Featured</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <h4 className="display font-bold text-ink text-base">{c.name}</h4>
-                <p className="text-[11px] text-ink-mute font-mono mt-0.5 flex items-center gap-1">
-                  <HashStraight className="w-3 h-3" /> {c.slug}
+                <h4 className="display font-bold text-ink text-xs sm:text-base truncate mt-1 sm:mt-0">{c.name}</h4>
+                <p className="text-[9px] sm:text-[11px] text-ink-mute font-mono mt-0.5 flex items-center gap-0.5 sm:gap-1 truncate">
+                  <HashStraight className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> {c.slug}
                 </p>
-                <p className="text-xs text-ink-soft mt-2.5 line-clamp-2 min-h-[2rem]">{c.description || 'No description'}</p>
+                <p className="hidden sm:block text-xs text-ink-soft mt-2.5 line-clamp-2 min-h-[2rem]">{c.description || 'No description'}</p>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-paper-200 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-ink-mute">Order · #{c.sortOrder}</span>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => handleOpenEdit(c)} className="p-2 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors">
-                    <PencilSimple className="w-4 h-4" weight="duotone" />
+              <div className="mt-2.5 sm:mt-5 pt-2 sm:pt-4 border-t border-paper-200 flex items-center justify-between gap-1">
+                <span className="text-[9px] sm:text-[11px] font-medium text-ink-mute truncate">
+                  <span className="sm:hidden">#{c.sortOrder}</span>
+                  <span className="hidden sm:inline">Order · #{c.sortOrder} • {c.templateCount || 0} templates</span>
+                </span>
+                <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+                  <button onClick={() => handleOpenEdit(c)} className="p-1 sm:p-2 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors" title="Edit">
+                    <PencilSimple className="w-3.5 h-3.5 sm:w-4 sm:h-4" weight="duotone" />
                   </button>
-                  <button onClick={() => setDeleteTarget(c)} className="p-2 text-ink-mute hover:text-red-600 hover:bg-red-500/10 rounded-[2px] transition-colors">
-                    <Trash className="w-4 h-4" weight="duotone" />
+                  <button onClick={() => setDeleteTarget(c)} className="p-1 sm:p-2 text-ink-mute hover:text-red-600 hover:bg-red-500/10 rounded-[2px] transition-colors" title="Delete">
+                    <Trash className="w-3.5 h-3.5 sm:w-4 sm:h-4" weight="duotone" />
                   </button>
                 </div>
               </div>
@@ -178,7 +189,8 @@ export default function Categories() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-ink/70 flex items-center justify-center p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-ink/70 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
           <div className="modal-card max-w-md">
             <div className="px-6 py-4 border-b border-paper-200 flex items-center justify-between bg-paper-50">
               <h3 className="display font-bold text-ink">
@@ -300,6 +312,7 @@ export default function Categories() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Themed Confirm Delete Modal */}

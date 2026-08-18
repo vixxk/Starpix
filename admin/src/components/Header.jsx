@@ -1,13 +1,12 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { List, CalendarDot } from '@phosphor-icons/react';
+import { List, CalendarDot, ArrowClockwise } from '@phosphor-icons/react';
 
 const pathTitles = {
   '/': { title: 'Overview', desc: 'Live pulse of the Statuzzz platform' },
   '/templates': { title: 'Templates', desc: 'Design, curate & publish status templates' },
   '/categories': { title: 'Categories', desc: 'Organize content into browsable groups' },
-  '/frames': { title: 'Frames', desc: 'PNG overlays & placement slots' },
-  '/effects': { title: 'Effects', desc: 'Animation & particle effect library' },
+  '/filters': { title: 'Video Filters', desc: 'Animated video footers & overlay filters' },
   '/campaigns': { title: 'Campaigns', desc: 'Opening experience & seasonal drives' },
   '/purchases': { title: 'Purchases', desc: 'Revenue & entitlement transaction log' },
   '/reports': { title: 'Revenue Report', desc: 'Monthly totals & per-template performance' },
@@ -25,7 +24,7 @@ export default function Header({ onMenuClick }) {
   const { title, desc } = pathTitles[location.pathname] || { title: 'Console', desc: 'Statuzzz administration' };
 
   return (
-    <header className="sticky top-0 z-30 border-b-2 border-ink bg-paper-50 px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 border-b-2 border-ink bg-paper-50 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onMenuClick}
@@ -43,14 +42,26 @@ export default function Header({ onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Mobile Refresh Button */}
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="sm:hidden p-2 bg-flame-500 border-2 border-ink text-ink rounded-[2px] shadow-hard-sm hover:bg-flame-400 active:scale-95 transition-all flex items-center justify-center"
+          title="Refresh Page"
+          aria-label="Refresh Page"
+        >
+          <ArrowClockwise className="w-4 h-4" weight="bold" />
+        </button>
+
+        {/* Desktop Header Badges */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] border-2 border-ink bg-white text-[11px] font-bold text-ink">
           <CalendarDot className="w-3.5 h-3.5 text-flame-600" weight="bold" />
           <span className="font-mono uppercase">{formatDate()}</span>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-[2px] border-2 border-ink bg-flame-500 text-ink text-[11px] font-bold uppercase tracking-wider shadow-hard-sm">
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-[2px] border-2 border-ink bg-flame-500 text-ink text-[11px] font-bold uppercase tracking-wider shadow-hard-sm">
           <span className="w-2 h-2 bg-ink animate-pulse-dot" />
-          <span className="hidden sm:inline">System Online</span>
+          <span>System Online</span>
         </div>
       </div>
     </header>

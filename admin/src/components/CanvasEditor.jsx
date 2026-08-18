@@ -15,6 +15,8 @@ export default function CanvasEditor({
   mainMedia,
   previewAsset,
   thumbnail,
+  footers = [],
+  onFootersChange,
   onChange,
 }) {
   // Accept both `canvasConfig` (legacy) and `value` (newer call sites)
@@ -25,18 +27,54 @@ export default function CanvasEditor({
   const templateMedia =
     canvasConfig?.backgroundImage || mainMedia || previewAsset || thumbnail;
 
-  const isVideo =
-    templateMedia &&
-    (templateMedia.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) ||
-      templateMedia.includes('video'));
+  const isVideoMediaUrl = (url) => {
+    if (!url) return false;
+    return Boolean(url.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || url.includes('/video/') || url.includes('.mp4'));
+  };
+
+  const isVideo = isVideoMediaUrl(templateMedia);
   const [selectedLayerId, setSelectedLayerId] = useState(
     canvasConfig?.layers?.[0]?.id || null
   );
 
+  const [activeFooterIdx, setActiveFooterIdx] = useState(-1);
+  const previewFooter = footers && footers.length > 0 && activeFooterIdx >= 0 && activeFooterIdx < footers.length
+    ? footers[activeFooterIdx]
+    : null;
+
+  const footerLayer = previewFooter
+    ? {
+        id: 'footer_layer',
+        type: 'footer',
+        x: previewFooter.x !== undefined ? previewFooter.x : 0.5,
+        y: previewFooter.y !== undefined ? previewFooter.y : (1 - (previewFooter.heightPercent || 40) / 200),
+        width: previewFooter.width !== undefined ? previewFooter.width : 1.0,
+        height: previewFooter.height !== undefined ? previewFooter.height : ((previewFooter.heightPercent || 40) / 100),
+        zIndex: previewFooter.zIndex || 10,
+      }
+    : null;
+
   const canvasRef = useRef(null);
   const dragRef = useRef(null); // stores active drag/resize metadata
 
-  const layers = canvasConfig?.layers || [];
+  const [domCanvasWidth, setDomCanvasWidth] = useState(280);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const updateWidth = () => {
+      if (canvasRef.current) {
+        setDomCanvasWidth(canvasRef.current.clientWidth || 280);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(canvasRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const layers = (canvasConfig?.layers || []).filter(
+    (l) => l.type === 'photo' || (l.type === 'text' && l.fieldName === 'name')
+  );
 
   const updateLayers = useCallback((newLayers) => {
     onChange({ ...canvasConfig, layers: newLayers });
@@ -53,17 +91,18 @@ export default function CanvasEditor({
       height: 0.3,
       rotation: 0,
       opacity: 1,
-      zIndex: layers.length + 1,
+      zIndex: type === 'text' ? 20 + layers.length * 5 : 15 + layers.length * 5,
     };
 
     if (type === 'text') {
       newLayer = {
         ...newLayer,
-        defaultValue: 'Your Custom Text',
+        defaultValue: 'User Name',
         fieldName: 'name',
         fontSize: 22,
         fontColor: '#FFFFFF',
         fontWeight: '700',
+        textAlign: 'left',
         height: 0.1,
       };
     } else if (type === 'photo') {
@@ -81,9 +120,23 @@ export default function CanvasEditor({
     if (selectedLayerId === id) setSelectedLayerId(updated[0]?.id || null);
   };
 
-  const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+  const selectedLayer = selectedLayerId === 'footer_layer'
+    ? footerLayer
+    : layers.find((l) => l.id === selectedLayerId);
 
   const updateSelectedLayer = (field, val) => {
+    if (selectedLayerId === 'footer_layer') {
+      if (!onFootersChange || activeFooterIdx < 0 || activeFooterIdx >= footers.length) return;
+      const nextFooters = [...footers];
+      const curF = { ...nextFooters[activeFooterIdx], [field]: val };
+      if (field === 'height') {
+        curF.heightPercent = Math.round(val * 100);
+      }
+      nextFooters[activeFooterIdx] = curF;
+      onFootersChange(nextFooters);
+      return;
+    }
+
     if (!selectedLayerId) return;
     updateLayers(
       layers.map((l) => (l.id === selectedLayerId ? { ...l, [field]: val } : l))
@@ -134,9 +187,26 @@ export default function CanvasEditor({
     const dx = (e.clientX - startX) / canvasWidth;
     const dy = (e.clientY - startY) / canvasHeight;
 
+    if (layerId === 'footer_layer') {
+      if (!onFootersChange || activeFooterIdx < 0 || activeFooterIdx >= footers.length) return;
+      const nextFooters = [...footers];
+      const curF = { ...nextFooters[activeFooterIdx] };
+      if (action === 'move') {
+        curF.x = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
+        curF.y = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
+      } else if (action === 'resize-se') {
+        curF.width = Math.max(0.1, Math.min(1.5, Math.round((initialWidth + dx) * 100) / 100));
+        curF.height = Math.max(0.05, Math.min(1.5, Math.round((initialHeight + dy) * 100) / 100));
+        curF.heightPercent = Math.round(curF.height * 100);
+      }
+      nextFooters[activeFooterIdx] = curF;
+      onFootersChange(nextFooters);
+      return;
+    }
+
     if (action === 'move') {
-      const newX = Math.max(0, Math.min(1, Math.round((initialLayerX + dx) * 100) / 100));
-      const newY = Math.max(0, Math.min(1, Math.round((initialLayerY + dy) * 100) / 100));
+      const newX = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
+      const newY = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
 
       onChange({
         ...canvasConfig,
@@ -189,10 +259,13 @@ export default function CanvasEditor({
     <div className="bg-night-900 border-2 border-ink rounded-[2px] overflow-hidden">
       {/* Top toolbar */}
       <div className="px-4 py-3 bg-night-800/70 border-b border-night-600 flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs font-bold text-night-200 uppercase tracking-wider flex items-center gap-2">
-          <SquaresFour className="w-4 h-4 text-flame-400" weight="duotone" /> Canvas Editor · 9:16 (Drag & Drop Active)
-        </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-bold text-night-200 uppercase tracking-wider flex items-center gap-2">
+            <SquaresFour className="w-4 h-4 text-flame-400" weight="duotone" /> Canvas Editor · 9:16 (Interactive Drag & Resize)
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
           <button
             type="button"
             onClick={() => addLayer('photo')}
@@ -205,7 +278,7 @@ export default function CanvasEditor({
             onClick={() => addLayer('text')}
             className="btn-secondary !py-1.5 !px-3 !text-xs"
           >
-            <TextT className="w-3.5 h-3.5" weight="bold" /> Text Layer
+            <Plus className="w-3.5 h-3.5" weight="bold" /> Name Layer
           </button>
         </div>
       </div>
@@ -215,9 +288,31 @@ export default function CanvasEditor({
         <div className="lg:w-56 xl:w-64 lg:border-r border-night-600 bg-night-850/40 p-4 order-2 lg:order-1">
           <h4 className="label !text-paper-50/70 mb-3">Canvas Layers</h4>
           <div className="flex lg:flex-col gap-2 overflow-x-auto pb-1 lg:pb-0 lg:overflow-x-visible">
-            {layers.length === 0 && (
+            {footerLayer && (
+              <div
+                onClick={() => setSelectedLayerId('footer_layer')}
+                className={`shrink-0 lg:shrink p-2.5 rounded-[2px] border-2 text-xs font-medium cursor-pointer flex items-center justify-between gap-2 transition-all min-w-[130px] lg:min-w-0 ${
+                  selectedLayerId === 'footer_layer'
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                    : 'border-night-600 bg-night-900 text-amber-400 hover:border-amber-500/60'
+                }`}
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <SquaresFour className="w-4 h-4 text-amber-400" weight="duotone" />
+                  <span className="truncate font-bold text-amber-300">
+                    Footer · {previewFooter.name || `Footer ${activeFooterIdx + 1}`}
+                  </span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                  z:{footerLayer.zIndex || 10}
+                </span>
+              </div>
+            )}
+
+            {layers.length === 0 && !footerLayer && (
               <p className="text-xs text-night-400 italic p-2 text-center">No layers added yet.</p>
             )}
+
             {layers.map((l, index) => (
               <div
                 key={l.id}
@@ -235,16 +330,21 @@ export default function CanvasEditor({
                     {l.type === 'text' ? `Text · ${l.fieldName}` : `Photo Box #${index + 1}`}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeLayer(l.id);
-                  }}
-                  className="text-night-400 hover:text-red-400 p-0.5 shrink-0"
-                >
-                  <Trash className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="px-1.5 py-0.5 rounded bg-night-800 text-night-300 text-[10px] font-mono font-bold">
+                    z:{l.zIndex || 15}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeLayer(l.id);
+                    }}
+                    className="text-night-400 hover:text-red-400 p-0.5"
+                  >
+                    <Trash className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -278,6 +378,70 @@ export default function CanvasEditor({
                   />
                 )
               )}
+
+              {/* Draggable Footer Layer Overlay */}
+              {footerLayer && (
+                <div
+                  onPointerDown={(e) => startDrag(e, footerLayer, 'move')}
+                  className={`absolute cursor-move group transition-shadow ${
+                    selectedLayerId === 'footer_layer'
+                      ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-night-950 z-20'
+                      : 'hover:ring-1 hover:ring-amber-500/50 z-10'
+                  }`}
+                  style={{
+                    left: `${(footerLayer.x - footerLayer.width / 2) * 100}%`,
+                    top: `${(footerLayer.y - footerLayer.height / 2) * 100}%`,
+                    width: `${footerLayer.width * 100}%`,
+                    height: `${footerLayer.height * 100}%`,
+                    zIndex: footerLayer.zIndex || 10,
+                  }}
+                >
+                  {previewFooter.videoAsset && (
+                    isVideoMediaUrl(previewFooter.videoAsset) ? (
+                      <video
+                        src={previewFooter.videoAsset}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full pointer-events-none"
+                        style={{
+                          objectFit: previewFooter.objectFit || 'contain',
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={previewFooter.videoAsset}
+                        alt="Footer Overlay Preview"
+                        className="w-full h-full pointer-events-none"
+                        style={{
+                          objectFit: previewFooter.objectFit || 'contain',
+                        }}
+                      />
+                    )
+                  )}
+
+                  {/* Move handle */}
+                  {selectedLayerId === 'footer_layer' && (
+                    <div className="absolute top-1 left-1 bg-amber-500 text-black px-1.5 py-0.5 rounded-[2px] text-[9px] font-bold shadow-sm pointer-events-none flex items-center gap-1">
+                      <ArrowsOutCardinal className="w-3 h-3" weight="bold" /> Footer Overlay
+                    </div>
+                  )}
+
+                  {/* Resize handle */}
+                  {selectedLayerId === 'footer_layer' && (
+                    <div
+                      onPointerDown={(e) => startDrag(e, footerLayer, 'resize-se')}
+                      className="absolute -bottom-2 -right-2 w-5 h-5 bg-amber-500 border-2 border-white rounded-[2px] cursor-se-resize flex items-center justify-center shadow-md z-40 hover:scale-125 transition-transform"
+                      title="Drag to resize footer overlay"
+                    >
+                      <ArrowsOut className="w-3 h-3 text-black" weight="bold" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Photo and Text Canvas Layers */}
               {layers.map((l) => {
                 const isSelected = selectedLayerId === l.id;
                 return (
@@ -292,7 +456,7 @@ export default function CanvasEditor({
                       top: `${(l.y - l.height / 2) * 100}%`,
                       width: `${l.width * 100}%`,
                       height: `${l.height * 100}%`,
-                      zIndex: l.zIndex || 1,
+                      zIndex: l.zIndex || 15,
                     }}
                   >
                     {l.type === 'photo' && (
@@ -303,13 +467,21 @@ export default function CanvasEditor({
                     )}
                     {l.type === 'text' && (
                       <div
-                        className="w-full h-full flex items-center justify-center text-center font-bold px-1 select-none pointer-events-none"
+                        className="w-full h-full flex items-center font-bold px-1 select-none pointer-events-none"
                         style={{
-                          fontSize: `${Math.max(10, (l.fontSize || 22) * 0.55)}px`,
+                          fontSize: `${Math.max(10, (l.fontSize || 22) * (domCanvasWidth / 375))}px`,
                           color: l.fontColor || '#FFFFFF',
+                          fontFamily: l.fontFamily || 'inherit',
+                          textAlign: l.textAlign || 'left',
+                          justifyContent: l.textAlign === 'right' ? 'flex-end' : l.textAlign === 'center' ? 'center' : 'flex-start',
+                          textShadow: '0px 1px 4px rgba(0,0,0,0.85)',
+                          lineHeight: 1.1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}
                       >
-                        {l.defaultValue}
+                        {l.defaultValue || 'User Name'}
                       </div>
                     )}
 
@@ -336,7 +508,7 @@ export default function CanvasEditor({
             </div>
 
             <p className="text-[10px] text-center text-night-400 font-medium mt-2">
-              💡 Click & drag layers to move • Drag corner handle <ArrowsOut className="w-3 h-3 inline text-flame-400" /> to resize
+              💡 Click & drag Photo, Text, or Footer layer to move • Drag corner handle <ArrowsOut className="w-3 h-3 inline text-flame-400" /> to resize
             </p>
           </div>
         </div>
@@ -346,10 +518,50 @@ export default function CanvasEditor({
           <h4 className="label !text-paper-50/70 mb-3">Layer Properties</h4>
           {selectedLayer ? (
             <div className="space-y-3">
-              {numInput('Center X (0 - 1)', 'x', { min: 0, max: 1 })}
-              {numInput('Center Y (0 - 1)', 'y', { min: 0, max: 1 })}
-              {numInput('Width (0 - 1)', 'width', { min: 0.05, max: 1 })}
-              {numInput('Height (0 - 1)', 'height', { min: 0.05, max: 1 })}
+              {selectedLayerId === 'footer_layer' && (
+                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-300 font-bold mb-2">
+                  Editing: {previewFooter.name || 'Footer Overlay'}
+                </div>
+              )}
+
+              {numInput('Center X (-0.5 to 1.5)', 'x', { min: -0.5, max: 1.5 })}
+              {numInput('Center Y (-0.5 to 1.8)', 'y', { min: -0.5, max: 1.8 })}
+              {numInput('Width (0.05 to 1.5)', 'width', { min: 0.05, max: 1.5 })}
+              {numInput('Height (0.05 to 1.5)', 'height', { min: 0.05, max: 1.5 })}
+              {numInput('Layer Stacking Depth (Z-Index 1-50)', 'zIndex', { min: 1, max: 50, step: '1' })}
+
+              <div className="flex gap-2 pt-1 pb-2">
+                <button
+                  type="button"
+                  onClick={() => updateSelectedLayer('zIndex', Math.max(1, (selectedLayer.zIndex || 10) - 2))}
+                  className="bg-night-900 border-2 border-night-600 hover:border-flame-500 text-flame-400 font-bold py-1.5 px-2 text-[11px] rounded flex-1 text-center transition-colors shadow-sm"
+                  title="Move behind other layers"
+                >
+                  ↓ Send Backward
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateSelectedLayer('zIndex', Math.min(50, (selectedLayer.zIndex || 10) + 2))}
+                  className="bg-night-900 border-2 border-night-600 hover:border-flame-500 text-flame-400 font-bold py-1.5 px-2 text-[11px] rounded flex-1 text-center transition-colors shadow-sm"
+                  title="Bring in front of other layers"
+                >
+                  ↑ Bring Forward
+                </button>
+              </div>
+
+              {selectedLayerId === 'footer_layer' && (
+                <div>
+                  <label className="field-label !text-paper-100">Object Fit</label>
+                  <select
+                    value={previewFooter.objectFit || 'contain'}
+                    onChange={(e) => updateSelectedLayer('objectFit', e.target.value)}
+                    className="select"
+                  >
+                    <option value="contain">Contain (Leaves sides visible)</option>
+                    <option value="cover">Cover (Full stretch)</option>
+                  </select>
+                </div>
+              )}
 
               {selectedLayer.type === 'text' && (
                 <>
@@ -397,6 +609,34 @@ export default function CanvasEditor({
           )}
         </div>
       </div>
+
+      {/* Active Footer Control Section under CANVAS EDITOR */}
+      {footers && footers.length > 0 && (
+        <div className="px-4 py-3 bg-night-950 border-t border-night-700 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-night-200 uppercase tracking-wider">Active Footer Preview:</span>
+            <select
+              value={activeFooterIdx}
+              onChange={(e) => {
+                const idx = Number(e.target.value);
+                setActiveFooterIdx(idx);
+                if (idx >= 0) setSelectedLayerId('footer_layer');
+              }}
+              className="bg-night-900 border border-night-600 text-flame-400 font-bold px-3 py-1.5 rounded-[2px] text-xs cursor-pointer focus:outline-none focus:border-flame-500"
+            >
+              <option value={-1} className="bg-night-900 text-paper-300">None (No Footer Preview)</option>
+              {footers.map((f, idx) => (
+                <option key={idx} value={idx} className="bg-night-900 text-white">
+                  {f.name || `Footer ${idx + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="text-xs text-night-400 font-medium">
+            Currently previewing: <strong className="text-flame-400">{activeFooterIdx >= 0 && footers[activeFooterIdx] ? (footers[activeFooterIdx].name || `Footer ${activeFooterIdx + 1}`) : 'None'}</strong>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

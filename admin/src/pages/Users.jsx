@@ -3,6 +3,7 @@ import API from '../services/api';
 import PageHead from '../components/PageHead';
 import { useToast } from '../context/ToastContext';
 import { TableSkeleton } from '../components/Skeleton';
+import Pagination from '../components/Pagination';
 import {
   UsersThree,
   CrownSimple,
@@ -17,24 +18,45 @@ import {
   Calendar,
 } from '@phosphor-icons/react';
 
+const resolveMediaUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+    return path;
+  }
+  const apiBase = API.defaults.baseURL || '';
+  const rootHost = apiBase.replace(/\/api\/?$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${rootHost}${cleanPath}`;
+};
+
 export default function UsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterVip, setFilterVip] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalItems: 0, limit: 10 });
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { page, limit: 10 };
       if (search) params.search = search;
       if (filterVip === 'vip') params.isPremium = 'true';
       if (filterVip === 'free') params.isPremium = 'false';
 
       const res = await API.get('/admin/users', { params });
       if (res.data.success) {
-        setUsers(res.data.data);
+        setUsers(res.data.data || []);
+        if (res.data.pagination) {
+          setPagination({
+            page: res.data.pagination.page || page,
+            totalPages: res.data.pagination.pages || 1,
+            totalItems: res.data.pagination.total || (res.data.data || []).length,
+            limit: res.data.pagination.limit || 10,
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -44,8 +66,12 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    setPage(1);
   }, [search, filterVip]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [page, search, filterVip]);
 
   const handleToggleVip = async (user) => {
     try {
@@ -59,15 +85,15 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3.5 sm:space-y-5">
       <PageHead
         icon={<UsersThree className="w-6 h-6" weight="duotone" />}
         title="User Directory & Entitlements"
-        subtitle={`${users.length} registered mobile app users`}
+        subtitle={`Showing page ${pagination.page} of ${pagination.totalPages} (${pagination.totalItems} registered mobile app users)`}
       />
 
       {/* Toolbar */}
-      <div className="panel p-4 flex flex-col sm:flex-row gap-3">
+      <div className="panel p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="flex-1 relative">
           <MagnifyingGlass className="w-4 h-4 text-ink-mute absolute left-3.5 top-3" />
           <input
@@ -118,7 +144,23 @@ export default function UsersPage() {
                   <tr key={u._id}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-[2px] bg-ink text-flame-400 border-2 border-ink flex items-center justify-center font-display font-bold shrink-0">
+                        {u.profilePhoto ? (
+                          <img
+                            src={resolveMediaUrl(u.profilePhoto)}
+                            alt={u.name || 'User'}
+                            className="w-10 h-10 rounded-full object-cover border border-paper-300 shadow-sm shrink-0 bg-ink"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) {
+                                e.target.nextSibling.style.display = 'flex';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          style={{ display: u.profilePhoto ? 'none' : 'flex' }}
+                          className="w-10 h-10 rounded-full bg-ink text-flame-400 border border-ink flex items-center justify-center font-display font-bold shrink-0 shadow-sm"
+                        >
                           {(u.name || 'S').substring(0, 1).toUpperCase()}
                         </div>
                         <div>
@@ -174,6 +216,15 @@ export default function UsersPage() {
             </table>
           </div>
         )}
+
+      {/* Pagination component with page numbers */}
+      <Pagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.totalItems}
+        limit={pagination.limit}
+        onPageChange={(newPage) => setPage(newPage)}
+      />
     </div>
   );
 }

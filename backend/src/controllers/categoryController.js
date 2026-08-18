@@ -10,11 +10,26 @@ const getCategories = asyncHandler(async (req, res) => {
     query.active = req.query.active === 'true';
   }
 
-  const categories = await Category.find(query).sort({ sortOrder: 1, createdAt: -1 });
+  const categories = await Category.find(query).sort({ sortOrder: 1, createdAt: -1 }).lean();
+
+  const Template = require('../models/Template');
+  const templateCounts = await Template.aggregate([
+    { $group: { _id: '$categoryId', count: { $sum: 1 } } },
+  ]);
+
+  const countMap = {};
+  templateCounts.forEach((tc) => {
+    if (tc._id) countMap[String(tc._id)] = tc.count;
+  });
+
+  const categoriesWithCounts = categories.map((cat) => ({
+    ...cat,
+    templateCount: countMap[String(cat._id)] || 0,
+  }));
 
   res.status(200).json({
     success: true,
-    data: categories,
+    data: categoriesWithCounts,
   });
 });
 

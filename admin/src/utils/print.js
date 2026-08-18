@@ -5,12 +5,15 @@
  * index.css hides the app chrome and reveals only the marked print area
  * (#invoice-print-area / #report-print-area), then cleans up afterwards.
  */
-export function printDocument() {
+export function printDocument(onComplete) {
   document.body.classList.add('printing-invoice');
 
   const endPrint = () => {
     document.body.classList.remove('printing-invoice');
     window.removeEventListener('afterprint', endPrint);
+    if (typeof onComplete === 'function') {
+      onComplete();
+    }
   };
 
   window.addEventListener('afterprint', endPrint);

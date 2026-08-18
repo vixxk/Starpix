@@ -7,6 +7,10 @@ const Analytics = require('../models/Analytics');
 // @route   GET /api/admin/users
 // @access  Private (Admin)
 const getUsers = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+
   const { search, isPremium } = req.query;
 
   let query = {};
@@ -20,7 +24,8 @@ const getUsers = asyncHandler(async (req, res) => {
   if (isPremium === 'true') query.isPremium = true;
   if (isPremium === 'false') query.isPremium = false;
 
-  const users = await User.find(query).sort({ createdAt: -1 });
+  const total = await User.countDocuments(query);
+  const users = await User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
   // Compute aggregated purchase metrics for each user
   const usersWithMetrics = await Promise.all(
@@ -37,6 +42,12 @@ const getUsers = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: usersWithMetrics,
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      limit,
+    },
   });
 });
 

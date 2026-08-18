@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { COLORS, FONTS } from '../constants/colors';
 import { resolveMediaUrl } from '../utils/media';
@@ -17,79 +17,26 @@ const isVideoMedia = (url) => {
 function DraggablePhotoLayer({
   layer,
   userPhotoUri,
-  photoTransform,
   layerLeft,
   layerTop,
   layerWidth,
   layerHeight,
   onPressPhotoSlot,
-  onPhotoTransformChange,
 }) {
-  const currentOffsetX = photoTransform?.photoOffsetX ?? photoTransform?.offsetX ?? 0;
-  const currentOffsetY = photoTransform?.photoOffsetY ?? photoTransform?.offsetY ?? 0;
-
-  const initialOffset = useRef({ x: currentOffsetX, y: currentOffsetY });
-  const isDragging = useRef(false);
-
-  useEffect(() => {
-    if (!isDragging.current) {
-      initialOffset.current = { x: currentOffsetX, y: currentOffsetY };
-    }
-  }, [currentOffsetX, currentOffsetY]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
-      },
-      onPanResponderGrant: () => {
-        isDragging.current = true;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (onPhotoTransformChange) {
-          const newX = initialOffset.current.x + gestureState.dx;
-          const newY = initialOffset.current.y + gestureState.dy;
-          onPhotoTransformChange({
-            photoOffsetX: newX,
-            photoOffsetY: newY,
-            offsetX: newX,
-            offsetY: newY,
-          });
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        isDragging.current = false;
-        initialOffset.current = {
-          x: initialOffset.current.x + gestureState.dx,
-          y: initialOffset.current.y + gestureState.dy,
-        };
-        if (Math.abs(gestureState.dx) < 6 && Math.abs(gestureState.dy) < 6) {
-          if (onPressPhotoSlot) onPressPhotoSlot();
-        }
-      },
-      onPanResponderTerminate: () => {
-        isDragging.current = false;
-      },
-    })
-  ).current;
-
-  const finalPhotoLeft = layerLeft + currentOffsetX;
-  const finalPhotoTop = layerTop + currentOffsetY;
-
   return (
-    <View
-      {...panResponder.panHandlers}
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPressPhotoSlot}
       style={[
         styles.layerContainer,
         {
-          left: finalPhotoLeft,
-          top: finalPhotoTop,
+          left: layerLeft,
+          top: layerTop,
           width: layerWidth,
           height: layerHeight,
-          zIndex: layer.zIndex || 1,
+          zIndex: layer.zIndex !== undefined ? layer.zIndex : 15,
           overflow: 'hidden',
-          borderRadius: 16,
+          borderRadius: layer.borderRadius || 0,
           borderWidth: userPhotoUri ? 0 : 2,
           borderColor: COLORS.orange,
           borderStyle: userPhotoUri ? 'solid' : 'dashed',
@@ -100,112 +47,64 @@ function DraggablePhotoLayer({
       {userPhotoUri ? (
         <Image
           source={{ uri: resolveMediaUrl(userPhotoUri) }}
-          style={[
-            StyleSheet.absoluteFillObject,
-            {
-              transform: [
-                { scale: photoTransform.scale || 1 },
-                { rotate: `${photoTransform.rotation || 0}deg` },
-              ],
-            },
-          ]}
+          style={StyleSheet.absoluteFillObject}
           resizeMode="cover"
         />
       ) : (
         <View style={styles.photoPlaceholderInner}>
-          <Text style={styles.photoPlaceholderText}>Tap or Drag to Position</Text>
+          <Text style={styles.photoPlaceholderText}>Tap to add photo</Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
 function DraggableTextLayer({
   layer,
   textValue,
-  transform,
   layerLeft,
   layerTop,
   layerWidth,
   layerHeight,
   canvasWidth,
-  onTransformChange,
 }) {
-  const currentOffsetX = transform?.offsetX ?? transform?.nameOffsetX ?? 0;
-  const currentOffsetY = transform?.offsetY ?? transform?.nameOffsetY ?? 0;
-
-  const initialOffset = useRef({ x: currentOffsetX, y: currentOffsetY });
-  const isDragging = useRef(false);
-
-  useEffect(() => {
-    if (!isDragging.current) {
-      initialOffset.current = { x: currentOffsetX, y: currentOffsetY };
-    }
-  }, [currentOffsetX, currentOffsetY]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
-      },
-      onPanResponderGrant: () => {
-        isDragging.current = true;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (onTransformChange) {
-          const newX = initialOffset.current.x + gestureState.dx;
-          const newY = initialOffset.current.y + gestureState.dy;
-          onTransformChange({
-            offsetX: newX,
-            offsetY: newY,
-            nameOffsetX: newX,
-            nameOffsetY: newY,
-          });
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        isDragging.current = false;
-        initialOffset.current = {
-          x: initialOffset.current.x + gestureState.dx,
-          y: initialOffset.current.y + gestureState.dy,
-        };
-      },
-      onPanResponderTerminate: () => {
-        isDragging.current = false;
-      },
-    })
-  ).current;
-
-  const fontScaleFactor = transform?.fontSizeScale || 1;
-  const finalTextLeft = layerLeft + currentOffsetX;
-  const finalTextTop = layerTop + currentOffsetY;
+  const computedFontSize = Math.max(10, (layer.fontSize || 22) * (canvasWidth / 375));
+  const computedLineHeight = Math.max(12, Math.round(computedFontSize * 1.15));
+  const textAlign = layer.textAlign || 'left';
+  const justifyContent = textAlign === 'right' ? 'flex-end' : textAlign === 'center' ? 'center' : 'flex-start';
 
   return (
     <View
-      {...panResponder.panHandlers}
       style={[
         styles.layerContainer,
         {
-          left: finalTextLeft,
-          top: finalTextTop,
+          left: layerLeft,
+          top: layerTop,
           width: layerWidth,
           height: layerHeight,
-          zIndex: layer.zIndex || 2,
+          zIndex: layer.zIndex !== undefined ? layer.zIndex : 16,
           justifyContent: 'center',
-          alignItems: 'center',
+          alignItems: justifyContent,
+          paddingHorizontal: 2,
         },
       ]}
     >
       <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
         style={{
-          fontSize: Math.max(10, (layer.fontSize || 22) * (canvasWidth / 375) * fontScaleFactor),
+          width: '100%',
+          fontSize: computedFontSize,
+          lineHeight: computedLineHeight,
           color: layer.fontColor || COLORS.white,
           fontFamily: FONTS.bold,
-          textAlign: layer.textAlign || 'center',
+          textAlign: textAlign,
+          textAlignVertical: 'center',
           textShadowColor: 'rgba(0,0,0,0.85)',
           textShadowOffset: { width: 0, height: 1 },
           textShadowRadius: 4,
+          includeFontPadding: false,
         }}
       >
         {textValue}
@@ -219,19 +118,23 @@ export default function TemplateRenderer({
   userPhotoUri,
   userNameText,
   userQuoteText,
-  selectedFrame,
   selectedEffect,
+  selectedFooter,
   photoTransform = { scale: 1, rotation: 0, offsetX: 0, offsetY: 0 },
   nameTransform = { offsetX: 0, offsetY: 0, fontSizeScale: 1 },
   canvasWidth,
   canvasHeight,
   showWatermark = false,
+  isMuted = true,
+  shouldPlay = true,
   onPressPhotoSlot,
   onPhotoTransformChange,
   onNameTransformChange,
 }) {
   const layerTransforms = useCreationStore((s) => s.layerTransforms);
   const setLayerTransform = useCreationStore((s) => s.setLayerTransform);
+  const defaultStorePhoto = useCreationStore((s) => s.defaultUserPhotoUri);
+  const effectiveUserPhotoUri = userPhotoUri || defaultStorePhoto || null;
 
   if (!template) {
     return (
@@ -241,10 +144,11 @@ export default function TemplateRenderer({
     );
   }
 
+  const [videoError, setVideoError] = useState(false);
   const layers = (template.canvasConfig && template.canvasConfig.layers) || [];
-  const rawBgImage = (template.canvasConfig && template.canvasConfig.backgroundImage) || template.mainMedia || template.previewAsset || template.thumbnail;
+  const rawBgImage = (template.canvasConfig && template.canvasConfig.backgroundImage) || template.mainMedia || template.previewAsset || template.preview || template.thumbnail;
   const bgImage = resolveMediaUrl(rawBgImage);
-  const isVideo = isVideoMedia(rawBgImage) || isVideoMedia(bgImage) || template.type === 'video';
+  const isVideo = !videoError && shouldPlay && (isVideoMedia(rawBgImage) || isVideoMedia(bgImage) || template.type === 'video');
 
   return (
     <View style={[styles.canvas, { width: canvasWidth, height: canvasHeight }]}>
@@ -256,8 +160,9 @@ export default function TemplateRenderer({
               src={bgImage}
               autoPlay
               loop
-              muted
+              muted={isMuted}
               playsInline
+              onError={() => setVideoError(true)}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -272,9 +177,10 @@ export default function TemplateRenderer({
               source={{ uri: bgImage }}
               style={StyleSheet.absoluteFillObject}
               resizeMode={ResizeMode.COVER}
-              shouldPlay
+              shouldPlay={shouldPlay}
               isLooping
-              isMuted
+              isMuted={isMuted}
+              onError={() => setVideoError(true)}
             />
           )
         ) : (
@@ -296,7 +202,7 @@ export default function TemplateRenderer({
             <DraggablePhotoLayer
               key={layer.id || 'photo_layer'}
               layer={layer}
-              userPhotoUri={userPhotoUri}
+              userPhotoUri={effectiveUserPhotoUri}
               photoTransform={photoTransform}
               layerLeft={layerLeft}
               layerTop={layerTop}
@@ -309,27 +215,26 @@ export default function TemplateRenderer({
         }
 
         if (layer.type === 'text') {
-          let textValue = layer.defaultValue;
-          const layerKey = layer.id || layer.fieldName || `text_${layer.x}_${layer.y}`;
+          // Only render text layer if it is the personalized Name layer
+          if (layer.fieldName !== 'name') {
+            return null;
+          }
 
-          if (layer.fieldName === 'name') {
-            if (!userNameText || userNameText.trim() === '') {
-              return null;
-            }
-            textValue = userNameText;
-          } else if (layer.fieldName === 'quote' && userQuoteText) {
-            textValue = userQuoteText;
+          let textValue = userNameText;
+          if (!textValue || textValue.trim() === '') {
+            textValue = layer.defaultValue || '';
           }
 
           if (!textValue || textValue.trim() === '') {
             return null;
           }
 
-          const currentLayerTransform = layerTransforms[layerKey] || (layer.fieldName === 'name' ? nameTransform : { offsetX: 0, offsetY: 0 });
+          const layerKey = layer.id || layer.fieldName || `text_${layer.x}_${layer.y}`;
+          const currentLayerTransform = layerTransforms[layerKey] || nameTransform || { offsetX: 0, offsetY: 0 };
 
           const handleTransformChange = (newTransform) => {
             setLayerTransform(layerKey, newTransform);
-            if (layer.fieldName === 'name' && onNameTransformChange) {
+            if (onNameTransformChange) {
               onNameTransformChange(newTransform);
             }
           };
@@ -353,33 +258,78 @@ export default function TemplateRenderer({
         return null;
       })}
 
-      {/* Frame Overlay positioned by admin coordinates */}
-      {selectedFrame && selectedFrame.asset && (
-        <Image
-          source={{ uri: resolveMediaUrl(selectedFrame.asset) }}
-          style={
-            selectedFrame.placement
-              ? {
-                  position: 'absolute',
-                  left: (selectedFrame.placement.x || 0.5) * canvasWidth - ((selectedFrame.placement.width || 1) * canvasWidth) / 2,
-                  top: (selectedFrame.placement.y || 0.5) * canvasHeight - ((selectedFrame.placement.height || 1) * canvasHeight) / 2,
-                  width: (selectedFrame.placement.width || 1) * canvasWidth,
-                  height: (selectedFrame.placement.height || 1) * canvasHeight,
-                  zIndex: selectedFrame.placement.zIndex || 10,
-                }
-              : [StyleSheet.absoluteFillObject, { zIndex: 10 }]
-          }
-          resizeMode="contain"
-        />
-      )}
+      {/* Video Footer Overlay */}
+      {(selectedEffect || selectedFooter) && (
+        (() => {
+          const footerObj = selectedFooter || selectedEffect;
+          const rawAsset = footerObj.videoAsset || footerObj.asset;
+          if (!rawAsset) return null;
 
-      {/* Effect Overlay */}
-      {selectedEffect && selectedEffect.asset && (
-        <Image
-          source={{ uri: resolveMediaUrl(selectedEffect.asset) }}
-          style={[StyleSheet.absoluteFillObject, { zIndex: 12, opacity: 0.75 }]}
-          resizeMode="cover"
-        />
+          const footerUri = resolveMediaUrl(rawAsset);
+          const isVid = isVideoMedia(rawAsset) || isVideoMedia(footerUri) || footerObj.type === 'video';
+          const heightPct = footerObj.heightPercent || footerObj.configuration?.heightPercent || 40;
+          const fit = footerObj.objectFit || footerObj.configuration?.objectFit || 'contain';
+
+          const fWidth = (footerObj.width !== undefined ? footerObj.width : 1.0) * canvasWidth;
+          const fHeight = (footerObj.height !== undefined ? footerObj.height : heightPct / 100) * canvasHeight;
+          const fLeft = (footerObj.x !== undefined ? footerObj.x : 0.5) * canvasWidth - fWidth / 2;
+          const fTop = (footerObj.y !== undefined ? footerObj.y : (1 - heightPct / 200)) * canvasHeight - fHeight / 2;
+
+          const overlayStyle = {
+            position: 'absolute',
+            left: fLeft,
+            top: fTop,
+            width: fWidth,
+            height: fHeight,
+            zIndex: footerObj.zIndex || 10,
+          };
+
+          if (isVid) {
+            if (Platform.OS === 'web') {
+              return (
+                <video
+                  src={footerUri}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  style={{
+                    position: 'absolute',
+                    left: fLeft,
+                    top: fTop,
+                    width: fWidth,
+                    height: fHeight,
+                    objectFit: fit,
+                    pointerEvents: 'none',
+                    zIndex: footerObj.zIndex || 10,
+                  }}
+                />
+              );
+            }
+            return (
+              <View style={[overlayStyle, { overflow: 'hidden' }]} pointerEvents="none">
+                <Video
+                  source={{ uri: footerUri }}
+                  style={StyleSheet.absoluteFillObject}
+                  resizeMode={fit === 'cover' ? ResizeMode.COVER : ResizeMode.CONTAIN}
+                  shouldPlay
+                  isLooping
+                  isMuted
+                />
+              </View>
+            );
+          }
+
+          return (
+            <View style={overlayStyle} pointerEvents="none">
+              <Image
+                source={{ uri: footerUri }}
+                style={StyleSheet.absoluteFillObject}
+                resizeMode={fit === 'cover' ? 'cover' : 'contain'}
+              />
+            </View>
+          );
+        })()
       )}
 
       {/* Security Preview Watermark for Unpaid Premium Templates */}
@@ -399,7 +349,7 @@ export default function TemplateRenderer({
 
 const styles = StyleSheet.create({
   canvas: {
-    borderRadius: 24,
+    borderRadius: 0,
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: COLORS.ink,
@@ -411,7 +361,7 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     backgroundColor: COLORS.surfaceAlt,
-    borderRadius: 24,
+    borderRadius: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },

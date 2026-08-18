@@ -13,7 +13,8 @@ import TemplateCard from '../../src/components/TemplateCard';
 import SectionHeader from '../../src/components/SectionHeader';
 import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING } from '../../src/utils/responsive';
+import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, CARD_WIDTH, CARD_HEIGHT, SINGLE_CARD_SNAP_HEIGHT, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
+import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
 
@@ -31,6 +32,61 @@ const FALLBACK_CATEGORIES = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const activeIndexRef = useRef(0);
+  const railActiveIndexRef = useRef({});
+
+  const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
+  const dragStartY = useRef(0);
+
+  const handleVerticalScrollBeginDrag = (e) => {
+    dragStartY.current = e.nativeEvent.contentOffset.y;
+  };
+
+  const handleVerticalScroll = (e) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    const index = Math.round(offsetY / SINGLE_CARD_SNAP_HEIGHT);
+    if (index !== activeIndexRef.current && index >= 0) {
+      activeIndexRef.current = index;
+      hapticTap();
+    }
+
+    if (offsetY > dragStartY.current + 4) {
+      if (!disableVerticalInterval) setDisableVerticalInterval(true);
+    } else if (offsetY < dragStartY.current - 4) {
+      if (disableVerticalInterval) setDisableVerticalInterval(false);
+    }
+  };
+
+  const [railIndices, setRailIndices] = useState({});
+  const [disableHorizontalInterval, setDisableHorizontalInterval] = useState({});
+  const dragStartX = useRef({});
+
+  const handleRailScrollBeginDrag = (key, e) => {
+    dragStartX.current[key] = e.nativeEvent.contentOffset.x;
+  };
+
+  const handleRailScroll = (key, e) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / (CARD_WIDTH + GRID_GAP));
+    if (railActiveIndexRef.current[key] !== index && index >= 0) {
+      railActiveIndexRef.current[key] = index;
+      setRailIndices((prev) => ({ ...prev, [key]: index }));
+      hapticTap();
+    }
+
+    const startX = dragStartX.current[key] || 0;
+    if (offsetX > startX + 4) {
+      if (disableHorizontalInterval[key] === false) {
+        setDisableHorizontalInterval((prev) => ({ ...prev, [key]: true }));
+      }
+    } else if (offsetX < startX - 4) {
+      if (disableHorizontalInterval[key] !== false) {
+        setDisableHorizontalInterval((prev) => ({ ...prev, [key]: false }));
+      }
+    }
+  };
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [openingCampaign, setOpeningCampaign] = useState(null);
@@ -45,8 +101,6 @@ export default function HomeScreen() {
   const [categoryFetching, setCategoryFetching] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
-
-  const router = useRouter();
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
   const scrollRef = useRef(null);
   const logoScale = useRef(new Animated.Value(1)).current;
@@ -123,9 +177,19 @@ export default function HomeScreen() {
     }
   };
 
+  const hasAutoOpenedCampaign = useRef(false);
+
   useEffect(() => {
     fetchHomeData();
   }, []);
+
+  // Automatically open campaign screen on app opening if an active campaign exists
+  useEffect(() => {
+    if (openingCampaign && openingCampaign._id && !hasAutoOpenedCampaign.current) {
+      hasAutoOpenedCampaign.current = true;
+      router.push(`/campaign/${openingCampaign._id}`);
+    }
+  }, [openingCampaign]);
 
   // Search templates when user types
   useEffect(() => {
@@ -242,12 +306,22 @@ export default function HomeScreen() {
     router.push({ pathname: `/template/${template._id}` });
   };
 
-  const feedEmpty =
-    !(homeFeed.trending && homeFeed.trending.length) &&
-    !(homeFeed.goodMorning && homeFeed.goodMorning.length) &&
-    !(homeFeed.festival && homeFeed.festival.length) &&
-    !(homeFeed.motivation && homeFeed.motivation.length) &&
-    !allTemplates.length;
+  const displayTemplates = React.useMemo(() => {
+    if (selectedCategory) return categoryTemplates;
+    const combined = [
+      ...(homeFeed.trending || []),
+      ...(homeFeed.goodMorning || []),
+      ...(homeFeed.festival || []),
+      ...(homeFeed.motivation || []),
+      ...(allTemplates || []),
+    ];
+    const seen = new Set();
+    return combined.filter((t) => {
+      if (!t || !t._id || seen.has(t._id)) return false;
+      seen.add(t._id);
+      return true;
+    });
+  }, [selectedCategory, categoryTemplates, homeFeed, allTemplates]);
 
   const renderGrid = (items) => (
     <View style={styles.grid}>
@@ -257,157 +331,73 @@ export default function HomeScreen() {
     </View>
   );
 
-  const renderRail = (items) => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.horizontalList}
-    >
-      {items.map((item) => (
-        <TemplateCard key={item._id} template={item} width={wp(0.42)} onPress={() => handleTemplatePress(item)} />
-      ))}
-    </ScrollView>
-  );
-
   return (
     <AppBackground>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        {/* Brand header */}
-        <View style={styles.header}>
-          <View style={styles.brandRow}>
-            <Animated.View style={[styles.logoIcon, { transform: [{ scale: logoScale }] }]}>
-              <Ionicons name="map-outline" size={22} color={COLORS.white} />
-            </Animated.View>
-            <View>
-              <Text style={styles.appName}>Statuzzz</Text>
-              <Text style={styles.appTagline}>Explore & status with your photo</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Explore Search Bar */}
-        <View style={styles.searchBarContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={COLORS.inkFaint} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search status, quotes, festivals..."
-              placeholderTextColor={COLORS.inkFaint}
-              style={styles.searchInput}
+        {/* Sticky Top Categories Bar (Scrollable 3-Line Grid with Scrollbar) */}
+        <View style={styles.stickyCategoriesHeader}>
+          <ScrollView
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+            style={styles.categoriesScrollView}
+            contentContainerStyle={styles.categoriesWrap}
+          >
+            <CategoryPill
+              small
+              category={{ _id: 'all', name: 'All', icon: '✨' }}
+              isSelected={!selectedCategory}
+              onPress={() => handleSelectCategory(null)}
             />
-            {search.length > 0 && (
-              <PressableScale onPress={() => setSearch('')} scaleTo={0.8} hitSlop={10} contentStyle={styles.clearContent}>
-                <Ionicons name="close-circle" size={18} color={COLORS.inkFaint} />
-              </PressableScale>
-            )}
-          </View>
-        </View>
-
-        {/* Sticky Top Category Filter Pills Bar */}
-        {search.trim().length === 0 && (
-          <View style={styles.categoryBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+            {displayCategories.map((cat) => (
               <CategoryPill
-                category={{ _id: 'all', name: 'All', icon: '✨' }}
-                isSelected={!selectedCategory}
-                onPress={() => handleSelectCategory(null)}
+                small
+                key={cat._id}
+                category={cat}
+                isSelected={Boolean(selectedCategory && selectedCategory._id === cat._id)}
+                onPress={() => handleSelectCategory(cat)}
               />
-              {displayCategories.map((cat) => (
-                <CategoryPill
-                  key={cat._id}
-                  category={cat}
-                  isSelected={Boolean(selectedCategory && selectedCategory._id === cat._id)}
-                  onPress={() => handleSelectCategory(cat)}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
+            ))}
+          </ScrollView>
+        </View>
 
         <ScrollView
           style={{ flex: 1 }}
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
+          snapToInterval={SINGLE_CARD_SNAP_HEIGHT}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          disableIntervalMomentum={disableVerticalInterval}
+          onScrollBeginDrag={handleVerticalScrollBeginDrag}
+          onScroll={handleVerticalScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
         >
-          {/* If user typed in search bar, display Explore search results */}
-          {search.trim().length > 0 ? (
-            <View style={{ marginTop: 8 }}>
-              <SectionHeader
-                icon="🧭"
-                title={`Search: "${search}"`}
-                subtitle="Matching templates & statuses"
-              />
-              {searching ? (
-                <View style={styles.loadingWrap}>
-                  <Skeleton height={180} width="100%" borderRadius={20} style={styles.skeletonCard} />
-                  <Skeleton height={180} width="100%" borderRadius={20} />
-                </View>
-              ) : searchResults.length > 0 ? (
-                renderGrid(searchResults)
-              ) : (
-                <View style={styles.emptyFilter}>
-                  <Ionicons name="search-outline" size={40} color={COLORS.borderStrong} />
-                  <Text style={styles.emptyFilterTitle}>No results found</Text>
-                  <Text style={styles.emptyFilterText}>Try another keyword or pick a category below.</Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={{ marginTop: 4 }}>
-              {/* Active opening campaign */}
-              {openingCampaign && !selectedCategory && (
-                <CampaignCard
-                  campaign={openingCampaign}
-                  onPress={() => router.push({ pathname: `/campaign/${openingCampaign._id}` })}
-                />
-              )}
+          <View style={{ marginTop: 4 }}>
 
               {loading ? (
-                <View style={styles.homeSkeletonWrap}>
-                  <Skeleton height={140} width="100%" borderRadius={22} style={{ marginBottom: 20 }} />
-
-                  <View style={styles.sectionHeaderSkeleton}>
-                    <Skeleton height={20} width={140} borderRadius={6} />
-                    <Skeleton height={12} width={210} borderRadius={4} style={{ marginTop: 6 }} />
-                  </View>
-
-                  <View style={styles.railSkeletonRow}>
-                    <Skeleton height={wp(0.42) * 1.55} width={wp(0.42)} borderRadius={18} />
-                    <Skeleton height={wp(0.42) * 1.55} width={wp(0.42)} borderRadius={18} />
-                    <Skeleton height={wp(0.42) * 1.55} width={wp(0.42)} borderRadius={18} />
-                  </View>
-
-                  <View style={[styles.sectionHeaderSkeleton, { marginTop: 24 }]}>
-                    <Skeleton height={20} width={130} borderRadius={6} />
-                    <Skeleton height={12} width={180} borderRadius={4} style={{ marginTop: 6 }} />
-                  </View>
-
-                  <View style={styles.gridSkeletonRow}>
-                    <Skeleton height={wp(0.435) * 1.55} width={wp(0.435)} borderRadius={18} />
-                    <Skeleton height={wp(0.435) * 1.55} width={wp(0.435)} borderRadius={18} />
+                <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
+                  <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
+                  <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
+                    <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                    <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
                   </View>
                 </View>
               ) : selectedCategory ? (
                 <FadeInView delay={0} key={selectedCategory._id}>
-                  <SectionHeader
-                    icon={selectedCategory.icon || '✨'}
-                    title={selectedCategory.name}
-                    subtitle="Templates & statuses in this category"
-                    onSeeAll={() => handleSelectCategory(null)}
-                    seeAllText="Clear Filter ✕"
-                  />
                   {categoryTemplates.length > 0 ? (
                     renderGrid(categoryTemplates)
                   ) : categoryFetching ? (
-                    <View style={styles.loadingWrap}>
-                      <Skeleton height={180} width="100%" borderRadius={20} style={styles.skeletonCard} />
-                      <Skeleton height={180} width="100%" borderRadius={20} />
+                    <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
+                      <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
+                      <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
+                        <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                        <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                      </View>
                     </View>
                   ) : (
                     <View style={styles.emptyFilter}>
@@ -445,7 +435,11 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                 </FadeInView>
-              ) : feedEmpty ? (
+              ) : displayTemplates && displayTemplates.length > 0 ? (
+                <FadeInView delay={0}>
+                  {renderGrid(displayTemplates)}
+                </FadeInView>
+              ) : (
                 <FadeInView delay={0}>
                   <View style={styles.emptyFeed}>
                     <View style={styles.emptyFeedIcon}>
@@ -455,68 +449,8 @@ export default function HomeScreen() {
                     <Text style={styles.emptyFeedText}>Fresh statuses will show up here. Pull down to refresh.</Text>
                   </View>
                 </FadeInView>
-              ) : (
-                <View>
-                  {homeFeed.trending && homeFeed.trending.length > 0 && (
-                    <View style={styles.sectionWrap}>
-                      <SectionHeader
-                        icon="🔥"
-                        title="Trending Statuses"
-                        subtitle="Most created & shared today"
-                        onSeeAll={() => router.push('/(tabs)/trending')}
-                      />
-                      {renderRail(homeFeed.trending)}
-                    </View>
-                  )}
-
-                  {homeFeed.goodMorning && homeFeed.goodMorning.length > 0 && (
-                    <View style={styles.sectionWrap}>
-                      <SectionHeader
-                        icon="🌅"
-                        title="Good Morning Wishes"
-                        subtitle="Personalized morning greetings"
-                      />
-                      {renderRail(homeFeed.goodMorning)}
-                    </View>
-                  )}
-
-                  {homeFeed.festival && homeFeed.festival.length > 0 && (
-                    <View style={styles.sectionWrap}>
-                      <SectionHeader
-                        icon="🎉"
-                        title="Festival & Celebrations"
-                        subtitle="Diwali, Eid, Jayanti & more"
-                      />
-                      {renderRail(homeFeed.festival)}
-                    </View>
-                  )}
-
-                  {homeFeed.motivation && homeFeed.motivation.length > 0 && (
-                    <View style={styles.sectionWrap}>
-                      <SectionHeader
-                        icon="💪"
-                        title="Daily Inspiration"
-                        subtitle="Success quotes with your photo"
-                      />
-                      {renderRail(homeFeed.motivation)}
-                    </View>
-                  )}
-
-                  {allTemplates && allTemplates.length > 0 && (
-                    <View style={styles.sectionWrap}>
-                      <SectionHeader
-                        icon="✨"
-                        title="All Status Templates"
-                        subtitle="Browse & personalize with your photo"
-                        onSeeAll={() => router.push('/(tabs)/explore')}
-                      />
-                      {renderGrid(allTemplates)}
-                    </View>
-                  )}
-                </View>
               )}
             </View>
-          )}
         </ScrollView>
 
         <Toast message={toastMessage} toastKey={toastKey} onDone={handleToastDone} />
@@ -527,82 +461,27 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  header: {
+  stickyCategoriesHeader: {
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingHorizontal: SCREEN_PAD,
+    zIndex: 100,
+  },
+  categoriesScrollView: {
+    maxHeight: 120,
+  },
+  categoriesWrap: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: wp(0.05),
-    paddingVertical: hp(0.015),
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: wp(0.03),
-  },
-  logoIcon: {
-    width: wp(0.11),
-    height: wp(0.11),
-    borderRadius: wp(0.035),
-    backgroundColor: COLORS.orange,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: COLORS.orangeDeep,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
-  appName: {
-    color: COLORS.ink,
-    fontFamily: FONTS.extrabold,
-    fontSize: fontScale(18),
-    letterSpacing: 0.3,
-  },
-  appTagline: {
-    color: COLORS.orange,
-    fontFamily: FONTS.semibold,
-    fontSize: fontScale(10.5),
-    marginTop: 1,
-  },
-  searchBarContainer: {
-    paddingHorizontal: wp(0.05),
-    marginBottom: hp(0.01),
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderStrong,
-    borderRadius: wp(0.035),
-    paddingHorizontal: wp(0.038),
-    height: hp(0.055),
-    gap: wp(0.025),
-  },
-  searchInput: {
-    flex: 1,
-    color: COLORS.ink,
-    fontSize: fontScale(13.5),
-    fontFamily: FONTS.medium,
-  },
-  clearContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: wp(0.01),
+    flexWrap: 'wrap',
+    rowGap: 8,
+    columnGap: 8,
+    paddingRight: 4,
   },
   scrollContent: {
-    paddingBottom: hp(0.05),
-  },
-  categoryBar: {
-    marginVertical: 4,
-  },
-  categoryScroll: {
-    paddingHorizontal: SCREEN_PAD,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingBottom: hp(0.08),
   },
   sectionWrap: {
-    marginBottom: SPACING.md,
+    marginVertical: 0,
   },
   loadingWrap: {
     paddingHorizontal: SCREEN_PAD,
@@ -614,14 +493,13 @@ const styles = StyleSheet.create({
   horizontalList: {
     paddingHorizontal: SCREEN_PAD,
     gap: GRID_GAP,
-    paddingBottom: SPACING.sm,
+    paddingBottom: 0,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     paddingHorizontal: SCREEN_PAD,
-    rowGap: GRID_GAP,
+    rowGap: 0,
+    marginVertical: 0,
   },
   emptyFilter: {
     alignItems: 'center',
