@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, SafeAreaView, Dimensions, Image, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet, SafeAreaView, Dimensions, Image, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,25 +78,22 @@ export default function TemplateEditorScreen() {
     }
   }, [activeTemplate?._id, user?.favorites]);
 
-  const handleToggleFavorite = async () => {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-    if (!activeTemplate) return;
+  const [favModalInfo, setFavModalInfo] = useState(null);
 
+  const performFavoriteAction = async (targetFav, showToastNotification = false) => {
+    if (!activeTemplate) return;
     const prevFav = isFav;
-    const nextFav = !prevFav;
+    const nextFav = targetFav;
     const targetId = String(activeTemplate._id || activeTemplate.id);
 
-    // 1. Instant local state & Toast update
     setIsFav(nextFav);
-    showToast(
-      nextFav ? 'Added to favorites' : 'Removed from favorites',
-      nextFav ? 'heart' : 'heart-dislike'
-    );
+    if (showToastNotification) {
+      showToast(
+        nextFav ? 'Added to favorites' : 'Removed from favorites',
+        nextFav ? 'heart' : 'heart-dislike'
+      );
+    }
 
-    // 2. Optimistic update to Zustand store user favorites array
     const storeUser = useAuthStore.getState().user;
     if (storeUser) {
       let currentFavs = Array.isArray(storeUser.favorites) ? [...storeUser.favorites] : [];
@@ -117,12 +114,42 @@ export default function TemplateEditorScreen() {
         setIsFav(serverFavStatus);
       }
     } catch (err) {
-      // Rollback on failure
       setIsFav(prevFav);
       if (storeUser) {
         useAuthStore.setState({ user: storeUser });
       }
       console.error('Error toggling favorite:', err);
+    }
+  };
+
+  const handleToggleFavorite = () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    if (!activeTemplate) return;
+
+    if (isFav) {
+      setFavModalInfo({
+        type: 'remove',
+        title: 'Remove Favorite?',
+        message: `Are you sure you want to remove "${activeTemplate.name}" from your saved favorites?`,
+        icon: 'heart-dislike-outline',
+        iconColor: COLORS.error,
+        confirmText: 'Remove',
+        cancelText: 'Cancel',
+      });
+    } else {
+      performFavoriteAction(true, false);
+      setFavModalInfo({
+        type: 'add',
+        title: 'Saved to Favorites!',
+        message: `"${activeTemplate.name}" has been added to your saved favorites library.`,
+        icon: 'heart',
+        iconColor: COLORS.orange,
+        confirmText: 'Got It',
+        hideCancel: true,
+      });
     }
   };
 
@@ -258,25 +285,40 @@ export default function TemplateEditorScreen() {
               <Skeleton height={24} width={24} borderRadius={12} />
               <Skeleton height={20} width={wp(0.35)} borderRadius={6} style={{ marginLeft: 8 }} />
             </View>
-            <Skeleton height={32} width={64} borderRadius={12} />
+            <Skeleton height={32} width={32} borderRadius={10} />
           </View>
 
           {/* Canvas Skeleton */}
           <View style={styles.canvasContainer}>
-            <Skeleton height={CANVAS_HEIGHT} width={CANVAS_WIDTH} borderRadius={0} />
+            <View style={[styles.canvasSkeletonWrapper, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }]}>
+              <Skeleton height="100%" width="100%" borderRadius={14}>
+                <View style={styles.canvasSkeletonContent}>
+                  <View style={styles.skeletonPhotoSlot} />
+                  <View style={styles.skeletonTextLine} />
+                  <View style={styles.skeletonFooterStrip} />
+                </View>
+              </Skeleton>
+            </View>
           </View>
 
           {/* Editor Panel Skeleton */}
           <View style={styles.editorPanel}>
-            <View style={styles.tabsRow}>
-              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
-              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
-              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
-              <Skeleton height={38} width={wp(0.20)} borderRadius={12} />
+            <View style={styles.tabHeader}>
+              <View style={{ flex: 1, paddingHorizontal: 2 }}>
+                <Skeleton height={32} width="100%" borderRadius={10} />
+              </View>
+              <View style={{ flex: 1, paddingHorizontal: 2 }}>
+                <Skeleton height={32} width="100%" borderRadius={10} />
+              </View>
+              <View style={{ flex: 1, paddingHorizontal: 2 }}>
+                <Skeleton height={32} width="100%" borderRadius={10} />
+              </View>
             </View>
-            <View style={{ marginTop: 16 }}>
-              <Skeleton height={46} width="100%" borderRadius={14} style={{ marginBottom: 10 }} />
-              <Skeleton height={44} width="100%" borderRadius={14} />
+            <View style={styles.tabContent}>
+              <View style={styles.controlsStack}>
+                <Skeleton height={44} width="100%" borderRadius={14} />
+                <Skeleton height={44} width="100%" borderRadius={14} />
+              </View>
             </View>
           </View>
         </View>
@@ -290,7 +332,11 @@ export default function TemplateEditorScreen() {
   return (
     <AppBackground>
       <StatusBar style="dark" />
-      <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, hp(0.012)) }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, hp(0.012)) }]}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeftGroup}>
@@ -344,7 +390,7 @@ export default function TemplateEditorScreen() {
               style={[styles.tabItem, activeTab === 'photo' && styles.activeTabItem]}
               contentStyle={styles.tabItemContent}
             >
-              <Ionicons name="camera-outline" size={15} color={activeTab === 'photo' ? COLORS.white : '#8A7A68'} />
+              <Ionicons name="camera-outline" size={16} color={activeTab === 'photo' ? COLORS.white : '#8A7A68'} />
               <Text style={[styles.tabText, activeTab === 'photo' && styles.activeTabText]}>Photo</Text>
             </PressableScale>
 
@@ -354,7 +400,7 @@ export default function TemplateEditorScreen() {
               style={[styles.tabItem, activeTab === 'text' && styles.activeTabItem]}
               contentStyle={styles.tabItemContent}
             >
-              <Ionicons name="text-outline" size={15} color={activeTab === 'text' ? COLORS.white : '#8A7A68'} />
+              <Ionicons name="text-outline" size={16} color={activeTab === 'text' ? COLORS.white : '#8A7A68'} />
               <Text style={[styles.tabText, activeTab === 'text' && styles.activeTabText]}>Name</Text>
             </PressableScale>
 
@@ -364,7 +410,7 @@ export default function TemplateEditorScreen() {
               style={[styles.tabItem, (activeTab === 'footers' || activeTab === 'effects') && styles.activeTabItem]}
               contentStyle={styles.tabItemContent}
             >
-              <Ionicons name="film-outline" size={15} color={(activeTab === 'footers' || activeTab === 'effects') ? COLORS.white : '#8A7A68'} />
+              <Ionicons name="film-outline" size={16} color={(activeTab === 'footers' || activeTab === 'effects') ? COLORS.white : '#8A7A68'} />
               <Text style={[styles.tabText, (activeTab === 'footers' || activeTab === 'effects') && styles.activeTabText]}>Footers</Text>
             </PressableScale>
           </View>
@@ -528,6 +574,7 @@ export default function TemplateEditorScreen() {
           </View>
         </View>
       </View>
+    </KeyboardAvoidingView>
 
       {/* Themed Alert (replaces native Alert) */}
       <ConfirmModal
@@ -560,6 +607,25 @@ export default function TemplateEditorScreen() {
           }}
         />
       )}
+
+      {/* Themed Favorite Action Popup Modal */}
+      <ConfirmModal
+        visible={favModalInfo !== null}
+        title={favModalInfo?.title || ''}
+        message={favModalInfo?.message || ''}
+        confirmText={favModalInfo?.confirmText || 'Got It'}
+        cancelText={favModalInfo?.cancelText || 'Cancel'}
+        icon={favModalInfo?.icon || 'heart'}
+        iconColor={favModalInfo?.iconColor || COLORS.orange}
+        hideCancel={favModalInfo?.hideCancel || false}
+        onCancel={() => setFavModalInfo(null)}
+        onConfirm={() => {
+          if (favModalInfo?.type === 'remove') {
+            performFavoriteAction(false);
+          }
+          setFavModalInfo(null);
+        }}
+      />
 
       {/* Toast Notification */}
       <Toast
@@ -677,6 +743,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 4,
   },
+  canvasSkeletonWrapper: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: COLORS.ink,
+    elevation: 8,
+    shadowColor: COLORS.orangeDeep,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+  },
+  canvasSkeletonContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  skeletonPhotoSlot: {
+    width: '65%',
+    height: '38%',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(249, 115, 22, 0.3)',
+    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    marginTop: '25%',
+  },
+  skeletonTextLine: {
+    width: '70%',
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    marginBottom: '28%',
+  },
+  skeletonFooterStrip: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '25%',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
   editorPanel: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 26,
@@ -705,7 +812,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   activeTabItem: {
     backgroundColor: COLORS.orange,
@@ -718,7 +825,9 @@ const styles = StyleSheet.create({
   tabText: {
     color: '#8A7A68',
     fontFamily: FONTS.semibold,
-    fontSize: fontScale(12),
+    fontSize: fontScale(12.5),
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   activeTabText: {
     color: COLORS.white,
@@ -759,6 +868,8 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontFamily: FONTS.bold,
     fontSize: fontScale(13.5),
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   previewActionBtn: {
     height: 44,
@@ -782,6 +893,8 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontFamily: FONTS.bold,
     fontSize: fontScale(14),
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   textInputRow: {
     flexDirection: 'row',

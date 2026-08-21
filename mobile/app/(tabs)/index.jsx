@@ -21,14 +21,10 @@ import { useCreationStore } from '../../src/store/useCreationStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
-const FALLBACK_CATEGORIES = [
-  { _id: 'good-morning', name: 'Good Morning', icon: '🌅' },
-  { _id: 'festival', name: 'Festivals', icon: '🎉' },
-  { _id: 'motivation', name: 'Motivation', icon: '⚡' },
-  { _id: 'devotional', name: 'Devotional', icon: '🙏' },
-  { _id: 'love', name: 'Love', icon: '💖' },
-  { _id: 'quotes', name: 'Quotes', icon: '💬' },
-];
+
+
+// Module-level flag to track auto-opening per app session across component remounts
+let hasAutoOpenedCampaignSession = false;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -44,20 +40,7 @@ export default function HomeScreen() {
     dragStartY.current = e.nativeEvent.contentOffset.y;
   };
 
-  const handleVerticalScroll = (e) => {
-    const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / SINGLE_CARD_SNAP_HEIGHT);
-    if (index !== activeIndexRef.current && index >= 0) {
-      activeIndexRef.current = index;
-      hapticTap();
-    }
 
-    if (offsetY > dragStartY.current + 4) {
-      if (!disableVerticalInterval) setDisableVerticalInterval(true);
-    } else if (offsetY < dragStartY.current - 4) {
-      if (disableVerticalInterval) setDisableVerticalInterval(false);
-    }
-  };
 
   const [railIndices, setRailIndices] = useState({});
   const [disableHorizontalInterval, setDisableHorizontalInterval] = useState({});
@@ -106,7 +89,7 @@ export default function HomeScreen() {
   const logoScale = useRef(new Animated.Value(1)).current;
   const prevRefreshing = useRef(false);
 
-  const displayCategories = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
+  const displayCategories = categories || [];
 
   // Bounce the logo when a pull-to-refresh finishes (not on initial load)
   useEffect(() => {
@@ -120,7 +103,8 @@ export default function HomeScreen() {
     prevRefreshing.current = refreshing;
   }, [refreshing, logoScale]);
 
-  const [allTemplates, setAllTemplates] = useState([]);
+  const [activeCampaigns, setActiveCampaigns] = useState([]);
+  const [currentCoverBg, setCurrentCoverBg] = useState(null);
 
   const fetchHomeData = async () => {
     setLoadFailed(false);
@@ -131,12 +115,14 @@ export default function HomeScreen() {
         API.get('/templates/home-feed'),
         API.get('/campaigns/active-opening'),
         API.get('/templates', { params: { limit: 24, sort: 'trending' } }),
+        API.get('/campaigns/active'),
       ]);
 
       let catData = [];
       let feedData = { trending: [], goodMorning: [], motivation: [], festival: [] };
       let campaignData = null;
       let templateData = [];
+      let activeCamps = [];
 
       if (results[0].status === 'fulfilled' && results[0].value?.data?.success) {
         catData = results[0].value.data.data || [];
@@ -150,10 +136,14 @@ export default function HomeScreen() {
       if (results[3].status === 'fulfilled' && results[3].value?.data?.success) {
         templateData = results[3].value.data.data || [];
       }
+      if (results[4].status === 'fulfilled' && results[4].value?.data?.success) {
+        activeCamps = results[4].value.data.data || [];
+      }
 
       setCategories(catData);
       setOpeningCampaign(campaignData);
       setAllTemplates(templateData);
+      setActiveCampaigns(activeCamps);
 
       // Guarantee that if section rails are empty, trending gets auto-filled from templateData
       if (
@@ -174,20 +164,23 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setInitialCampaignCheck(false);
     }
   };
 
-  const hasAutoOpenedCampaign = useRef(false);
+  const [initialCampaignCheck, setInitialCampaignCheck] = useState(true);
 
   useEffect(() => {
     fetchHomeData();
   }, []);
 
-  // Automatically open campaign screen on app opening if an active campaign exists
+  const [allTemplates, setAllTemplates] = useState([]);
+
+  // Automatically open single designated active campaign screen on app opening directly
   useEffect(() => {
-    if (openingCampaign && openingCampaign._id && !hasAutoOpenedCampaign.current) {
-      hasAutoOpenedCampaign.current = true;
-      router.push(`/campaign/${openingCampaign._id}`);
+    if (openingCampaign && openingCampaign._id && !hasAutoOpenedCampaignSession) {
+      hasAutoOpenedCampaignSession = true;
+      router.replace(`/campaign/${openingCampaign._id}`);
     }
   }, [openingCampaign]);
 
@@ -232,7 +225,7 @@ export default function HomeScreen() {
     const catId = String(selectedCategory._id);
     const catNameLower = (selectedCategory.name || '').toLowerCase();
 
-    const feedItems = [
+    const rawList = [
       ...(homeFeed.trending || []),
       ...(homeFeed.goodMorning || []),
       ...(homeFeed.festival || []),
@@ -240,7 +233,7 @@ export default function HomeScreen() {
       ...allTemplates,
     ].filter((item, index, arr) => item && arr.findIndex((x) => x && x._id === item._id) === index);
 
-    const instant = feedItems
+    const instant = rawList
       .filter((t) => {
         if (!t) return false;
         const rawId = t.categoryId?._id || t.categoryId || t.category?._id || t.category;
@@ -323,6 +316,61 @@ export default function HomeScreen() {
     });
   }, [selectedCategory, categoryTemplates, homeFeed, allTemplates]);
 
+  // Construct interleaved feed items: After every 2 simple template cards, insert 1 campaign card section (swiped left/right).
+  // When campaigns are over, no need to repeat; simply render remaining simple templates.
+  const feedItems = React.useMemo(() => {
+    const templates = displayTemplates || [];
+    const campaigns = activeCampaigns || [];
+
+    const items = [];
+    let campaignIdx = 0;
+    let templateIdx = 0;
+
+    while (templateIdx < templates.length) {
+      // Insert up to 2 simple template cards (swiped down/vertical)
+      for (let i = 0; i < 2 && templateIdx < templates.length; i++) {
+        const t = templates[templateIdx++];
+        items.push({ type: 'template', data: t, key: `t_${t._id}_${templateIdx}` });
+      }
+
+      // After 2 template cards, if active campaigns remain, insert campaign cards section (swiped left/right)
+      if (campaignIdx < campaigns.length) {
+        const c = campaigns[campaignIdx++];
+        items.push({ type: 'campaign', data: c, key: `c_${c._id}_${campaignIdx}` });
+      }
+    }
+
+    return items;
+  }, [displayTemplates, activeCampaigns]);
+
+  const handleVerticalScroll = (e) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    const index = Math.round(offsetY / SINGLE_CARD_SNAP_HEIGHT);
+    if (index !== activeIndexRef.current && index >= 0) {
+      activeIndexRef.current = index;
+      hapticTap();
+    }
+
+    // Update full screen background cover image when campaign card is visible
+    const currentItem = selectedCategory ? null : feedItems[index];
+    if (currentItem && currentItem.type === 'campaign') {
+      const bg = currentItem.data?.heroBackground || currentItem.data?.heroImage;
+      if (bg && bg !== currentCoverBg) {
+        setCurrentCoverBg(bg);
+      }
+    } else {
+      if (currentCoverBg !== null) {
+        setCurrentCoverBg(null);
+      }
+    }
+
+    if (offsetY > dragStartY.current + 4) {
+      if (!disableVerticalInterval) setDisableVerticalInterval(true);
+    } else if (offsetY < dragStartY.current - 4) {
+      if (disableVerticalInterval) setDisableVerticalInterval(false);
+    }
+  };
+
   const renderGrid = (items) => (
     <View style={styles.grid}>
       {items.map((item) => (
@@ -331,11 +379,15 @@ export default function HomeScreen() {
     </View>
   );
 
+  if (initialCampaignCheck && !hasAutoOpenedCampaignSession) {
+    return <AppBackground variant="bone" />;
+  }
+
   return (
-    <AppBackground>
+    <AppBackground bgImage={currentCoverBg}>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        {/* Sticky Top Categories Bar (Scrollable 3-Line Grid with Scrollbar) */}
+        {/* Sticky Top Categories Bar */}
         <View style={styles.stickyCategoriesHeader}>
           <ScrollView
             nestedScrollEnabled={true}
@@ -378,79 +430,118 @@ export default function HomeScreen() {
           contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
         >
           <View style={{ marginTop: 4 }}>
-
-              {loading ? (
-                <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
-                  <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
-                  <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
-                    <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
-                    <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
-                  </View>
+            {loading ? (
+              <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
+                <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
+                <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
+                  <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                  <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
                 </View>
-              ) : selectedCategory ? (
-                <FadeInView delay={0} key={selectedCategory._id}>
-                  {categoryTemplates.length > 0 ? (
-                    renderGrid(categoryTemplates)
-                  ) : categoryFetching ? (
-                    <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
-                      <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
-                      <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
-                        <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
-                        <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
-                      </View>
+              </View>
+            ) : selectedCategory ? (
+              <FadeInView delay={0} key={selectedCategory._id}>
+                {categoryTemplates.length > 0 ? (
+                  renderGrid(categoryTemplates)
+                ) : categoryFetching ? (
+                  <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
+                    <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
+                    <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
+                      <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                      <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
                     </View>
-                  ) : (
-                    <View style={styles.emptyFilter}>
-                      <Ionicons name="file-tray-outline" size={40} color={COLORS.borderStrong} />
-                      <Text style={styles.emptyFilterTitle}>No templates found</Text>
-                      <Text style={styles.emptyFilterText}>New {selectedCategory.name} statuses will appear here.</Text>
-                    </View>
-                  )}
-                </FadeInView>
-              ) : loadFailed ? (
-                <FadeInView delay={0}>
-                  <View style={styles.emptyFeed}>
-                    <View style={styles.emptyFeedIcon}>
-                      <Ionicons name="cloud-offline-outline" size={34} color={COLORS.orange} />
-                    </View>
-                    <Text style={styles.emptyFeedTitle}>Couldn't load statuses</Text>
-                    <Text style={styles.emptyFeedText}>
-                      We couldn't reach the Statuzzz server. Check that the backend is running and your phone is on the same Wi-Fi, then try again.
-                    </Text>
-                    <PressableScale
-                      onPress={() => {
-                        setLoading(true);
-                        fetchHomeData();
-                      }}
-                      scaleTo={0.95}
-                      haptic="impact"
-                      style={styles.retryBtn}
-                      contentStyle={styles.retryContent}
-                    >
-                      <Ionicons name="refresh" size={16} color={COLORS.white} />
-                      <Text style={styles.retryText}>Try Again</Text>
-                    </PressableScale>
-                    <Text style={styles.retryHint} numberOfLines={2}>
-                      API: {API.defaults.baseURL}
-                    </Text>
                   </View>
-                </FadeInView>
-              ) : displayTemplates && displayTemplates.length > 0 ? (
-                <FadeInView delay={0}>
-                  {renderGrid(displayTemplates)}
-                </FadeInView>
-              ) : (
-                <FadeInView delay={0}>
-                  <View style={styles.emptyFeed}>
-                    <View style={styles.emptyFeedIcon}>
-                      <Ionicons name="sparkles-outline" size={34} color={COLORS.orange} />
-                    </View>
-                    <Text style={styles.emptyFeedTitle}>No statuses yet</Text>
-                    <Text style={styles.emptyFeedText}>Fresh statuses will show up here. Pull down to refresh.</Text>
+                ) : (
+                  <View style={styles.emptyFilter}>
+                    <Ionicons name="file-tray-outline" size={40} color={COLORS.borderStrong} />
+                    <Text style={styles.emptyFilterTitle}>No templates found</Text>
+                    <Text style={styles.emptyFilterText}>New {selectedCategory.name} statuses will appear here.</Text>
                   </View>
-                </FadeInView>
-              )}
-            </View>
+                )}
+              </FadeInView>
+            ) : loadFailed ? (
+              <FadeInView delay={0}>
+                <View style={styles.emptyFeed}>
+                  <View style={styles.emptyFeedIcon}>
+                    <Ionicons name="cloud-offline-outline" size={34} color={COLORS.orange} />
+                  </View>
+                  <Text style={styles.emptyFeedTitle}>Couldn't load statuses</Text>
+                  <Text style={styles.emptyFeedText}>
+                    We couldn't reach the Statuzzz server. Check that the backend is running and your phone is on the same Wi-Fi, then try again.
+                  </Text>
+                  <PressableScale
+                    onPress={() => {
+                      setLoading(true);
+                      fetchHomeData();
+                    }}
+                    scaleTo={0.95}
+                    haptic="impact"
+                    style={styles.retryBtn}
+                    contentStyle={styles.retryContent}
+                  >
+                    <Ionicons name="refresh" size={16} color={COLORS.white} />
+                    <Text style={styles.retryText}>Try Again</Text>
+                  </PressableScale>
+                  <Text style={styles.retryHint} numberOfLines={2}>
+                    API: {API.defaults.baseURL}
+                  </Text>
+                </View>
+              </FadeInView>
+            ) : feedItems && feedItems.length > 0 ? (
+              <FadeInView delay={0}>
+                <View style={styles.grid}>
+                  {feedItems.map((item) => {
+                    if (item.type === 'template') {
+                      return (
+                        <TemplateCard
+                          key={item.key}
+                          template={item.data}
+                          onPress={() => handleTemplatePress(item.data)}
+                        />
+                      );
+                    } else if (item.type === 'campaign') {
+                      const campaign = item.data;
+                      const templates = campaign.featuredTemplates || [];
+                      if (templates.length === 0) return null;
+
+                      return (
+                        <View key={item.key} style={styles.campaignFeedWrap}>
+                          {/* Horizontal Swiping Carousel for Campaign Cards */}
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={[styles.campaignHorizontalContent, { paddingHorizontal: SCREEN_PAD }]}
+                            snapToInterval={CARD_WIDTH + GRID_GAP}
+                            snapToAlignment="start"
+                            decelerationRate="fast"
+                          >
+                            {templates.map((t) => (
+                              <TemplateCard
+                                key={`c_t_${t._id}`}
+                                template={t}
+                                onPress={() => handleTemplatePress(t)}
+                              />
+                            ))}
+                          </ScrollView>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })}
+                </View>
+              </FadeInView>
+            ) : (
+              <FadeInView delay={0}>
+                <View style={styles.emptyFeed}>
+                  <View style={styles.emptyFeedIcon}>
+                    <Ionicons name="sparkles-outline" size={34} color={COLORS.orange} />
+                  </View>
+                  <Text style={styles.emptyFeedTitle}>No statuses yet</Text>
+                  <Text style={styles.emptyFeedText}>Fresh statuses will show up here. Pull down to refresh.</Text>
+                </View>
+              </FadeInView>
+            )}
+          </View>
         </ScrollView>
 
         <Toast message={toastMessage} toastKey={toastKey} onDone={handleToastDone} />
@@ -596,5 +687,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 14,
     paddingHorizontal: 30,
+  },
+  campaignFeedWrap: {
+    width: '100%',
+    marginVertical: 12,
+    alignItems: 'center',
+  },
+  campaignBadgeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.orange,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: 8,
+    alignSelf: 'center',
+  },
+  campaignBadgeText: {
+    color: COLORS.white,
+    fontSize: fontScale(10.5),
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.5,
+  },
+  campaignHorizontalContent: {
+    paddingHorizontal: SCREEN_PAD,
+    gap: GRID_GAP,
+    alignItems: 'center',
+    paddingVertical: 4,
   },
 });

@@ -8,180 +8,112 @@ const User = require('./models/User');
 const Purchase = require('./models/Purchase');
 const Analytics = require('./models/Analytics');
 
-const SAMPLE_VIDEOS = [
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-];
-
-const SAMPLE_FOOTERS = [
-  {
-    name: 'Mahadev Trishul Parchment',
-    videoAsset: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=800&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=300&q=80',
-    blendMode: 'normal',
-    heightPercent: 35,
-    objectFit: 'contain',
-  },
-  {
-    name: 'Golden Smoke Clouds',
-    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=300&q=80',
-    blendMode: 'screen',
-    heightPercent: 40,
-    objectFit: 'cover',
-  },
-  {
-    name: 'Festive Sparkle Waves',
-    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=300&q=80',
-    blendMode: 'screen',
-    heightPercent: 38,
-    objectFit: 'contain',
-  },
-];
-
 const autoSeedIfEmpty = async () => {
   try {
-    // Clean existing templates in DB by filtering out non-name text layers and populating default footers
-    const existingTemplates = await Template.find();
-    for (const t of existingTemplates) {
-      let updated = false;
-      if (t.canvasConfig && Array.isArray(t.canvasConfig.layers)) {
-        const cleanedLayers = t.canvasConfig.layers.filter(
-          (l) => l.type === 'photo' || (l.type === 'text' && l.fieldName === 'name')
-        );
-        for (const l of cleanedLayers) {
-          if (l.type === 'photo' && (!l.zIndex || l.zIndex < 10)) {
-            l.zIndex = 15;
-            updated = true;
-          }
-          if (l.type === 'text') {
-            if (!l.zIndex || l.zIndex < 10) {
-              l.zIndex = 20;
-              updated = true;
-            }
-            if (l.defaultValue !== 'User Name') {
-              l.defaultValue = 'User Name';
-              updated = true;
-            }
-          }
-        }
-        if (cleanedLayers.length !== t.canvasConfig.layers.length) {
-          t.canvasConfig.layers = cleanedLayers;
-          updated = true;
-        }
-      }
-
-      // Always enforce full footers with thumbnails for every template in DB
-      t.footers = SAMPLE_FOOTERS;
-      await t.save();
-    }
-
-    // Ensure only 1 active campaign exists in DB
-    const activeCampaigns = await Campaign.find({ active: true }).sort({ createdAt: -1 });
-    if (activeCampaigns.length > 1) {
-      for (let i = 1; i < activeCampaigns.length; i++) {
-        activeCampaigns[i].active = false;
-        activeCampaigns[i].showOnAppOpening = false;
-        await activeCampaigns[i].save();
-      }
-    }
-
-    const templateCount = await Template.countDocuments();
-    if (templateCount > 0) {
-      console.log(`[AutoSeed] DB templates initialized with footers — count: ${templateCount}`);
-      return;
-    }
-
-    console.log('[AutoSeed] Empty database detected — seeding...');
-
-    // 1. Admin
+    // 1. Ensure Super Admin account exists
     const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@statuzzz.com';
     const adminPassword = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
-    const existingAdmin = await Admin.findOne({ email: adminEmail });
+    const existingAdmin = await Admin.findOne({ email: adminEmail.toLowerCase() });
     if (!existingAdmin) {
-      await Admin.create({ email: adminEmail, passwordHash: adminPassword, role: 'super_admin', isActive: true });
-      console.log(`[AutoSeed] Admin created: ${adminEmail}`);
+      await Admin.create({
+        email: adminEmail,
+        passwordHash: adminPassword,
+        role: 'super_admin',
+        isActive: true,
+      });
+      console.log(`[AutoSeed] Default Admin ensured: ${adminEmail}`);
     }
 
-    // 2. Categories
-    const categoriesData = [
-      { name: 'आपके लिए', slug: 'for-you', icon: '✨', featured: true, sortOrder: 1, description: 'Personalized recommendations tailored for you' },
-      { name: 'Motivation', slug: 'motivation', icon: '🔥', featured: true, sortOrder: 2, description: 'Daily inspiring quotes & success frames' },
-      { name: 'Love & Couples', slug: 'love', icon: '❤️', featured: true, sortOrder: 3, description: 'Romantic & couple status templates' },
-      { name: 'धार्मिक (Devotional)', slug: 'devotional', icon: '🕉️', featured: true, sortOrder: 4, description: 'Mahadev, Krishna & morning prayer status' },
-      { name: 'Good Morning', slug: 'good-morning', icon: '🌅', featured: true, sortOrder: 5, description: 'Fresh morning wishes with your photo' },
-      { name: 'Birthday Wishes', slug: 'birthday', icon: '🎂', featured: true, sortOrder: 6, description: 'Birthday celebration templates with photo slot' },
-      { name: 'Hindi Quotes', slug: 'quotes', icon: '💬', featured: false, sortOrder: 7, description: 'Wisdom, thoughts & life philosophy' },
-      { name: 'Festivals', slug: 'festival', icon: '🎉', featured: true, sortOrder: 8, description: 'Diwali, Eid, Jayanti & Indian festivals' },
-      { name: 'Attitude & Style', slug: 'attitude', icon: '😎', featured: false, sortOrder: 9, description: 'High energy royal & swagger cards' },
-      { name: 'Video Status Reels', slug: 'reels', icon: '🎬', featured: true, sortOrder: 10, description: 'Motion video templates with music overlay' },
-      { name: 'Business & Branding', slug: 'business', icon: '💼', featured: false, sortOrder: 11, description: 'Personal branding & professional cards' },
-      { name: 'Good Night', slug: 'good-night', icon: '🌙', featured: false, sortOrder: 12, description: 'Peaceful night greetings and blessings' },
-    ];
-    const categories = await Category.insertMany(categoriesData);
-    const catMap = {};
-    categories.forEach((c) => { catMap[c.slug] = c._id; });
-    console.log(`[AutoSeed] ${categories.length} categories created.`);
+    // 2. Remove seeded mock data from database
+    const seededUserPhoneNumbers = ['+919876543210', '+919123456789'];
+    await User.deleteMany({ phoneNumber: { $in: seededUserPhoneNumbers } });
 
-    // 3. Frames
-    await Frame.insertMany([
-      { name: 'Golden Emerald Royal Frame', thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80', asset: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80', category: catMap['for-you'], contentTag: 'general', placement: { x: 0.5, y: 0.42, width: 0.72, height: 0.48, zIndex: 10 }, configuration: { aspectRatio: 0.5625, borderPadding: 12 }, sortOrder: 1 },
-      { name: 'Cyberpunk Neon Sparkle Border', thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400&q=80', asset: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800&q=80', category: catMap['motivation'], contentTag: 'motivation', placement: { x: 0.5, y: 0.45, width: 0.68, height: 0.44, zIndex: 10 }, configuration: { aspectRatio: 0.5625, borderPadding: 16 }, sortOrder: 2 },
-      { name: 'Romantic Floral Heart Ring', thumbnail: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=400&q=80', asset: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=800&q=80', category: catMap['love'], contentTag: 'love', placement: { x: 0.5, y: 0.4, width: 0.75, height: 0.5, zIndex: 10 }, configuration: { aspectRatio: 0.5625, borderPadding: 20 }, sortOrder: 3 },
-    ]);
+    await Category.deleteMany({
+      slug: {
+        $in: [
+          'for-you',
+          'motivation',
+          'love',
+          'devotional',
+          'good-morning',
+          'birthday',
+          'quotes',
+          'festival',
+          'attitude',
+          'reels',
+          'business',
+          'good-night',
+        ],
+      },
+    });
 
-    // 4. Effects
-    await Effect.insertMany([
-      { name: 'Emerald Glitter Sparkles', type: 'particle', asset: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&q=80', duration: 5, loop: true, intensity: 1.2 },
-      { name: 'Golden Diya Lights', type: 'overlay', asset: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&q=80', duration: 6, loop: true, intensity: 1.0 },
-      { name: 'Falling Rose Petals', type: 'overlay', asset: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400&q=80', duration: 8, loop: true, intensity: 0.9 },
-    ]);
+    await Frame.deleteMany({
+      name: {
+        $in: [
+          'Golden Emerald Royal Frame',
+          'Cyberpunk Neon Sparkle Border',
+          'Romantic Floral Heart Ring',
+          'Devotional Mahadev Gold Frame',
+          'Festive Confetti Birthday Ring',
+          'Good Morning Sunrise Oval Frame',
+          'Bold Royal Attitude Frame',
+          'Professional Branding Badge Frame',
+        ],
+      },
+    });
 
-    // 5. Templates
-    const mkLayers = (photo, nameData = {}) => [
-      { id: 'l1', type: 'photo', x: 0.5, y: photo.y || 0.38, width: photo.w || 0.65, height: photo.h || 0.42, zIndex: 15 },
-      { id: 'l2', type: 'text', x: 0.5, y: nameData.y || 0.8, width: 0.8, height: 0.08, defaultValue: nameData.text || 'User Name', fieldName: 'name', fontSize: nameData.size || 24, fontColor: nameData.color || '#FFFFFF', zIndex: 20 },
-    ];
+    await Effect.deleteMany({
+      name: {
+        $in: [
+          'Emerald Glitter Sparkles',
+          'Golden Diya Lights',
+          'Falling Rose Petals',
+          'Cyberpunk Green Glow',
+          'Fireworks Festival Splash',
+          'Golden Dust Particles',
+        ],
+      },
+    });
 
-    const templatesData = [
-      { name: 'विजयी भव: Daily Motivation Status', description: 'Inspiring Hindi status card with your photo slot', categoryId: catMap['motivation'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#07140B', layers: mkLayers({ y: 0.38 }, { text: 'User Name' }) }, tags: ['motivation', 'hindi', 'daily'], views: 3420, uses: 1280, favoritesCount: 490, trendingScore: 95, isPinned: true },
-      { name: 'Statuzzz Cyber Emerald VIP Reel', description: 'Dynamic video status with glowing neon particles', categoryId: catMap['reels'], type: 'video', accessType: 'premium', price: 49, thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=600&q=80', previewAsset: SAMPLE_VIDEOS[0], mainMedia: SAMPLE_VIDEOS[0], canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#0F351B', layers: mkLayers({ y: 0.4 }, { text: 'User Name', size: 26 }) }, tags: ['reels', 'video', 'vip'], views: 5200, uses: 2100, purchasesCount: 850, trendingScore: 99, isPinned: true },
-      { name: 'शुभ प्रभात: Morning Sunrise Blessings', description: 'Start your morning with peaceful vibes', categoryId: catMap['good-morning'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#07140B', layers: mkLayers({ y: 0.35 }, { text: 'User Name' }) }, tags: ['good morning', 'hindi', 'wishes'], views: 2890, uses: 1140, trendingScore: 88, isPinned: true },
-      { name: 'हर हर महादेव: Devotional Shiva Status', description: 'Lord Shiva devotional photo frame status', categoryId: catMap['devotional'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#07140B', layers: mkLayers({ y: 0.4 }, { text: 'User Name' }) }, tags: ['devotional', 'shiva', 'mahadev'], views: 4100, uses: 1940, trendingScore: 92 },
-      { name: 'Happy Birthday Celebration Video', description: 'Animated video template for birthday greetings', categoryId: catMap['birthday'], type: 'video', accessType: 'premium', price: 49, thumbnail: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&q=80', previewAsset: SAMPLE_VIDEOS[1], mainMedia: SAMPLE_VIDEOS[1], canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#0F351B', layers: mkLayers({ y: 0.38, w: 0.6, h: 0.4 }, { text: 'User Name', y: 0.82 }) }, tags: ['birthday', 'video', 'party'], views: 4900, uses: 1820, purchasesCount: 610, trendingScore: 96 },
-      { name: 'Romantic Couple Floral Wish', description: 'Heartwarming love status template', categoryId: catMap['love'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#1F0B12', layers: mkLayers({ y: 0.4, w: 0.7, h: 0.45 }, { text: 'User Name', size: 22 }) }, tags: ['love', 'couple', 'romantic'], views: 3100, uses: 1250, trendingScore: 91 },
-      { name: 'Royal Attitude Swagger Card', description: 'High voltage attitude status card', categoryId: catMap['attitude'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#070F14', layers: mkLayers({ y: 0.42, w: 0.68, h: 0.45 }, { text: 'User Name' }) }, tags: ['attitude', 'swagger', 'royal'], views: 4500, uses: 2100, trendingScore: 94 },
-      { name: 'Diwali Festive Lights Motion Video', description: 'Luminous festive celebration video template', categoryId: catMap['festival'], type: 'video', accessType: 'premium', price: 49, thumbnail: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=600&q=80', previewAsset: SAMPLE_VIDEOS[2], mainMedia: SAMPLE_VIDEOS[2], canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#1E1408', layers: mkLayers({ y: 0.38 }, { text: 'User Name', y: 0.82 }) }, tags: ['festival', 'diwali', 'video'], views: 6200, uses: 2900, purchasesCount: 940, trendingScore: 98 },
-      { name: 'Thought of the Day: Hindi Suvichar', description: 'Meaningful Hindi thoughts and wisdom', categoryId: catMap['quotes'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#0A121E', layers: mkLayers({ y: 0.36 }, { text: 'User Name', size: 22 }) }, tags: ['quotes', 'suvichar', 'hindi'], views: 1890, uses: 780, trendingScore: 78 },
-      { name: 'Business Branding & Professional Status', description: 'Sleek corporate status frame', categoryId: catMap['business'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#0B132B', layers: mkLayers({ y: 0.38, w: 0.68, h: 0.42 }, { text: 'User Name', size: 22 }) }, tags: ['business', 'branding', 'professional'], views: 2400, uses: 990, trendingScore: 84 },
-      { name: 'शुभ रात्रि: Peaceful Night Wishes', description: 'Calm moonlit status for good night', categoryId: catMap['good-night'], type: 'image', accessType: 'free', price: 0, thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80', previewAsset: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80', mainMedia: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1200&q=80', canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#080E1A', layers: mkLayers({ y: 0.38 }, { text: 'User Name' }) }, tags: ['good night', 'peaceful', 'hindi'], views: 1650, uses: 620, trendingScore: 75 },
-      { name: 'Cinematic Particles Motion Status', description: 'HD motion video frame with photo backdrop', categoryId: catMap['reels'], type: 'video', accessType: 'premium', price: 49, thumbnail: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&q=80', previewAsset: SAMPLE_VIDEOS[3], mainMedia: SAMPLE_VIDEOS[3], canvasConfig: { aspectRatio: 0.5625, backgroundColor: '#0F172A', layers: mkLayers({ y: 0.4, w: 0.7, h: 0.45 }, { text: 'User Name', size: 20, y: 0.86 }) }, tags: ['reels', 'cinematic', 'video'], views: 3800, uses: 1450, purchasesCount: 520, trendingScore: 93 },
-    ];
+    await Campaign.deleteMany({
+      name: {
+        $in: [
+          '🎉 Statuzzz Festival Carnival 2026',
+          '🔥 Daily Trending Creator Spotlight',
+          '🎬 Motion Video Status Reel Hub',
+        ],
+      },
+    });
 
-    const templates = await Template.insertMany(
-      templatesData.map((t) => ({ ...t, footers: SAMPLE_FOOTERS }))
-    );
-    console.log(`[AutoSeed] ${templates.length} templates created.`);
+    await Template.deleteMany({
+      name: {
+        $in: [
+          'विजयी भव: Daily Motivation Status',
+          'Statuzzz Cyber Emerald VIP Reel',
+          'शुभ प्रभात: Morning Sunrise Blessings',
+          'हर हर महादेव: Devotional Shiva Status',
+          'Happy Birthday Celebration Video',
+          'Romantic Couple Floral Wish',
+          'Royal Attitude Swagger Card',
+          'Diwali Festive Lights Motion Video',
+          'Thought of the Day: Hindi Suvichar',
+          'Business Branding & Professional Status',
+          'शुभ रात्रि: Peaceful Night Wishes',
+          'Cinematic Particles Motion Status',
+        ],
+      },
+    });
 
-    // 6. Campaigns
-    await Campaign.insertMany([
-      { name: '🎉 Statuzzz Festival Carnival 2026', description: 'Unlock 100+ exclusive HD festival status templates & video reels for free this week!', heroImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200&q=80', heroBackground: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200&q=80', featuredCategories: [catMap['festival'], catMap['reels']], featuredTemplates: [templates[7]._id, templates[1]._id], active: true, showOnAppOpening: true, ctaText: 'Explore Festival Statuses' },
-      { name: '🔥 Daily Trending Creator Spotlight', description: 'Create status cards with your photo and get featured.', heroImage: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&q=80', featuredTemplates: [templates[0]._id, templates[3]._id], active: true, showOnAppOpening: false, ctaText: 'Create Your Status' },
-    ]);
+    // Remove any sample purchases or analytics attached to deleted mock items
+    const remainingTemplateIds = (await Template.find().select('_id')).map((t) => t._id);
+    await Purchase.deleteMany({ templateId: { $nin: remainingTemplateIds } });
+    await Analytics.deleteMany({ templateId: { $nin: remainingTemplateIds } });
 
-    // 7. Sample users
-    const users = await User.insertMany([
-      { phoneNumber: '+919876543210', name: 'Rajesh Kumar', role: 'creator', isPremium: true, premiumExpiresAt: new Date(Date.now() + 365 * 86400000), unlockedTemplates: [templates[1]._id, templates[4]._id], savedFavorites: [templates[0]._id, templates[2]._id] },
-      { phoneNumber: '+919123456789', name: 'Priya Sharma', role: 'user', isPremium: false, savedFavorites: [templates[0]._id] },
-    ]);
-
-    console.log('[AutoSeed] ✅ Database seeded successfully!');
+    console.log('[AutoSeed] Production mode active — seeded mock data removed.');
   } catch (error) {
-    console.error('[AutoSeed] Seed failed:', error.message);
+    console.error('[AutoSeed] Error during cleanup:', error.message);
   }
 };
 
 module.exports = { autoSeedIfEmpty };
+

@@ -10,32 +10,50 @@ import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
-export default function LoginScreen() {
+export default function SignUpScreen() {
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+
+  const [agreedToTerms, setAgreedToTerms] = useState(true);
   const [focusedInput, setFocusedInput] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
   const { requestOtp, isAuthenticating, error } = useAuthStore();
   const router = useRouter();
 
-  const handleSendOtp = async () => {
+  const handleSignUp = async () => {
+    if (!name.trim()) {
+      setAlertMessage('Please enter your full name');
+      return;
+    }
     if (phone.length < 10) {
       setAlertMessage('Please enter a valid 10-digit mobile number');
       return;
     }
+    if (!agreedToTerms) {
+      setAlertMessage('Please agree to the Terms & Privacy Policy to continue');
+      return;
+    }
+
     try {
       await requestOtp(phone);
-      router.push({ pathname: '/verify', params: { phone } });
+      router.push({
+        pathname: '/verify',
+        params: { phone, name: name.trim(), isNewUser: 'true' },
+      });
     } catch (e) {
       // Error handled in store
     }
   };
 
-  const inputBorder = (key) => (focusedInput === key ? { borderColor: BRUTAL.flame, borderLeftWidth: 3 } : null);
+  const inputStyle = (key) => [
+    styles.textInput,
+    focusedInput === key && { borderColor: BRUTAL.flame, borderLeftWidth: 3 },
+  ];
 
   return (
     <AppBackground variant="bone">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        {/* Watermark */}
+        {/* Watermark background */}
         <Text style={styles.watermark} numberOfLines={1}>
           STATUZZZ
         </Text>
@@ -48,22 +66,22 @@ export default function LoginScreen() {
             </View>
           </View>
           <Text style={styles.brandTitle}>STATUZZZ</Text>
-          <Text style={styles.brandSubtitle}>CONTROL ROOM // STATUS ENGINE</Text>
+          <Text style={styles.brandSubtitle}>STATUS PLATFORM // NEW ACCOUNT</Text>
         </View>
 
         <BrutalCard offset={wp(0.018)}>
           {/* Ink slab header strip */}
           <View style={styles.cardHeader}>
             <View style={styles.flameCorner} pointerEvents="none" />
-            <Text style={styles.cardHeaderText}>Welcome Back</Text>
-            <View style={styles.otpBadge}>
-              <Text style={styles.otpBadgeText}>LOG IN</Text>
+            <Text style={styles.cardHeaderText}>Create Account</Text>
+            <View style={styles.badgeWrap}>
+              <Text style={styles.badgeText}>SIGN UP</Text>
             </View>
           </View>
 
           <View style={styles.cardBody}>
             <Text style={styles.cardSubtitle}>
-              Enter your registered mobile number to receive a 6-digit verification OTP code.
+              Join Statuzzz to build custom status cards and video reels with your photo.
             </Text>
 
             {error && (
@@ -73,6 +91,21 @@ export default function LoginScreen() {
               </View>
             )}
 
+            {/* Full Name Field */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Full Name *</Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                onFocus={() => setFocusedInput('name')}
+                onBlur={() => setFocusedInput(null)}
+                placeholder="e.g. Rajesh Kumar"
+                placeholderTextColor={BRUTAL.inkFaint}
+                style={inputStyle('name')}
+              />
+            </View>
+
+            {/* Mobile Number Field */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Mobile Number *</Text>
               <View style={styles.phoneInputContainer}>
@@ -88,24 +121,41 @@ export default function LoginScreen() {
                   maxLength={10}
                   placeholder="9876543210"
                   placeholderTextColor={BRUTAL.inkFaint}
-                  style={[styles.textInput, styles.phoneInput, inputBorder('phone')]}
+                  style={[styles.textInput, styles.phoneInput, inputStyle('phone')]}
                 />
               </View>
             </View>
 
+
+
+            {/* Terms Agreement */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setAgreedToTerms(!agreedToTerms)}
+              style={styles.termsRow}
+            >
+              <View style={[styles.checkbox, agreedToTerms && styles.checkboxActive]}>
+                {agreedToTerms && <Ionicons name="checkmark-sharp" size={14} color={BRUTAL.ink} />}
+              </View>
+              <Text style={styles.termsText}>
+                I agree to the <Text style={styles.termsHighlight}>Terms of Service</Text> &{' '}
+                <Text style={styles.termsHighlight}>Privacy Policy</Text>
+              </Text>
+            </TouchableOpacity>
+
             <AppButton
-              title={isAuthenticating ? 'Sending OTP…' : 'Log In with OTP'}
-              onPress={handleSendOtp}
+              title={isAuthenticating ? 'Sending OTP…' : 'Create Account & Get OTP'}
+              onPress={handleSignUp}
               loading={isAuthenticating}
               variant="brutal"
-              style={{ marginTop: hp(0.014) }}
+              style={{ marginTop: hp(0.016) }}
             />
 
-            {/* Toggle to Sign Up */}
+            {/* Toggle to Login */}
             <View style={styles.switchRow}>
-              <Text style={styles.switchText}>New to Statuzzz?</Text>
-              <TouchableOpacity onPress={() => router.push('/signup')}>
-                <Text style={styles.switchLink}>Create Account</Text>
+              <Text style={styles.switchText}>Already have an account?</Text>
+              <TouchableOpacity onPress={() => router.push('/login')}>
+                <Text style={styles.switchLink}>Log In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -114,10 +164,10 @@ export default function LoginScreen() {
         <Text style={styles.footerStamp}>© STATUZZZ · MOBILE STATUS PLATFORM</Text>
       </KeyboardAvoidingView>
 
-      {/* Themed Validation Alert */}
+      {/* Validation Modal */}
       <ConfirmModal
         visible={alertMessage !== null}
-        title="Invalid Input"
+        title="Input Required"
         message={alertMessage}
         confirmText="OK"
         icon="alert-circle-outline"
@@ -149,12 +199,12 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: hp(0.035),
+    marginBottom: hp(0.025),
     zIndex: 1,
   },
   logoWrap: {
     position: 'relative',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   logoPlate: {
     position: 'absolute',
@@ -165,8 +215,8 @@ const styles = StyleSheet.create({
     backgroundColor: BRUTAL.ink,
   },
   logoBadge: {
-    width: 68,
-    height: 68,
+    width: 62,
+    height: 62,
     borderRadius: 2,
     backgroundColor: BRUTAL.flame,
     borderWidth: 2,
@@ -176,27 +226,27 @@ const styles = StyleSheet.create({
   },
   logoLetter: {
     color: BRUTAL.ink,
-    fontSize: fontScale(36),
+    fontSize: fontScale(34),
     fontFamily: FONTS.display,
   },
   brandTitle: {
     color: BRUTAL.ink,
-    fontSize: fontScale(30),
+    fontSize: fontScale(28),
     fontFamily: FONTS.display,
     letterSpacing: 1,
   },
   brandSubtitle: {
     color: BRUTAL.flame,
-    fontSize: fontScale(9.5),
+    fontSize: fontScale(9),
     fontFamily: FONTS.semibold,
     letterSpacing: 2.2,
-    marginTop: 6,
+    marginTop: 4,
     textTransform: 'uppercase',
   },
   cardHeader: {
     backgroundColor: BRUTAL.ink,
     paddingHorizontal: wp(0.05),
-    paddingVertical: hp(0.016),
+    paddingVertical: hp(0.015),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -213,12 +263,12 @@ const styles = StyleSheet.create({
   },
   cardHeaderText: {
     color: BRUTAL.paper,
-    fontSize: fontScale(18),
+    fontSize: fontScale(17),
     fontFamily: FONTS.display,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  otpBadge: {
+  badgeWrap: {
     backgroundColor: BRUTAL.flame,
     borderWidth: 2,
     borderColor: BRUTAL.ink,
@@ -226,47 +276,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     zIndex: 1,
   },
-  otpBadgeText: {
+  badgeText: {
     color: BRUTAL.ink,
-    fontSize: fontScale(10),
+    fontSize: fontScale(9.5),
     fontFamily: FONTS.bold,
     letterSpacing: 1.5,
   },
   cardBody: {
-    padding: wp(0.05),
-  },
-  apiUserBox: {
-    backgroundColor: BRUTAL.paperAlt,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    borderRadius: 2,
-    padding: 12,
-    marginBottom: hp(0.016),
-  },
-  apiUserHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  apiUserTitle: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(10.5),
-    fontFamily: FONTS.bold,
-    letterSpacing: 1,
-  },
-  apiUserDetail: {
-    color: BRUTAL.inkSoft,
-    fontSize: fontScale(11),
-    fontFamily: FONTS.medium,
-    lineHeight: 16,
+    padding: wp(0.045),
   },
   cardSubtitle: {
     color: BRUTAL.inkMute,
-    fontSize: fontScale(12),
+    fontSize: fontScale(11.5),
     fontFamily: FONTS.medium,
-    lineHeight: 19,
-    marginBottom: hp(0.02),
+    lineHeight: 18,
+    marginBottom: hp(0.016),
   },
   errorBox: {
     flexDirection: 'row',
@@ -282,30 +306,30 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: BRUTAL.error,
-    fontSize: fontScale(12),
+    fontSize: fontScale(11.5),
     fontFamily: FONTS.semibold,
     flex: 1,
   },
   inputGroup: {
-    marginBottom: hp(0.018),
+    marginBottom: hp(0.014),
   },
   inputLabel: {
     color: BRUTAL.inkSoft,
-    fontSize: fontScale(10.5),
+    fontSize: fontScale(10),
     fontFamily: FONTS.semibold,
-    marginBottom: 7,
+    marginBottom: 6,
     textTransform: 'uppercase',
-    letterSpacing: 1.6,
+    letterSpacing: 1.4,
   },
   textInput: {
     backgroundColor: BRUTAL.bone,
     borderWidth: 2,
     borderColor: BRUTAL.ink,
     borderRadius: 2,
-    paddingHorizontal: 15,
-    height: 52,
+    paddingHorizontal: 14,
+    height: 48,
     color: BRUTAL.ink,
-    fontSize: fontScale(14),
+    fontSize: fontScale(13.5),
     fontFamily: FONTS.medium,
   },
   phoneInputContainer: {
@@ -318,13 +342,13 @@ const styles = StyleSheet.create({
     borderColor: BRUTAL.ink,
     borderRightWidth: 0,
     borderRadius: 2,
-    paddingHorizontal: 14,
-    height: 52,
+    paddingHorizontal: 13,
+    height: 48,
     justifyContent: 'center',
   },
   countryCodeText: {
     color: BRUTAL.flame,
-    fontSize: fontScale(14),
+    fontSize: fontScale(13.5),
     fontFamily: FONTS.bold,
   },
   phoneInput: {
@@ -333,21 +357,51 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 0,
     borderBottomLeftRadius: 0,
   },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: hp(0.01),
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: BRUTAL.ink,
+    backgroundColor: BRUTAL.bone,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 2,
+  },
+  checkboxActive: {
+    backgroundColor: BRUTAL.flame,
+  },
+  termsText: {
+    color: BRUTAL.inkSoft,
+    fontSize: fontScale(11),
+    fontFamily: FONTS.medium,
+    flex: 1,
+  },
+  termsHighlight: {
+    color: BRUTAL.ink,
+    fontFamily: FONTS.bold,
+    textDecorationLine: 'underline',
+  },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: hp(0.018),
+    marginTop: hp(0.016),
   },
   switchText: {
     color: BRUTAL.inkMute,
-    fontSize: fontScale(12),
+    fontSize: fontScale(11.5),
     fontFamily: FONTS.medium,
   },
   switchLink: {
     color: BRUTAL.flame,
-    fontSize: fontScale(12.5),
+    fontSize: fontScale(12),
     fontFamily: FONTS.bold,
     textDecorationLine: 'underline',
   },
@@ -357,7 +411,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     letterSpacing: 2,
     textAlign: 'center',
-    marginTop: hp(0.024),
+    marginTop: hp(0.02),
     zIndex: 1,
   },
 });

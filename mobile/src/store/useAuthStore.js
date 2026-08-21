@@ -22,9 +22,12 @@ export const useAuthStore = create((set, get) => ({
           if (res.data && res.data.success) {
             set({ user: res.data.data });
             await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
+            const { useCreationStore } = require('./useCreationStore');
             if (res.data.data.profilePhoto) {
-              const { useCreationStore } = require('./useCreationStore');
               useCreationStore.getState().setDefaultUserPhotoUri(res.data.data.profilePhoto);
+            }
+            if (res.data.data.name) {
+              useCreationStore.getState().setDefaultUserNameText(res.data.data.name);
             }
           }
         } catch (e) {
@@ -67,6 +70,15 @@ export const useAuthStore = create((set, get) => ({
       await AsyncStorage.setItem('statuzzz_user_token', token);
       await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(user));
 
+      if (user?.name) {
+        const { useCreationStore } = require('./useCreationStore');
+        useCreationStore.getState().setDefaultUserNameText(user.name);
+      }
+      if (user?.profilePhoto) {
+        const { useCreationStore } = require('./useCreationStore');
+        useCreationStore.getState().setDefaultUserPhotoUri(user.profilePhoto);
+      }
+
       set({ user, token, isAuthenticating: false });
       return user;
     } catch (err) {
@@ -88,9 +100,12 @@ export const useAuthStore = create((set, get) => ({
       if (res.data.success) {
         set({ user: res.data.data });
         await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
-        if (updatedData.profilePhoto) {
-          const { useCreationStore } = require('./useCreationStore');
-          useCreationStore.getState().setDefaultUserPhotoUri(updatedData.profilePhoto);
+        const { useCreationStore } = require('./useCreationStore');
+        if (res.data.data.profilePhoto || updatedData.profilePhoto) {
+          useCreationStore.getState().setDefaultUserPhotoUri(res.data.data.profilePhoto || updatedData.profilePhoto);
+        }
+        if (res.data.data.name || updatedData.name) {
+          useCreationStore.getState().setDefaultUserNameText(res.data.data.name || updatedData.name);
         }
       }
     } catch (e) {

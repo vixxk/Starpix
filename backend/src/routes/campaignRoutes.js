@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getCampaigns,
+  getActiveCampaigns,
   getCampaignById,
   getActiveOpeningCampaign,
   createCampaign,
@@ -11,6 +12,7 @@ const {
 const { protectAdmin } = require('../middleware/adminMiddleware');
 
 router.get('/', getCampaigns);
+router.get('/active', getActiveCampaigns);
 router.get('/active-opening', getActiveOpeningCampaign);
 router.get('/:id', getCampaignById);
 router.post('/', protectAdmin, createCampaign);

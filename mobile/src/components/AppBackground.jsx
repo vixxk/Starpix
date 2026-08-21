@@ -1,19 +1,30 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import { COLORS, BRUTAL } from '../constants/colors';
+import { resolveMediaUrl } from '../utils/media';
 
-export default function AppBackground({ children, style, variant = 'soft' }) {
+export default function AppBackground({ children, style, variant = 'soft', bgImage, resizeMode = 'stretch' }) {
   const isBrutal = variant === 'bone';
+  const resolvedBg = bgImage ? resolveMediaUrl(bgImage) : null;
 
   return (
     <View style={[styles.container, isBrutal && styles.brutalContainer, style]}>
-      {!isBrutal && (
+      {resolvedBg ? (
+        <>
+          <Image
+            source={{ uri: resolvedBg }}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode={resizeMode}
+          />
+          <View style={styles.darkOverlay} />
+        </>
+      ) : !isBrutal ? (
         <>
           {/* Soft orange radial glows */}
           <View style={[styles.glow, styles.glowTop]} />
           <View style={[styles.glow, styles.glowBottom]} />
         </>
-      )}
+      ) : null}
 
       {/* Screen Content */}
       <View style={styles.content}>{children}</View>
@@ -30,6 +41,10 @@ const styles = StyleSheet.create({
   },
   brutalContainer: {
     backgroundColor: BRUTAL.bone,
+  },
+  darkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 8, 3, 0.45)',
   },
   glow: {
     position: 'absolute',

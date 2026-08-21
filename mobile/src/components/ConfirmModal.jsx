@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { View, Text, Modal, StyleSheet, Animated, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '../constants/colors';
@@ -24,39 +24,39 @@ export default function ConfirmModal({
   onCancel,
   onConfirm,
 }) {
-  const scale = useRef(new Animated.Value(0.88)).current;
+  const [modalVisible, setModalVisible] = useState(visible);
+  const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-
-  const animateIn = useCallback(() => {
-    scale.setValue(0.88);
-    opacity.setValue(0);
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 8, tension: 70 }),
-      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
-  }, [scale, opacity]);
-
-  const animateOut = useCallback((done) => {
-    Animated.parallel([
-      Animated.timing(scale, { toValue: 0.92, duration: 130, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
-    ]).start(() => done && done());
-  }, [scale, opacity]);
 
   useEffect(() => {
     if (visible) {
+      setModalVisible(true);
       hapticImpact();
-      animateIn();
+      scale.setValue(0.92);
+      opacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 8, tension: 70 }),
+        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(scale, { toValue: 0.94, duration: 120, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: true }),
+      ]).start(() => {
+        setModalVisible(false);
+      });
     }
-  }, [visible, animateIn]);
+  }, [visible, scale, opacity]);
 
   const handleCancel = useCallback(() => {
     if (confirmLoading) return;
-    animateOut(onCancel);
-  }, [animateOut, onCancel, confirmLoading]);
+    if (onCancel) onCancel();
+  }, [onCancel, confirmLoading]);
+
+  if (!modalVisible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleCancel} statusBarTranslucent>
+    <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={handleCancel}>
       <View style={styles.overlayWrap}>
         {/* Dimmed backdrop */}
         <Animated.View style={[styles.overlay, { opacity }]} pointerEvents="none" />

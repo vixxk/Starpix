@@ -87,7 +87,7 @@ export default function TabLayout() {
             if (e.target && e.target.startsWith('profile') && !user) {
               e.preventDefault();
               hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/(auth)/login');
+              router.push('/login');
               return;
             }
             if (e.target && e.target.startsWith('create')) {

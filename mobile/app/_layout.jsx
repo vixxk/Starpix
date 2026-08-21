@@ -23,16 +23,18 @@ function AuthGate({ children }) {
   const isAuthRoute =
     pathname.startsWith('/(auth)') ||
     pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
     pathname.startsWith('/verify') ||
     pathname.includes('(auth)') ||
     pathname.includes('login') ||
+    pathname.includes('signup') ||
     pathname.includes('verify');
 
   useEffect(() => {
     if (isLoading) return;
 
     if (!user && !isAuthRoute) {
-      router.replace('/(auth)/login');
+      router.replace('/login');
     } else if (user && isAuthRoute) {
       router.replace('/(tabs)');
     }

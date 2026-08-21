@@ -212,7 +212,7 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
           <div>
             <p className="label !text-ink/60 mb-1">Provider</p>
             <p className="text-xs font-semibold text-ink-soft capitalize">
-              {purchase?.paymentProvider || 'Development'}
+              {purchase?.paymentProvider || 'In-App Purchase'}
             </p>
           </div>
           <div>

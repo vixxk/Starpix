@@ -82,9 +82,11 @@ export const useCreationStore = create((set, get) => ({
   },
 
   setActiveTemplate: (template, profileName = null, initialPhoto = null) => {
+    const { useAuthStore } = require('./useAuthStore');
+    const authUser = useAuthStore.getState().user;
     const nameLayer = template && template.canvasConfig && template.canvasConfig.layers && template.canvasConfig.layers.find((l) => l.fieldName === 'name');
-    const defaultName = profileName || (nameLayer && nameLayer.defaultValue) || 'Your Name';
-    const defaultPhoto = initialPhoto || get().defaultUserPhotoUri || null;
+    const defaultName = profileName || authUser?.name || authUser?.displayName || get().defaultUserNameText || (nameLayer && nameLayer.defaultValue) || '';
+    const defaultPhoto = initialPhoto || get().defaultUserPhotoUri || authUser?.profilePhoto || null;
     set({
       activeTemplate: template,
       userNameText: defaultName,
@@ -192,7 +194,7 @@ export const useCreationStore = create((set, get) => ({
     set({
       activeTemplate: null,
       userPhotoUri: defaultPhoto,
-      userNameText: 'Your Name',
+      userNameText: get().defaultUserNameText || '',
       selectedEffect: null,
       photoScale: 1,
       photoRotation: 0,

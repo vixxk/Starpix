@@ -29,34 +29,9 @@ const getFooterThumbnail = (foot) => {
   return null;
 };
 
-const DEFAULT_FOOTERS = [
-  {
-    _id: 'def_1',
-    name: 'Mahadev Trishul',
-    videoAsset: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=800&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=300&q=80',
-    heightPercent: 35,
-    objectFit: 'contain',
-  },
-  {
-    _id: 'def_2',
-    name: 'Golden Smoke',
-    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=300&q=80',
-    heightPercent: 40,
-    objectFit: 'cover',
-  },
-  {
-    _id: 'def_3',
-    name: 'Sparkle Waves',
-    videoAsset: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=300&q=80',
-    heightPercent: 38,
-    objectFit: 'contain',
-  },
-];
+const DEFAULT_FOOTERS = [];
 
-export default function TemplateCard({ template, onPress, width, height, style, shouldPlay = true }) {
+export default function TemplateCard({ template, onPress, width, height, actionWidth, style, shouldPlay = true }) {
   const router = useRouter();
   const storeUserPhotoUri = useCreationStore((s) => s.userPhotoUri || s.defaultUserPhotoUri);
   const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
@@ -69,6 +44,7 @@ export default function TemplateCard({ template, onPress, width, height, style, 
 
   const cardWidth = width || CARD_WIDTH;
   const cardHeight = height || (width ? width * (16 / 9) : CARD_HEIGHT);
+  const actionContainerWidth = actionWidth || cardWidth;
 
   const handleEditDetails = () => {
     hapticTap();
@@ -104,7 +80,7 @@ export default function TemplateCard({ template, onPress, width, height, style, 
         <TemplateRenderer
           template={template}
           userPhotoUri={storeUserPhotoUri}
-          userNameText={storeUserNameText || 'Your Status'}
+          userNameText={storeUserNameText || ''}
           selectedFooter={selectedFooter}
           canvasWidth={cardWidth}
           canvasHeight={cardHeight}
@@ -115,7 +91,7 @@ export default function TemplateCard({ template, onPress, width, height, style, 
       </PressableScale>
 
       {/* Separated Action Buttons Row directly under every template card */}
-      <View style={[styles.actionRow, { width: cardWidth }]}>
+      <View style={[styles.actionRow, { width: actionContainerWidth }]}>
         <PressableScale
           onPress={handleEditDetails}
           scaleTo={0.95}
@@ -138,7 +114,7 @@ export default function TemplateCard({ template, onPress, width, height, style, 
       </View>
 
       {/* Footer Thumbnail Selector Row under the two buttons */}
-      <View style={[styles.footerSelectorRow, { width: cardWidth }]}>
+      <View style={[styles.footerSelectorRow, { width: actionContainerWidth }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

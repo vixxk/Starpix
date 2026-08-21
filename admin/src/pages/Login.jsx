@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Envelope, LockKey, ArrowRight, WarningCircle, Crown, Eye, EyeSlash, Stamp, CheckCircle } from '@phosphor-icons/react';
 
 export default function Login() {
-  const [email, setEmail] = useState('admin@statuzzz.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -139,13 +139,6 @@ export default function Login() {
                 <ArrowRight className="w-4 h-4" weight="bold" />
               </button>
             </form>
-
-            <div className="mt-6 pt-5 border-t-2 border-ink/15 flex items-center justify-between gap-2">
-              <p className="label !text-ink/50">Dev defaults</p>
-              <p className="font-mono text-[11px] text-ink-soft">
-                <span className="font-bold text-ink">admin@statuzzz.com</span> / <span className="font-bold text-ink">admin123</span>
-              </p>
-            </div>
           </div>
 
           {/* WORKBENCH SLAB */}

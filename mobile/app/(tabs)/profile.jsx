@@ -41,7 +41,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.replace('/(auth)/login');
+      router.replace('/login');
     }
   }, [user, isLoading, router]);
 
@@ -110,7 +110,7 @@ export default function ProfileScreen() {
     try {
       await logout();
       setShowLogoutModal(false);
-      router.replace('/(auth)/login');
+      router.replace('/login');
     } finally {
       setLogoutLoading(false);
     }

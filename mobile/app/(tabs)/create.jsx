@@ -10,7 +10,7 @@ import AppButton from '../../src/components/AppButton';
 
 const STEPS = [
   { num: '1', title: 'Pick a Template', desc: 'Choose Good Morning, Motivation, Festival or Quotes' },
-  { num: '2', title: 'Upload Your Photo', desc: 'Zoom, rotate & position inside responsive frame slot' },
+  { num: '2', title: 'Upload Your Photo', desc: 'Select your photo from gallery to fit into template slot' },
   { num: '3', title: 'HD Export & Share', desc: 'Direct 1-tap sharing to WhatsApp Status & Gallery' },
 ];
 

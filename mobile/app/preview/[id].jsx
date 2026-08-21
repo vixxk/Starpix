@@ -273,17 +273,29 @@ export default function PreviewScreen() {
         <StatusBar style="dark" />
         <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, hp(0.012)) }]}>
           <View style={styles.header}>
-            <Skeleton height={24} width={24} borderRadius={12} />
-            <Skeleton height={18} width={130} borderRadius={6} />
+            <Skeleton height={32} width={32} borderRadius={10} />
+            <Skeleton height={20} width={130} borderRadius={6} />
             <View style={styles.headerSpacer} />
           </View>
           <View style={styles.canvasContainer}>
-            <Skeleton height={CANVAS_HEIGHT} width={CANVAS_WIDTH} borderRadius={18} />
+            <View style={[styles.canvasSkeletonWrapper, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }]}>
+              <Skeleton height="100%" width="100%" borderRadius={14}>
+                <View style={styles.canvasSkeletonContent}>
+                  <View style={styles.skeletonPhotoSlot} />
+                  <View style={styles.skeletonTextLine} />
+                  <View style={styles.skeletonFooterStrip} />
+                </View>
+              </Skeleton>
+            </View>
           </View>
           <View style={styles.footer}>
             <View style={styles.unlockedRow}>
-              <Skeleton height={52} width="48%" borderRadius={16} />
-              <Skeleton height={52} width="48%" borderRadius={16} />
+              <View style={{ flex: 1 }}>
+                <Skeleton height={52} width="100%" borderRadius={16} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Skeleton height={52} width="100%" borderRadius={16} />
+              </View>
             </View>
           </View>
         </View>
@@ -460,6 +472,47 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  canvasSkeletonWrapper: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: COLORS.ink,
+    elevation: 8,
+    shadowColor: COLORS.orangeDeep,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+  },
+  canvasSkeletonContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  skeletonPhotoSlot: {
+    width: '65%',
+    height: '38%',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(249, 115, 22, 0.3)',
+    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    marginTop: '25%',
+  },
+  skeletonTextLine: {
+    width: '70%',
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    marginBottom: '28%',
+  },
+  skeletonFooterStrip: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '25%',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
   footer: {
     padding: SCREEN_PAD,

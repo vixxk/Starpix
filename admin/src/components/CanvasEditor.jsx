@@ -120,9 +120,24 @@ export default function CanvasEditor({
     if (selectedLayerId === id) setSelectedLayerId(updated[0]?.id || null);
   };
 
-  const selectedLayer = selectedLayerId === 'footer_layer'
+  const getEffectiveLayer = useCallback(
+    (l) => {
+      if (!l) return null;
+      if (l.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+        const curF = footers[activeFooterIdx];
+        if (curF && curF.userNamePosition && curF.userNamePosition.x !== undefined) {
+          return { ...l, ...curF.userNamePosition };
+        }
+      }
+      return l;
+    },
+    [activeFooterIdx, footers]
+  );
+
+  const baseSelectedLayer = selectedLayerId === 'footer_layer'
     ? footerLayer
     : layers.find((l) => l.id === selectedLayerId);
+  const selectedLayer = getEffectiveLayer(baseSelectedLayer);
 
   const updateSelectedLayer = (field, val) => {
     if (selectedLayerId === 'footer_layer') {
@@ -138,6 +153,31 @@ export default function CanvasEditor({
     }
 
     if (!selectedLayerId) return;
+
+    const targetLayer = layers.find((l) => l.id === selectedLayerId);
+    if (targetLayer && targetLayer.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+      if (!onFootersChange) return;
+      const nextFooters = [...footers];
+      const curF = { ...nextFooters[activeFooterIdx] };
+      const currentUserNamePos = curF.userNamePosition || {
+        x: targetLayer.x,
+        y: targetLayer.y,
+        width: targetLayer.width,
+        height: targetLayer.height,
+        fontSize: targetLayer.fontSize || 22,
+        fontColor: targetLayer.fontColor || '#FFFFFF',
+        fontWeight: targetLayer.fontWeight || '700',
+        textAlign: targetLayer.textAlign || 'left',
+      };
+      curF.userNamePosition = {
+        ...currentUserNamePos,
+        [field]: val,
+      };
+      nextFooters[activeFooterIdx] = curF;
+      onFootersChange(nextFooters);
+      return;
+    }
+
     updateLayers(
       layers.map((l) => (l.id === selectedLayerId ? { ...l, [field]: val } : l))
     );
@@ -199,6 +239,35 @@ export default function CanvasEditor({
         curF.height = Math.max(0.05, Math.min(1.5, Math.round((initialHeight + dy) * 100) / 100));
         curF.heightPercent = Math.round(curF.height * 100);
       }
+      nextFooters[activeFooterIdx] = curF;
+      onFootersChange(nextFooters);
+      return;
+    }
+
+    const targetLayer = layers.find((l) => l.id === layerId);
+    if (targetLayer && targetLayer.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+      if (!onFootersChange) return;
+      const nextFooters = [...footers];
+      const curF = { ...nextFooters[activeFooterIdx] };
+      const currentUserNamePos = curF.userNamePosition || {
+        x: targetLayer.x,
+        y: targetLayer.y,
+        width: targetLayer.width,
+        height: targetLayer.height,
+        fontSize: targetLayer.fontSize || 22,
+        fontColor: targetLayer.fontColor || '#FFFFFF',
+        fontWeight: targetLayer.fontWeight || '700',
+        textAlign: targetLayer.textAlign || 'left',
+      };
+      let nextPos = { ...currentUserNamePos };
+      if (action === 'move') {
+        nextPos.x = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
+        nextPos.y = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
+      } else if (action === 'resize-se') {
+        nextPos.width = Math.max(0.08, Math.min(1, Math.round((initialWidth + dx) * 100) / 100));
+        nextPos.height = Math.max(0.04, Math.min(1, Math.round((initialHeight + dy) * 100) / 100));
+      }
+      curF.userNamePosition = nextPos;
       nextFooters[activeFooterIdx] = curF;
       onFootersChange(nextFooters);
       return;
@@ -442,7 +511,8 @@ export default function CanvasEditor({
               )}
 
               {/* Photo and Text Canvas Layers */}
-              {layers.map((l) => {
+              {layers.map((rawL) => {
+                const l = getEffectiveLayer(rawL);
                 const isSelected = selectedLayerId === l.id;
                 return (
                   <div
@@ -474,7 +544,6 @@ export default function CanvasEditor({
                           fontFamily: l.fontFamily || 'inherit',
                           textAlign: l.textAlign || 'left',
                           justifyContent: l.textAlign === 'right' ? 'flex-end' : l.textAlign === 'center' ? 'center' : 'flex-start',
-                          textShadow: '0px 1px 4px rgba(0,0,0,0.85)',
                           lineHeight: 1.1,
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
@@ -521,6 +590,33 @@ export default function CanvasEditor({
               {selectedLayerId === 'footer_layer' && (
                 <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-300 font-bold mb-2">
                   Editing: {previewFooter.name || 'Footer Overlay'}
+                </div>
+              )}
+
+              {selectedLayer.type === 'text' && activeFooterIdx >= 0 && (
+                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-300 space-y-1 mb-2">
+                  <div className="font-bold flex items-center justify-between">
+                    <span>📍 Name Position for: {previewFooter?.name || `Footer ${activeFooterIdx + 1}`}</span>
+                  </div>
+                  <p className="text-[10px] text-amber-200/80">
+                    Positions & sizes set here apply specifically when this footer is selected by the user.
+                  </p>
+                  {previewFooter?.userNamePosition && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!onFootersChange || activeFooterIdx < 0 || activeFooterIdx >= footers.length) return;
+                        const nextFooters = [...footers];
+                        const curF = { ...nextFooters[activeFooterIdx] };
+                        delete curF.userNamePosition;
+                        nextFooters[activeFooterIdx] = curF;
+                        onFootersChange(nextFooters);
+                      }}
+                      className="mt-1 text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-2 py-0.5 rounded font-bold transition-colors"
+                    >
+                      ↺ Reset to Default Position
+                    </button>
+                  )}
                 </div>
               )}
 

@@ -48,7 +48,7 @@ function DraggablePhotoLayer({
         <Image
           source={{ uri: resolveMediaUrl(userPhotoUri) }}
           style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
+          resizeMode="stretch"
         />
       ) : (
         <View style={styles.photoPlaceholderInner}>
@@ -101,9 +101,6 @@ function DraggableTextLayer({
           fontFamily: FONTS.bold,
           textAlign: textAlign,
           textAlignVertical: 'center',
-          textShadowColor: 'rgba(0,0,0,0.85)',
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 4,
           includeFontPadding: false,
         }}
       >
@@ -220,16 +217,30 @@ export default function TemplateRenderer({
             return null;
           }
 
+          let effectiveLayer = layer;
+          const activeFooterObj = selectedFooter || selectedEffect;
+          if (activeFooterObj && activeFooterObj.userNamePosition && activeFooterObj.userNamePosition.x !== undefined) {
+            effectiveLayer = {
+              ...layer,
+              ...activeFooterObj.userNamePosition,
+            };
+          }
+
+          const effWidth = (effectiveLayer.width !== undefined ? effectiveLayer.width : layer.width) * canvasWidth;
+          const effHeight = (effectiveLayer.height !== undefined ? effectiveLayer.height : layer.height) * canvasHeight;
+          const effLeft = (effectiveLayer.x !== undefined ? effectiveLayer.x : layer.x) * canvasWidth - effWidth / 2;
+          const effTop = (effectiveLayer.y !== undefined ? effectiveLayer.y : layer.y) * canvasHeight - effHeight / 2;
+
           let textValue = userNameText;
           if (!textValue || textValue.trim() === '') {
-            textValue = layer.defaultValue || '';
+            textValue = effectiveLayer.defaultValue || '';
           }
 
           if (!textValue || textValue.trim() === '') {
             return null;
           }
 
-          const layerKey = layer.id || layer.fieldName || `text_${layer.x}_${layer.y}`;
+          const layerKey = effectiveLayer.id || effectiveLayer.fieldName || `text_${effectiveLayer.x}_${effectiveLayer.y}`;
           const currentLayerTransform = layerTransforms[layerKey] || nameTransform || { offsetX: 0, offsetY: 0 };
 
           const handleTransformChange = (newTransform) => {
@@ -242,13 +253,13 @@ export default function TemplateRenderer({
           return (
             <DraggableTextLayer
               key={layerKey}
-              layer={layer}
+              layer={effectiveLayer}
               textValue={textValue}
               transform={currentLayerTransform}
-              layerLeft={layerLeft}
-              layerTop={layerTop}
-              layerWidth={layerWidth}
-              layerHeight={layerHeight}
+              layerLeft={effLeft}
+              layerTop={effTop}
+              layerWidth={effWidth}
+              layerHeight={effHeight}
               canvasWidth={canvasWidth}
               onTransformChange={handleTransformChange}
             />

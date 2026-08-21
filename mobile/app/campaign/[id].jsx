@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, BackHandler } from 'react-native';
+import { useLocalSearchParams, useRouter, usePathname } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -10,8 +11,7 @@ import PressableScale from '../../src/components/PressableScale';
 import TemplateCard from '../../src/components/TemplateCard';
 import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
-import { wp, SCREEN_PAD, GRID_GAP, CARD_WIDTH, SINGLE_CARD_SNAP_HEIGHT } from '../../src/utils/responsive';
-import { useRef } from 'react';
+import { wp, SCREEN_PAD, GRID_GAP, CARD_WIDTH, SINGLE_CARD_SNAP_HEIGHT, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
 import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
@@ -27,13 +27,33 @@ export default function CampaignScreen() {
   const [disableHorizontalInterval, setDisableHorizontalInterval] = useState(true);
   const dragStartX = useRef(0);
 
+  const router = useRouter();
+  const pathname = usePathname();
+  const isFocused = useIsFocused();
+
+  // Intercept hardware back button on Android to return to Home ONLY when Campaign screen itself is focused
+  useEffect(() => {
+    const onBackPress = () => {
+      if (!isFocused || pathname.includes('/template/') || pathname.includes('/preview/')) {
+        return false; // Allow standard stack pop back to Campaign screen
+      }
+      router.replace('/(tabs)');
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [router, isFocused, pathname]);
+
   const handleScrollBeginDrag = (e) => {
     dragStartX.current = e.nativeEvent.contentOffset.x;
   };
 
+  const CAMPAIGN_CARD_WIDTH = wp(0.89);
+  const sidePadding = wp(0.04);
+
   const handleScroll = (e) => {
     const offsetX = e.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / (CARD_WIDTH + GRID_GAP));
+    const index = Math.round(offsetX / (CAMPAIGN_CARD_WIDTH + GRID_GAP));
     if (index !== activeIndexRef.current && index >= 0) {
       activeIndexRef.current = index;
       setActiveIndex(index);
@@ -47,7 +67,6 @@ export default function CampaignScreen() {
     }
   };
 
-  const router = useRouter();
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
 
   useEffect(() => {
@@ -70,11 +89,7 @@ export default function CampaignScreen() {
   };
 
   const handleGoBackToMain = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)');
-    }
+    router.replace('/(tabs)');
   };
 
   if (loading || !campaign) {
@@ -94,13 +109,14 @@ export default function CampaignScreen() {
     );
   }
 
-  const templatesList = campaign.featuredTemplates || [];
+  const templatesList = campaign?.featuredTemplates || [];
+  const coverBg = campaign?.heroBackground || campaign?.heroImage;
 
   return (
-    <AppBackground>
-      <StatusBar style="dark" />
+    <AppBackground bgImage={coverBg}>
+      <StatusBar style={coverBg ? 'light' : 'dark'} />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        {/* Top Header: Back Button + Campaign Name */}
+        {/* Top Header: Back Button */}
         <View style={styles.headerBar}>
           <PressableScale
             onPress={handleGoBackToMain}
@@ -110,27 +126,22 @@ export default function CampaignScreen() {
           >
             <Ionicons name="arrow-back" size={20} color={COLORS.ink} />
           </PressableScale>
-          {campaign.name ? (
-            <Text numberOfLines={1} style={styles.headerTitle}>
-              {campaign.name}
-            </Text>
-          ) : null}
         </View>
 
         {templatesList.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Ionicons name="sparkles-outline" size={36} color={COLORS.inkMuted} />
-            <Text style={styles.emptyTitle}>No campaign templates available</Text>
-            <Text style={styles.emptySub}>Check back soon for new designs!</Text>
+            <Ionicons name="sparkles-outline" size={36} color={coverBg ? COLORS.white : COLORS.inkMuted} />
+            <Text style={[styles.emptyTitle, coverBg && { color: COLORS.white }]}>No campaign templates available</Text>
+            <Text style={[styles.emptySub, coverBg && { color: COLORS.white }]}>Check back soon for new designs!</Text>
           </View>
         ) : (
-          <View style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={styles.centeredCardContainer}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScrollContent}
-              snapToInterval={CARD_WIDTH + GRID_GAP}
-              snapToAlignment="center"
+              contentContainerStyle={[styles.horizontalScrollContent, { paddingHorizontal: sidePadding }]}
+              snapToInterval={CAMPAIGN_CARD_WIDTH + GRID_GAP}
+              snapToAlignment="start"
               decelerationRate="fast"
               disableIntervalMomentum={disableHorizontalInterval}
               onScrollBeginDrag={handleScrollBeginDrag}
@@ -141,7 +152,8 @@ export default function CampaignScreen() {
                 <TemplateCard
                   key={template._id}
                   template={template}
-                  width={CARD_WIDTH}
+                  width={CAMPAIGN_CARD_WIDTH}
+                  actionWidth={CARD_WIDTH}
                   shouldPlay={idx === activeIndex}
                   onPress={() => handleTemplatePress(template)}
                 />
@@ -164,7 +176,7 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justify: 'flex-start',
+    justifyContent: 'flex-start',
     paddingHorizontal: SCREEN_PAD,
     paddingBottom: 8,
     gap: 12,
@@ -188,15 +200,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  horizontalScrollContent: {
-    paddingHorizontal: SCREEN_PAD,
-    gap: GRID_GAP,
+  centeredCardContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  horizontalScrollContent: {
+    alignItems: 'center',
+    gap: GRID_GAP,
     paddingVertical: 12,
   },
   emptyWrap: {
+    flex: 1,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     paddingVertical: 48,
   },
   emptyTitle: {

@@ -3,6 +3,7 @@ import API from '../services/api';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
 import ModalPortal from '../components/ModalPortal';
+import MediaUploadZone from '../components/MediaUploadZone';
 import { GridSkeleton } from '../components/Skeleton';
 import { useToast } from '../context/ToastContext';
 import {
@@ -16,6 +17,8 @@ import {
   MagnifyingGlass,
   CheckCircle,
   Layout,
+  Star,
+  Image as ImageIcon,
 } from '@phosphor-icons/react';
 
 export default function Campaigns() {
@@ -31,8 +34,11 @@ export default function Campaigns() {
 
   const [formData, setFormData] = useState({
     name: '',
+    description: '',
+    heroBackground: '',
     featuredTemplates: [],
     active: true,
+    showOnAppOpening: false,
   });
 
   const fetchCampaigns = async () => {
@@ -66,8 +72,11 @@ export default function Campaigns() {
     setTemplateSearch('');
     setFormData({
       name: '',
+      description: '',
+      heroBackground: '',
       featuredTemplates: [],
       active: true,
+      showOnAppOpening: false,
     });
     setIsModalOpen(true);
   };
@@ -77,8 +86,11 @@ export default function Campaigns() {
     setTemplateSearch('');
     setFormData({
       name: c.name || '',
+      description: c.description || '',
+      heroBackground: c.heroBackground || c.heroImage || '',
       featuredTemplates: (c.featuredTemplates || []).map((t) => (typeof t === 'object' ? t._id : t)),
       active: c.active !== undefined ? c.active : true,
+      showOnAppOpening: Boolean(c.showOnAppOpening),
     });
     setIsModalOpen(true);
   };
@@ -116,13 +128,23 @@ export default function Campaigns() {
     }
   };
 
-  const handleActivateCampaign = async (c) => {
+  const handleToggleAutoOpen = async (c) => {
     try {
       await API.put(`/campaigns/${c._id}`, { ...c, active: true, showOnAppOpening: true });
-      toast.success(`"${c.name}" set as active campaign`);
+      toast.success(`"${c.name}" set as single auto-opening campaign on app launch`);
       fetchCampaigns();
     } catch (err) {
-      toast.error('Failed to activate campaign');
+      toast.error('Failed to update campaign');
+    }
+  };
+
+  const handleToggleActive = async (c) => {
+    try {
+      await API.put(`/campaigns/${c._id}`, { ...c, active: !c.active });
+      toast.success(`"${c.name}" status updated`);
+      fetchCampaigns();
+    } catch (err) {
+      toast.error('Failed to update campaign status');
     }
   };
 
@@ -169,28 +191,49 @@ export default function Campaigns() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-5">
           {campaigns.map((c) => {
             const templates = c.featuredTemplates || [];
+            const coverImage = c.heroBackground || c.heroImage;
             return (
-              <div key={c._id} className="panel p-3 sm:p-5 space-y-2.5 sm:space-y-4 panel-hover anim flex flex-col justify-between">
+              <div key={c._id} className="panel p-3 sm:p-5 space-y-2.5 sm:space-y-4 panel-hover anim flex flex-col justify-between overflow-hidden">
                 <div className="space-y-2 sm:space-y-3">
+                  {/* Cover Background Preview Banner */}
+                  {coverImage ? (
+                    <div className="relative h-28 sm:h-36 rounded overflow-hidden border border-paper-300 bg-night-900">
+                      <img src={coverImage} alt={c.name} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-3 flex flex-col justify-end">
+                        <h4 className="text-sm sm:text-base font-bold text-white truncate">{c.name}</h4>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="flex items-start justify-between gap-2 sm:gap-3">
                     <div className="min-w-0">
-                      <h4 className="display text-sm sm:text-lg font-bold text-ink truncate">{c.name}</h4>
+                      {!coverImage && <h4 className="display text-sm sm:text-lg font-bold text-ink truncate">{c.name}</h4>}
+                      {c.description ? (
+                        <p className="text-xs text-ink-mute line-clamp-1 mt-0.5">{c.description}</p>
+                      ) : null}
                       <p className="text-[10px] sm:text-xs text-ink-soft flex items-center gap-1 sm:gap-1.5 mt-0.5">
                         <Layout className="w-3 h-3 sm:w-4 sm:h-4 text-flame-500 shrink-0" weight="duotone" />
                         <span>{templates.length} {templates.length === 1 ? 'Template' : 'Templates'} Attached</span>
                       </p>
                     </div>
-                    {c.active ? (
-                      <span className="badge !bg-emerald-600 !text-white !border-emerald-500 shrink-0 text-[9px] sm:text-xs px-1.5 py-0.5 sm:px-2.5 sm:py-1">
-                        <DeviceMobile className="w-3 h-3 sm:w-3.5 sm:h-3.5" weight="fill" />
-                        <span className="hidden sm:inline">Active (Auto-Opens)</span>
-                        <span className="sm:hidden">Active</span>
-                      </span>
-                    ) : (
-                      <span className="badge !bg-night-800 !text-night-300 !border-night-700 shrink-0 text-[9px] sm:text-xs px-1.5 py-0.5 sm:px-2.5 sm:py-1">
-                        Inactive
-                      </span>
-                    )}
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {c.active ? (
+                        <span className="badge !bg-emerald-600 !text-white !border-emerald-500 text-[9px] sm:text-xs px-1.5 py-0.5">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="badge !bg-night-800 !text-night-300 !border-night-700 text-[9px] sm:text-xs px-1.5 py-0.5">
+                          Inactive
+                        </span>
+                      )}
+
+                      {c.showOnAppOpening && (
+                        <span className="badge !bg-flame-600 !text-white !border-flame-500 text-[9px] sm:text-xs px-1.5 py-0.5 flex items-center gap-1">
+                          <Star className="w-3 h-3" weight="fill" /> Auto-Opens
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Template previews list */}
@@ -221,20 +264,30 @@ export default function Campaigns() {
                   )}
                 </div>
 
-                <div className="pt-2 sm:pt-3 border-t border-paper-200 flex items-center justify-between gap-2 sm:gap-3">
-                  {!c.active ? (
+                <div className="pt-2 sm:pt-3 border-t border-paper-200 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => handleActivateCampaign(c)}
-                      className="px-2 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-bold text-emerald-400 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 rounded-[2px] transition-colors flex items-center gap-1 sm:gap-1.5"
-                      title="Set as active campaign"
+                      onClick={() => handleToggleActive(c)}
+                      className={`px-2 py-1 text-[10px] sm:text-xs font-bold rounded transition-colors ${
+                        c.active
+                          ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20'
+                          : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/20'
+                      }`}
                     >
-                      <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" weight="fill" /> Activate <span className="hidden sm:inline">Campaign</span>
+                      {c.active ? 'Deactivate' : 'Activate'}
                     </button>
-                  ) : (
-                    <span className="text-[10px] sm:text-xs font-medium text-emerald-600 flex items-center gap-1">
-                      ✓ <span className="hidden sm:inline">Currently active on app launch</span><span className="sm:hidden">Active on launch</span>
-                    </span>
-                  )}
+
+                    {!c.showOnAppOpening && (
+                      <button
+                        onClick={() => handleToggleAutoOpen(c)}
+                        className="px-2 py-1 text-[10px] sm:text-xs font-bold text-flame-600 bg-flame-500/10 border border-flame-500/30 hover:bg-flame-500/20 rounded transition-colors flex items-center gap-1"
+                        title="Set as single auto-open campaign on launch"
+                      >
+                        <Star className="w-3 h-3" weight="fill" /> Set Auto-Open
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
                     <button
                       onClick={() => handleOpenEdit(c)}
@@ -258,7 +311,7 @@ export default function Campaigns() {
         </div>
       )}
 
-      {/* Modal for Creating / Editing Campaign with Template Multi-Selector */}
+      {/* Modal for Creating / Editing Campaign */}
       {isModalOpen && (
         <ModalPortal>
           <div className="fixed inset-0 z-[100] bg-ink/70 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
@@ -284,9 +337,29 @@ export default function Campaigns() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input"
-                  placeholder="e.g. Diwali Festival Special 2026"
+                  placeholder="e.g. Diwali Special 2026"
                 />
               </div>
+
+              <div>
+                <label className="field-label">Description (Optional)</label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="input"
+                  placeholder="e.g. Celebrate Diwali with custom festival templates!"
+                />
+              </div>
+
+              {/* Cover Image Upload */}
+              <MediaUploadZone
+                label="Campaign Cover Background Image"
+                value={formData.heroBackground}
+                onChange={(url) => setFormData({ ...formData, heroBackground: url })}
+                folder="campaigns"
+                accept="image/*"
+              />
 
               {/* Template Multi-Selection */}
               <div className="space-y-2">
@@ -308,7 +381,7 @@ export default function Campaigns() {
                   />
                 </div>
 
-                <div className="max-h-56 overflow-y-auto border-2 border-paper-200 rounded-[2px] p-2 space-y-1.5 bg-paper-50">
+                <div className="max-h-48 overflow-y-auto border-2 border-paper-200 rounded-[2px] p-2 space-y-1.5 bg-paper-50">
                   {filteredTemplates.length === 0 ? (
                     <p className="text-xs text-ink-mute p-3 text-center">No templates match your search</p>
                   ) : (
@@ -354,23 +427,43 @@ export default function Campaigns() {
                 </div>
               </div>
 
-              {/* Active Toggle Checkbox */}
-              <div className="p-3 bg-paper-100 border-2 border-ink rounded-[2px]">
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={formData.active}
-                    onChange={(e) =>
-                      setFormData({ ...formData, active: e.target.checked, showOnAppOpening: e.target.checked })
-                    }
-                    className="w-4.5 h-4.5 rounded accent-glow-500 shrink-0 cursor-pointer"
-                  />
-                  <DeviceMobile className="w-5 h-5 text-flame-600 shrink-0" weight="duotone" />
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-ink text-xs sm:text-sm leading-tight">Set as Active Campaign</span>
-                    <span className="text-[11px] sm:text-xs text-ink-mute font-normal leading-tight mt-0.5">(Auto-opens on app launch)</span>
-                  </div>
-                </label>
+              {/* Toggles Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="p-3 bg-paper-100 border border-paper-300 rounded-[2px]">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={formData.active}
+                      onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                      className="w-4 h-4 rounded accent-glow-500 shrink-0 cursor-pointer"
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-bold text-ink text-xs leading-tight">Active Campaign</span>
+                      <span className="text-[10px] text-ink-mute mt-0.5 leading-tight">Available in home feed</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="p-3 bg-flame-500/10 border border-flame-500/30 rounded-[2px]">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={formData.showOnAppOpening}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          showOnAppOpening: e.target.checked,
+                          active: e.target.checked ? true : formData.active,
+                        })
+                      }
+                      className="w-4 h-4 rounded accent-glow-500 shrink-0 cursor-pointer"
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-bold text-flame-700 text-xs leading-tight">Auto-Open on Launch</span>
+                      <span className="text-[10px] text-flame-600 mt-0.5 leading-tight">(Only 1 active at a time)</span>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

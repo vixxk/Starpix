@@ -97,7 +97,7 @@ export default function Sidebar({ open, onClose }) {
               {admin?.email?.substring(0, 2).toUpperCase() || 'AD'}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate max-w-[120px]">{admin?.email || 'admin@statuzzz.com'}</p>
+              <p className="text-xs font-bold text-white truncate max-w-[120px]">{admin?.email || 'Administrator'}</p>
               <p className="font-mono text-[9px] text-flame-400 font-semibold uppercase tracking-wider">{admin?.role || 'super_admin'}</p>
             </div>
           </div>

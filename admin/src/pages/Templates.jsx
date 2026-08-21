@@ -105,7 +105,7 @@ export default function Templates() {
 
   const handleOpenCreate = () => {
     setEditingTemplate(null);
-    setFormData(initialForm(categories[0]?._id));
+    setFormData(initialForm(''));
     setIsModalOpen(true);
   };
 
@@ -140,6 +140,11 @@ export default function Templates() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+
+    if (!formData.categoryId || formData.categoryId === '') {
+      toast.error('Selecting a Category is mandatory.');
+      return;
+    }
 
     if (formData.accessType === 'paid' && (!formData.price || Number(formData.price) < 1)) {
       toast.error('Unlock price must be at least ₹1 for single paid purchase templates.');
@@ -398,12 +403,14 @@ export default function Templates() {
                 </div>
 
                 <div>
-                  <label className="field-label">Category</label>
+                  <label className="field-label">Category (Required *)</label>
                   <select
+                    required
                     value={formData.categoryId}
                     onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                     className="select"
                   >
+                    <option value="">-- Select Category (Required) --</option>
                     {categories.map((c) => (
                       <option key={c._id} value={c._id}>
                         {c.icon} {c.name}
@@ -544,17 +551,24 @@ export default function Templates() {
                     {formData.footers.map((footerItem, idx) => (
                       <div key={idx} className="p-3 bg-white border border-ink/20 rounded-[2px] space-y-3 relative">
                         <div className="flex items-center justify-between gap-3">
-                          <input
-                            type="text"
-                            value={footerItem.name}
-                            onChange={(e) => {
-                              const next = [...formData.footers];
-                              next[idx].name = e.target.value;
-                              setFormData({ ...formData, footers: next });
-                            }}
-                            placeholder="Footer Name (e.g. Cloud Footer)"
-                            className="input py-1 text-xs font-bold"
-                          />
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="text"
+                              value={footerItem.name}
+                              onChange={(e) => {
+                                const next = [...formData.footers];
+                                next[idx].name = e.target.value;
+                                setFormData({ ...formData, footers: next });
+                              }}
+                              placeholder="Footer Name (e.g. Cloud Footer)"
+                              className="input py-1 text-xs font-bold"
+                            />
+                            {footerItem.userNamePosition && (
+                              <span className="badge bg-amber-100 text-amber-900 border-amber-300 text-[10px] whitespace-nowrap">
+                                📍 Custom Name Position
+                              </span>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => {
