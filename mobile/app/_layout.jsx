@@ -7,6 +7,7 @@ import { Anton_400Regular } from '@expo-google-fonts/anton';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { hydrateDownloadedCreations } from '../src/store/useCreationStore';
 import { BRUTAL } from '../src/constants/colors';
+import '../src/i18n';
 
 /**
  * Central auth guard for every route.
@@ -34,7 +35,7 @@ function AuthGate({ children }) {
     if (isLoading) return;
 
     if (!user && !isAuthRoute) {
-      router.replace('/login');
+      router.replace('/(auth)/login');
     } else if (user && isAuthRoute) {
       router.replace('/(tabs)');
     }

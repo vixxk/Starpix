@@ -41,14 +41,14 @@ export default function AppButton({
             {loading ? (
               <ActivityIndicator color={BRUTAL.ink} />
             ) : (
-              <Text style={[styles.brutalText, textStyle]}>{title}</Text>
+              <Text style={[styles.brutalText, textStyle]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
             )}
           </View>
         </View>
       ) : loading ? (
         <ActivityIndicator color={isPrimary ? COLORS.white : COLORS.orange} />
       ) : (
-        <Text style={[styles.text, isSecondary && styles.secondaryText, textStyle]}>
+        <Text style={[styles.text, isSecondary && styles.secondaryText, textStyle]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
           {title}
         </Text>
       )}

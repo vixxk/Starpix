@@ -11,6 +11,7 @@ import { hapticImpact, hapticTap } from '../utils/haptics';
 import PressableScale from './PressableScale';
 import BrutalCard from './BrutalCard';
 import ConfirmModal from './ConfirmModal';
+import { useTranslation } from 'react-i18next';
 
 const inr = (n) =>
   '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -42,6 +43,7 @@ function StatusStamp({ status }) {
  * and the app's auth-splash styling (bone paper, ink slabs, flame accents).
  */
 export default function InvoiceModal({ visible, purchase, user, onClose }) {
+  const { t } = useTranslation();
   const [alertInfo, setAlertInfo] = useState(null);
 
   useEffect(() => {
@@ -532,7 +534,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
                 contentStyle={styles.downloadContent}
               >
                 <Ionicons name="download-outline" size={16} color={BRUTAL.paper} />
-                <Text style={styles.downloadBtnText}>Download</Text>
+                <Text style={styles.downloadBtnText}>{t('download')}</Text>
               </PressableScale>
 
               <PressableScale
@@ -545,7 +547,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
                 contentStyle={styles.doneContent}
               >
                 <Ionicons name="checkmark" size={16} color={BRUTAL.ink} />
-                <Text style={styles.doneBtnText}>Done</Text>
+                <Text style={styles.doneBtnText}>{t('got_it')}</Text>
               </PressableScale>
             </View>
           </ScrollView>
@@ -555,11 +557,11 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
       {/* Themed Alert Modal matching Logout confirmation design */}
       <ConfirmModal
         visible={!!alertInfo}
-        title={alertInfo?.title || 'Invoice Notice'}
+        title={alertInfo?.title || t('invoice')}
         message={alertInfo?.message || ''}
         icon={alertInfo?.icon || 'alert-circle-outline'}
         iconColor={alertInfo?.iconColor || COLORS.orange}
-        confirmText="OK"
+        confirmText={t('got_it')}
         hideCancel
         onConfirm={() => setAlertInfo(null)}
       />

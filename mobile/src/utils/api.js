@@ -44,8 +44,12 @@ API.interceptors.request.use(async (config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const lang = await AsyncStorage.getItem('statuzzz_user_language');
+    if (lang) {
+      config.headers['Accept-Language'] = lang;
+    }
   } catch (error) {
-    console.error('Error reading auth token:', error);
+    console.error('Error reading auth token or language:', error);
   }
   return config;
 });

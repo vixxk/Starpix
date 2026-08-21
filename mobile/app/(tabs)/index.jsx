@@ -17,17 +17,19 @@ import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, CARD_WIDTH, CARD_HEIG
 import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
-
+import { Audio } from 'expo-av';
+import { useIsFocused } from '@react-navigation/native';
+import { resolveMediaUrl } from '../../src/utils/media';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-
-
+import { useTranslation } from 'react-i18next';
 
 // Module-level flag to track auto-opening per app session across component remounts
 let hasAutoOpenedCampaignSession = false;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
 
   const activeIndexRef = useRef(0);
@@ -329,8 +331,8 @@ export default function HomeScreen() {
     while (templateIdx < templates.length) {
       // Insert up to 2 simple template cards (swiped down/vertical)
       for (let i = 0; i < 2 && templateIdx < templates.length; i++) {
-        const t = templates[templateIdx++];
-        items.push({ type: 'template', data: t, key: `t_${t._id}_${templateIdx}` });
+        const tmpl = templates[templateIdx++];
+        items.push({ type: 'template', data: tmpl, key: `t_${tmpl._id}_${templateIdx}` });
       }
 
       // After 2 template cards, if active campaigns remain, insert campaign cards section (swiped left/right)
@@ -343,6 +345,109 @@ export default function HomeScreen() {
     return items;
   }, [displayTemplates, activeCampaigns]);
 
+  const isFocused = useIsFocused();
+  const [activeCampaignMusic, setActiveCampaignMusic] = useState(null);
+  const soundRef = useRef(null);
+
+  // Auto-set audio for the initial campaign card on home screen load
+  useEffect(() => {
+    if (!selectedCategory && feedItems && feedItems.length > 0 && activeIndexRef.current === 0) {
+      const firstItem = feedItems[0];
+      if (firstItem && firstItem.type === 'campaign' && firstItem.data?.music) {
+        setActiveCampaignMusic(firstItem.data.music);
+      }
+    }
+  }, [feedItems, selectedCategory]);
+
+  // Audio playback lifecycle effect for Home Screen campaign cards
+  useEffect(() => {
+    let soundObj = null;
+    let isCancelled = false;
+
+    const playHomeCampaignAudio = async () => {
+      if (!activeCampaignMusic || !isFocused) {
+        if (soundRef.current) {
+          try {
+            await soundRef.current.stopAsync();
+            await soundRef.current.unloadAsync();
+          } catch (e) {}
+          soundRef.current = null;
+        }
+        return;
+      }
+
+      const audioUri = resolveMediaUrl(activeCampaignMusic);
+      if (!audioUri) return;
+
+      try {
+        if (soundRef.current) {
+          try {
+            await soundRef.current.stopAsync();
+            await soundRef.current.unloadAsync();
+          } catch (e) {}
+          soundRef.current = null;
+        }
+
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, isLooping: true, volume: 0.0 }
+        );
+
+        await sound.setIsLoopingAsync(true);
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish && !isCancelled) {
+            sound.replayAsync().catch(() => {});
+          }
+        });
+
+        if (isCancelled) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        soundObj = sound;
+        soundRef.current = sound;
+
+        // Fade in volume smoothly over 1.5s
+        let currentVol = 0.0;
+        const targetVol = 1.0;
+        const step = 0.05;
+        const intervalMs = 75;
+
+        const fadeInterval = setInterval(async () => {
+          currentVol += step;
+          if (currentVol >= targetVol) {
+            currentVol = targetVol;
+            clearInterval(fadeInterval);
+          }
+          if (soundObj && !isCancelled) {
+            try {
+              await soundObj.setVolumeAsync(currentVol);
+            } catch (e) {}
+          }
+        }, intervalMs);
+      } catch (err) {
+        console.error('[HomeScreen] Error playing campaign audio:', err);
+      }
+    };
+
+    playHomeCampaignAudio();
+
+    return () => {
+      isCancelled = true;
+      if (soundObj) {
+        soundObj.stopAsync().catch(() => {});
+        soundObj.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    };
+  }, [activeCampaignMusic, isFocused]);
+
   const handleVerticalScroll = (e) => {
     const offsetY = e.nativeEvent.contentOffset.y;
     const index = Math.round(offsetY / SINGLE_CARD_SNAP_HEIGHT);
@@ -351,16 +456,23 @@ export default function HomeScreen() {
       hapticTap();
     }
 
-    // Update full screen background cover image when campaign card is visible
+    // Update full screen background cover image and audio track when campaign card is visible
     const currentItem = selectedCategory ? null : feedItems[index];
     if (currentItem && currentItem.type === 'campaign') {
       const bg = currentItem.data?.heroBackground || currentItem.data?.heroImage;
       if (bg && bg !== currentCoverBg) {
         setCurrentCoverBg(bg);
       }
+      const music = currentItem.data?.music || null;
+      if (music !== activeCampaignMusic) {
+        setActiveCampaignMusic(music);
+      }
     } else {
       if (currentCoverBg !== null) {
         setCurrentCoverBg(null);
+      }
+      if (activeCampaignMusic !== null) {
+        setActiveCampaignMusic(null);
       }
     }
 
@@ -397,7 +509,7 @@ export default function HomeScreen() {
           >
             <CategoryPill
               small
-              category={{ _id: 'all', name: 'All', icon: '✨' }}
+              category={{ _id: 'all', name: t('all_categories'), icon: '✨' }}
               isSelected={!selectedCategory}
               onPress={() => handleSelectCategory(null)}
             />
@@ -453,8 +565,8 @@ export default function HomeScreen() {
                 ) : (
                   <View style={styles.emptyFilter}>
                     <Ionicons name="file-tray-outline" size={40} color={COLORS.borderStrong} />
-                    <Text style={styles.emptyFilterTitle}>No templates found</Text>
-                    <Text style={styles.emptyFilterText}>New {selectedCategory.name} statuses will appear here.</Text>
+                    <Text style={styles.emptyFilterTitle}>{t('no_templates_found')}</Text>
+                    <Text style={styles.emptyFilterText}>{t('fresh_statuses_msg')}</Text>
                   </View>
                 )}
               </FadeInView>
@@ -464,9 +576,9 @@ export default function HomeScreen() {
                   <View style={styles.emptyFeedIcon}>
                     <Ionicons name="cloud-offline-outline" size={34} color={COLORS.orange} />
                   </View>
-                  <Text style={styles.emptyFeedTitle}>Couldn't load statuses</Text>
+                  <Text style={styles.emptyFeedTitle}>{t('couldnt_load_statuses')}</Text>
                   <Text style={styles.emptyFeedText}>
-                    We couldn't reach the Statuzzz server. Check that the backend is running and your phone is on the same Wi-Fi, then try again.
+                    {t('load_failed_msg')}
                   </Text>
                   <PressableScale
                     onPress={() => {
@@ -479,7 +591,7 @@ export default function HomeScreen() {
                     contentStyle={styles.retryContent}
                   >
                     <Ionicons name="refresh" size={16} color={COLORS.white} />
-                    <Text style={styles.retryText}>Try Again</Text>
+                    <Text style={styles.retryText}>{t('try_again')}</Text>
                   </PressableScale>
                   <Text style={styles.retryHint} numberOfLines={2}>
                     API: {API.defaults.baseURL}
@@ -515,11 +627,11 @@ export default function HomeScreen() {
                             snapToAlignment="start"
                             decelerationRate="fast"
                           >
-                            {templates.map((t) => (
+                            {templates.map((tItem) => (
                               <TemplateCard
-                                key={`c_t_${t._id}`}
-                                template={t}
-                                onPress={() => handleTemplatePress(t)}
+                                key={`c_t_${tItem._id}`}
+                                template={tItem}
+                                onPress={() => handleTemplatePress(tItem)}
                               />
                             ))}
                           </ScrollView>
@@ -536,8 +648,8 @@ export default function HomeScreen() {
                   <View style={styles.emptyFeedIcon}>
                     <Ionicons name="sparkles-outline" size={34} color={COLORS.orange} />
                   </View>
-                  <Text style={styles.emptyFeedTitle}>No statuses yet</Text>
-                  <Text style={styles.emptyFeedText}>Fresh statuses will show up here. Pull down to refresh.</Text>
+                  <Text style={styles.emptyFeedTitle}>{t('no_statuses_yet')}</Text>
+                  <Text style={styles.emptyFeedText}>{t('fresh_statuses_msg')}</Text>
                 </View>
               </FadeInView>
             )}

@@ -14,7 +14,9 @@ import { COLORS, FONTS } from '../../src/constants/colors';
 import { wp, SCREEN_PAD, GRID_GAP, CARD_WIDTH, SINGLE_CARD_SNAP_HEIGHT, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
 import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
+import { resolveMediaUrl } from '../../src/utils/media';
 import { useCreationStore } from '../../src/store/useCreationStore';
+import { Audio } from 'expo-av';
 
 export default function CampaignScreen() {
   const insets = useSafeAreaInsets();
@@ -68,6 +70,8 @@ export default function CampaignScreen() {
   };
 
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
+  const soundRef = useRef(null);
+  const fadeIntervalRef = useRef(null);
 
   useEffect(() => {
     const fetchCampaign = async () => {
@@ -82,6 +86,87 @@ export default function CampaignScreen() {
     };
     fetchCampaign();
   }, [id]);
+
+  // Background Audio playback with 1.5s Fade-In effect when campaign opens
+  useEffect(() => {
+    let soundObj = null;
+    let isCancelled = false;
+
+    const playCampaignAudio = async () => {
+      const audioTrack = campaign?.music;
+      if (!audioTrack || !isFocused) return;
+
+      const audioUri = resolveMediaUrl(audioTrack);
+      if (!audioUri) return;
+
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, isLooping: true, volume: 0.0 }
+        );
+
+        await sound.setIsLoopingAsync(true);
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish && !isCancelled) {
+            sound.replayAsync().catch(() => {});
+          }
+        });
+
+        if (isCancelled) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        soundObj = sound;
+        soundRef.current = sound;
+
+        // Smooth volume fade-in from 0.0 to 1.0 over 1.5 seconds (1500ms)
+        let currentVol = 0.0;
+        const targetVol = 1.0;
+        const step = 0.05;
+        const intervalMs = 75;
+
+        fadeIntervalRef.current = setInterval(async () => {
+          currentVol += step;
+          if (currentVol >= targetVol) {
+            currentVol = targetVol;
+            if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+          }
+          if (soundObj) {
+            try {
+              await soundObj.setVolumeAsync(currentVol);
+            } catch (e) {
+              // Ignore teardown race conditions
+            }
+          }
+        }, intervalMs);
+      } catch (err) {
+        console.error('Error playing campaign background audio:', err);
+      }
+    };
+
+    if (campaign && campaign.music && isFocused) {
+      playCampaignAudio();
+    }
+
+    return () => {
+      isCancelled = true;
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      if (soundObj) {
+        soundObj.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    };
+  }, [campaign, isFocused]);
 
   const handleTemplatePress = (template) => {
     setActiveTemplate(template);

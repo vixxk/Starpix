@@ -8,18 +8,20 @@ import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD, CARD_SHADOW } from '../../src/utils/responsive';
 import AppButton from '../../src/components/AppButton';
 
-const STEPS = [
-  { num: '1', title: 'Pick a Template', desc: 'Choose Good Morning, Motivation, Festival or Quotes' },
-  { num: '2', title: 'Upload Your Photo', desc: 'Select your photo from gallery to fit into template slot' },
-  { num: '3', title: 'HD Export & Share', desc: 'Direct 1-tap sharing to WhatsApp Status & Gallery' },
-];
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 export default function CreateHubScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
+
+  const steps = [
+    { num: '1', title: t('step_1_title'), desc: t('step_1_desc') },
+    { num: '2', title: t('step_2_title'), desc: t('step_2_desc') },
+    { num: '3', title: t('step_3_title'), desc: t('step_3_desc') },
+  ];
 
   return (
     <AppBackground>
@@ -30,13 +32,13 @@ export default function CreateHubScreen() {
             <Ionicons name="sparkles" size={30} color={COLORS.white} />
           </View>
 
-          <Text style={styles.title}>Create your status</Text>
+          <Text style={styles.title}>{t('create_status_title')}</Text>
           <Text style={styles.subtitle}>
-            Pick a template, add your photo & name, then export in HD — no design skills needed.
+            {t('create_status_subtitle')}
           </Text>
 
           <View style={styles.stepsContainer}>
-            {STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <View key={s.num}>
                 {i > 0 && <View style={styles.connector} />}
                 <View style={styles.stepRow}>
@@ -53,13 +55,13 @@ export default function CreateHubScreen() {
           </View>
 
           <AppButton
-            title="Browse Templates"
+            title={t('browse_templates')}
             onPress={() => router.push('/(tabs)')}
             style={{ marginTop: hp(0.03) }}
           />
 
           <PressableScale onPress={() => router.push('/(tabs)/trending')} scaleTo={0.94} style={styles.browseRow} contentStyle={styles.browseContent}>
-            <Text style={styles.browseLink}>or see what's trending</Text>
+            <Text style={styles.browseLink}>{t('see_whats_trending')}</Text>
             <Ionicons name="flame" size={14} color={COLORS.orangeDeep} />
           </PressableScale>
         </View>

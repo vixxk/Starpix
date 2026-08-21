@@ -5,11 +5,14 @@ import { COLORS, FONTS } from '../constants/colors';
 import { fontScale, wp, hp, CARD_SHADOW } from '../utils/responsive';
 import PressableScale from './PressableScale';
 
+import { useTranslation } from 'react-i18next';
+
 /**
  * Themed "Explore Status Templates" CTA card used in empty states
  * (Favorites, Downloads). Full width, matches the app's orange/cream theme.
  */
 export default function ExploreCta({ onPress, style }) {
+  const { t } = useTranslation();
   return (
     <PressableScale
       onPress={onPress}
@@ -23,10 +26,10 @@ export default function ExploreCta({ onPress, style }) {
       </View>
       <View style={styles.textWrap}>
         <Text style={styles.title} numberOfLines={1}>
-          Explore Status Templates
+          {t('explore_status_templates')}
         </Text>
         <Text style={styles.subtitle} numberOfLines={1}>
-          Choose from 100+ designs
+          {t('choose_from_100_designs')}
         </Text>
       </View>
       <View style={styles.arrowWrap}>

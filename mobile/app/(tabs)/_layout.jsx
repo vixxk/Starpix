@@ -9,11 +9,13 @@ import { fontScale } from '../../src/utils/responsive';
 import { hapticTap, hapticImpact } from '../../src/utils/haptics';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
-const TAB_CONFIG = {
-  index: { label: 'Home', active: 'home', inactive: 'home-outline' },
-  downloads: { label: 'Downloads', active: 'download', inactive: 'download-outline' },
-  trending: { label: 'Trending', active: 'flame', inactive: 'flame-outline' },
-  profile: { label: 'Profile', active: 'person', inactive: 'person-outline' },
+import { useTranslation } from 'react-i18next';
+
+const TAB_KEYS = {
+  index: { translationKey: 'nav_home', active: 'home', inactive: 'home-outline' },
+  downloads: { translationKey: 'nav_downloads', active: 'download', inactive: 'download-outline' },
+  trending: { translationKey: 'nav_trending', active: 'flame', inactive: 'flame-outline' },
+  profile: { translationKey: 'nav_profile', active: 'person', inactive: 'person-outline' },
 };
 
 function useFocusPop(focused) {
@@ -30,7 +32,8 @@ function useFocusPop(focused) {
 }
 
 function TabIcon({ route, focused, color }) {
-  const config = TAB_CONFIG[route];
+  const { t } = useTranslation();
+  const config = TAB_KEYS[route];
   if (!config) return null;
   const pop = useFocusPop(focused);
 
@@ -38,7 +41,7 @@ function TabIcon({ route, focused, color }) {
     <Animated.View style={[styles.iconWrap, { transform: [{ scale: pop }] }]}>
       <Ionicons name={focused ? config.active : config.inactive} size={22} color={color} />
       <Text style={[styles.label, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-        {config.label}
+        {t(config.translationKey)}
       </Text>
     </Animated.View>
   );

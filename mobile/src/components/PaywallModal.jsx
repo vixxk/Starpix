@@ -9,9 +9,12 @@ import { hapticSuccess } from '../utils/haptics';
 import AppButton from './AppButton';
 import PressableScale from './PressableScale';
 
+import { useTranslation } from 'react-i18next';
+
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function PaywallModal({ visible, template, onClose, onSuccess }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const router = useRouter();
@@ -91,9 +94,9 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
             <View style={styles.crownBadge}>
               <MaterialCommunityIcons name="crown" size={26} color="#1c1917" />
             </View>
-            <Text style={styles.title}>Unlock Premium Creation</Text>
+            <Text style={styles.title}>{t('pay_to_unlock')}</Text>
             <Text style={styles.subtitle}>
-              Get full HD, watermark-free export for "{template.name}"
+              "{template.name}"
             </Text>
           </View>
 
@@ -102,8 +105,8 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
             <View style={[styles.optionCard, styles.selectedOption]}>
               <View style={styles.optionRowContent}>
                 <View style={styles.optionTextWrap}>
-                  <Text style={styles.optionTitle}>Single Unlock</Text>
-                  <Text style={styles.optionDesc}>Unlimited HD exports for this template</Text>
+                  <Text style={styles.optionTitle}>{t('pay_to_unlock')}</Text>
+                  <Text style={styles.optionDesc}>HD Export</Text>
                 </View>
                 <Text style={styles.optionPrice}>₹{template.price || 49}</Text>
               </View>
@@ -121,8 +124,8 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
               contentStyle={styles.optionRowContent}
             >
               <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>VIP All-Access Pass</Text>
-                <Text style={styles.optionDesc}>Unlock ALL premium + VIP-exclusive templates</Text>
+                <Text style={styles.optionTitle}>{t('vip_title')}</Text>
+                <Text style={styles.optionDesc}>{t('unlock_all')}</Text>
               </View>
               <View style={styles.optionRight}>
                 <Text style={styles.optionPriceAlt}>₹199/mo</Text>
@@ -132,7 +135,7 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
           </View>
 
           <AppButton
-            title={loading ? 'Processing Unlock...' : `Unlock Now for ₹${template.price || 49}`}
+            title={loading ? '...' : `${t('pay_to_unlock')} (₹${template.price || 49})`}
             onPress={handleUnlockSingle}
             loading={loading}
             style={{ marginTop: 20 }}

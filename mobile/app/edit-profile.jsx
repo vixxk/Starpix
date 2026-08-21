@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 import AppBackground from '../src/components/AppBackground';
 import PressableScale from '../src/components/PressableScale';
@@ -18,6 +19,7 @@ import { hapticTap } from '../src/utils/haptics';
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
 
   const { user, updateUserProfile } = useAuthStore();
@@ -43,7 +45,7 @@ export default function EditProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        showToast('Gallery access permission is required!');
+        showToast(t('gallery_permission_required'));
         return;
       }
 
@@ -56,18 +58,18 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets[0]?.uri) {
         setPhotoUri(result.assets[0].uri);
-        showToast('Photo selected! Tap Save to apply.');
+        showToast(t('photo_selected'));
       }
     } catch (err) {
       console.error('Error picking photo:', err);
-      showToast('Failed to choose image from gallery.');
+      showToast(t('failed_pick_image'));
     }
   };
 
   const handleRemoveImage = () => {
     hapticTap();
     setPhotoUri(null);
-    showToast('Photo cleared.');
+    showToast(t('photo_cleared'));
   };
 
   const handleSave = async () => {
@@ -88,7 +90,7 @@ export default function EditProfileScreen() {
         });
       }
 
-      showToast('Profile updated! Previews refreshed.');
+      showToast(t('profile_updated'));
       setTimeout(() => {
         if (router.canGoBack()) {
           router.back();
@@ -98,7 +100,7 @@ export default function EditProfileScreen() {
       }, 600);
     } catch (err) {
       console.error('Error saving profile:', err);
-      showToast('Error saving profile changes.');
+      showToast(t('error_saving_profile'));
     } finally {
       setSaving(false);
     }
@@ -122,8 +124,7 @@ export default function EditProfileScreen() {
             <Ionicons name="arrow-back" size={20} color={COLORS.ink} />
           </PressableScale>
           <View>
-            <Text style={styles.headerTitle}>Edit Profile</Text>
-            <Text style={styles.headerSub}>Auto-filled across all status templates</Text>
+            <Text style={styles.headerTitle}>{t('edit_profile_title')}</Text>
           </View>
         </View>
 
@@ -144,8 +145,7 @@ export default function EditProfileScreen() {
                 <Ionicons name="camera-outline" size={18} color={COLORS.orange} />
               </View>
               <View>
-                <Text style={styles.sectionTitle}>Profile Photo</Text>
-                <Text style={styles.sectionSub}>Appears on photo-enabled status frames</Text>
+                <Text style={styles.sectionTitle}>{t('photo')}</Text>
               </View>
             </View>
 
@@ -156,7 +156,7 @@ export default function EditProfileScreen() {
                 ) : (
                   <View style={styles.heroAvatarPlaceholder}>
                     <Ionicons name="person-add" size={40} color={COLORS.orange} />
-                    <Text style={styles.addPhotoTag}>Add Photo</Text>
+                    <Text style={styles.addPhotoTag}>{t('photo')}</Text>
                   </View>
                 )}
                 <View style={styles.cameraFloatingBadge}>
@@ -167,7 +167,9 @@ export default function EditProfileScreen() {
               <View style={styles.photoActionButtons}>
                 <PressableScale onPress={handlePickImage} scaleTo={0.96} style={styles.choosePhotoBtn} contentStyle={styles.btnContent}>
                   <Ionicons name="image" size={16} color={COLORS.white} />
-                  <Text style={styles.choosePhotoBtnText}>{photoUri ? 'Change Image' : 'Select Photo'}</Text>
+                  <Text style={styles.choosePhotoBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    {photoUri ? t('change_photo_gallery') : t('select_photo_gallery')}
+                  </Text>
                 </PressableScale>
               </View>
             </View>
@@ -180,8 +182,7 @@ export default function EditProfileScreen() {
                 <Ionicons name="text-outline" size={18} color={COLORS.orange} />
               </View>
               <View>
-                <Text style={styles.sectionTitle}>Profile Name</Text>
-                <Text style={styles.sectionSub}>Rendered on template quote & frame overlays</Text>
+                <Text style={styles.sectionTitle}>{t('full_name')}</Text>
               </View>
             </View>
 
@@ -190,7 +191,7 @@ export default function EditProfileScreen() {
               <TextInput
                 value={nameText}
                 onChangeText={setNameText}
-                placeholder="Enter your status name..."
+                placeholder={t('enter_name_placeholder')}
                 placeholderTextColor={COLORS.inkMuted}
                 style={styles.textInput}
                 maxLength={36}
@@ -202,7 +203,7 @@ export default function EditProfileScreen() {
                 </PressableScale>
               )}
             </View>
-            <Text style={styles.charCountText}>{nameText.length}/36 characters</Text>
+            <Text style={styles.charCountText}>{nameText.length}/36</Text>
           </View>
 
           {/* Floating Save Button */}
@@ -213,7 +214,9 @@ export default function EditProfileScreen() {
             style={styles.primarySaveBtn}
             contentStyle={styles.centerContent}
           >
-            <Text style={styles.primarySaveBtnText}>{saving ? 'Updating...' : 'Save Profile'}</Text>
+            <Text style={styles.primarySaveBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+              {saving ? '...' : t('save_changes')}
+            </Text>
           </PressableScale>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -423,6 +426,9 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 13,
     fontFamily: FONTS.bold,
+    textAlign: 'center',
+    flexShrink: 1,
+    paddingHorizontal: 4,
   },
   removePhotoBtn: {
     backgroundColor: '#FEE2E2',
@@ -435,6 +441,8 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 12,
     fontFamily: FONTS.bold,
+    textAlign: 'center',
+    flexShrink: 1,
   },
 
   /* Name Input */
@@ -478,5 +486,8 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontFamily: FONTS.bold,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+    flexShrink: 1,
   },
 });

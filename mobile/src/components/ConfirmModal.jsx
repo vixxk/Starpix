@@ -6,6 +6,8 @@ import { fontScale, wp } from '../utils/responsive';
 import { hapticImpact } from '../utils/haptics';
 import PressableScale from './PressableScale';
 
+import { useTranslation } from 'react-i18next';
+
 /**
  * Themed confirmation dialog that matches the Statuzzz design language
  * (warm cream surfaces, orange brand, Poppins type, spring animations).
@@ -17,13 +19,16 @@ export default function ConfirmModal({
   message,
   icon = 'log-out-outline',
   iconColor = COLORS.error,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   confirmLoading = false,
   hideCancel = false,
   onCancel,
   onConfirm,
 }) {
+  const { t } = useTranslation();
+  const resolvedConfirmText = confirmText || t('confirm');
+  const resolvedCancelText = cancelText || t('cancel');
   const [modalVisible, setModalVisible] = useState(visible);
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -86,7 +91,7 @@ export default function ConfirmModal({
                 style={styles.cancelBtn}
                 contentStyle={styles.btnContent}
               >
-                <Text style={styles.cancelText}>{cancelText}</Text>
+                <Text style={styles.cancelText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{resolvedCancelText}</Text>
               </PressableScale>
             )}
 
@@ -100,7 +105,7 @@ export default function ConfirmModal({
               {confirmLoading ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
-                <Text style={styles.confirmText}>{confirmText}</Text>
+                <Text style={styles.confirmText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{resolvedConfirmText}</Text>
               )}
             </PressableScale>
           </View>
@@ -193,11 +198,15 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
     fontSize: fontScale(14),
     fontFamily: FONTS.bold,
+    textAlign: 'center',
+    paddingHorizontal: 4,
   },
   confirmText: {
     color: COLORS.white,
     fontSize: fontScale(14),
     fontFamily: FONTS.bold,
     letterSpacing: 0.2,
+    textAlign: 'center',
+    paddingHorizontal: 4,
   },
 });

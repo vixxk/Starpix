@@ -31,8 +31,15 @@ export default function CampaignCard({ campaign, onPress }) {
       <View style={styles.overlay} />
 
       <View style={styles.content}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>⭐ SPECIAL CAMPAIGN</Text>
+        <View style={styles.badgeRow}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>⭐ SPECIAL CAMPAIGN</Text>
+          </View>
+          {Boolean(campaign.music) && (
+            <View style={[styles.badge, styles.audioBadge]}>
+              <Text style={styles.badgeText}>🎵 AUDIO</Text>
+            </View>
+          )}
         </View>
         <View>
           <Text style={styles.title}>{campaign.name}</Text>
@@ -78,12 +85,20 @@ const styles = StyleSheet.create({
     padding: wp(0.045),
     justifyContent: 'space-between',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   badge: {
     alignSelf: 'flex-start',
     backgroundColor: COLORS.orange,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
+  },
+  audioBadge: {
+    backgroundColor: '#8b5cf6',
   },
   badgeText: {
     color: COLORS.white,

@@ -17,20 +17,20 @@ import Toast from '../../src/components/Toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
-const MENU = [
-  { icon: 'heart-outline', label: 'My Saved Favorites', route: '/favorites' },
-  { icon: 'card-outline', label: 'Unlocked Entitlements', route: '/entitlements' },
-  { icon: 'trophy-outline', label: 'VIP Pass Subscription', route: '/vip' },
-];
+import { useTranslation } from 'react-i18next';
+import LanguageModal from '../../src/components/LanguageModal';
+import { SUPPORTED_LANGUAGES } from '../../src/i18n';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { t, i18n } = useTranslation();
   const { user, logout, fetchUser, updateUserProfile, isLoading } = useAuthStore();
   const defaultUserPhotoUri = useCreationStore((state) => state.defaultUserPhotoUri);
   const setDefaultUserPhotoUri = useCreationStore((state) => state.setDefaultUserPhotoUri);
 
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -38,6 +38,20 @@ export default function ProfileScreen() {
   const [toastKey, setToastKey] = useState(0);
 
   const effectivePhotoUri = defaultUserPhotoUri || user?.profilePhoto || null;
+  const currentLangCode = i18n.language || 'en';
+  const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentLangCode) || SUPPORTED_LANGUAGES[0];
+
+  const menuItems = [
+    { icon: 'heart-outline', label: t('my_saved_favorites'), route: '/favorites' },
+    { icon: 'card-outline', label: t('unlocked_entitlements'), route: '/entitlements' },
+    { icon: 'trophy-outline', label: t('vip_pass_subscription'), route: '/vip' },
+    {
+      icon: 'language-outline',
+      label: t('app_language'),
+      sublabel: `${currentLangObj.flag} ${currentLangObj.nativeName}`,
+      onPress: () => setShowLanguageModal(true),
+    },
+  ];
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -68,7 +82,7 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        showToast('Gallery access permission is required!');
+        showToast(t('gallery_permission_required'));
         return;
       }
 
@@ -85,11 +99,11 @@ export default function ProfileScreen() {
         if (updateUserProfile) {
           await updateUserProfile({ profilePhoto: uri });
         }
-        showToast('Default photo updated! Applied to all template previews.');
+        showToast(t('default_photo_updated'));
       }
     } catch (err) {
       console.error('Error picking profile image:', err);
-      showToast('Failed to select image from gallery.');
+      showToast(t('failed_pick_image'));
     }
   };
 
@@ -98,7 +112,7 @@ export default function ProfileScreen() {
     if (updateUserProfile) {
       await updateUserProfile({ profilePhoto: '' });
     }
-    showToast('Default status photo removed.');
+    showToast(t('photo_cleared'));
   };
 
   const handleLogoutPress = () => {
@@ -158,27 +172,40 @@ export default function ProfileScreen() {
 
               <View style={[styles.badge, user.isPremium ? styles.premiumBadge : styles.freeBadge]}>
                 <Text style={[styles.badgeText, user.isPremium ? styles.premiumText : styles.freeText]}>
-                  {user.isPremium ? 'VIP' : 'FREE'}
+                  {user.isPremium ? t('vip') : t('free')}
                 </Text>
               </View>
             </View>
           </PressableScale>
 
           {/* Menu */}
-          <Text style={styles.sectionLabel}>Your Account</Text>
+          <Text style={styles.sectionLabel}>{t('your_account')}</Text>
           <View style={styles.optionsCard}>
-            {MENU.map((item, idx) => (
+            {menuItems.map((item, idx) => (
               <PressableScale
                 key={item.label}
-                onPress={() => router.push(item.route)}
+                onPress={() => {
+                  if (item.onPress) {
+                    item.onPress();
+                  } else if (item.route) {
+                    router.push(item.route);
+                  }
+                }}
                 scaleTo={0.97}
-                style={[styles.optionRow, idx === MENU.length - 1 && styles.optionRowLast]}
+                style={[styles.optionRow, idx === menuItems.length - 1 && styles.optionRowLast]}
                 contentStyle={styles.optionContent}
               >
                 <View style={styles.optionIconWrap}>
                   <Ionicons name={item.icon} size={19} color={COLORS.orange} />
                 </View>
                 <Text style={styles.optionLabel}>{item.label}</Text>
+                {item.sublabel && (
+                  <View style={styles.sublabelPill}>
+                    <Text style={styles.optionSublabel} numberOfLines={1}>
+                      {item.sublabel}
+                    </Text>
+                  </View>
+                )}
                 <Ionicons name="chevron-forward" size={17} color={COLORS.inkFaint} />
               </PressableScale>
             ))}
@@ -186,10 +213,17 @@ export default function ProfileScreen() {
 
           <PressableScale onPress={handleLogoutPress} scaleTo={0.97} haptic="impact" style={styles.logoutButton} contentStyle={styles.logoutContent}>
             <Ionicons name="log-out-outline" size={18} color={COLORS.orange} />
-            <Text style={styles.logoutText}>Log Out Account</Text>
+            <Text style={styles.logoutText}>{t('log_out_account')}</Text>
           </PressableScale>
         </ScrollView>
       </View>
+
+      {/* Language Selector Modal */}
+      <LanguageModal
+        visible={showLanguageModal}
+        onClose={() => setShowLanguageModal(false)}
+        onSelectLanguage={() => showToast(t('language_updated'))}
+      />
 
       {/* Toast Notification */}
       <Toast message={toastMessage} toastKey={toastKey} onDone={handleToastDone} />
@@ -197,10 +231,10 @@ export default function ProfileScreen() {
       {/* Themed Logout Confirmation */}
       <ConfirmModal
         visible={showLogoutModal}
-        title="Confirm Logout"
-        message="Are you sure you want to log out of your Statuzzz account? You can sign back in anytime with your phone number."
-        confirmText="Log Out"
-        cancelText="Cancel"
+        title={t('confirm_logout')}
+        message={t('confirm_logout_msg')}
+        confirmText={t('log_out_account')}
+        cancelText={t('cancel')}
         icon="log-out-outline"
         iconColor={COLORS.orange}
         confirmLoading={logoutLoading}
@@ -445,6 +479,24 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
     fontSize: fontScale(14.5),
     fontFamily: FONTS.semibold,
+  },
+  sublabelPill: {
+    backgroundColor: '#FFF0E0',
+    paddingHorizontal: wp(0.022),
+    paddingVertical: hp(0.004),
+    borderRadius: wp(0.03),
+    borderWidth: 1,
+    borderColor: 'rgba(249, 115, 22, 0.25)',
+    marginRight: wp(0.01),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  optionSublabel: {
+    color: COLORS.orangeDeep,
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.semibold,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   logoutButton: {
     paddingVertical: 15,

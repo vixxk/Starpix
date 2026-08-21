@@ -9,8 +9,10 @@ import ConfirmModal from '../../src/components/ConfirmModal';
 import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { useTranslation } from 'react-i18next';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const [phone, setPhone] = useState('');
   const [focusedInput, setFocusedInput] = useState(null);
   const [alertMessage, setAlertMessage] = useState(null);
@@ -117,9 +119,9 @@ export default function LoginScreen() {
       {/* Themed Validation Alert */}
       <ConfirmModal
         visible={alertMessage !== null}
-        title="Invalid Input"
+        title={t('invalid_input')}
         message={alertMessage}
-        confirmText="OK"
+        confirmText={t('got_it')}
         icon="alert-circle-outline"
         iconColor={COLORS.orange}
         hideCancel

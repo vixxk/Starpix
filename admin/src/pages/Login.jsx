@@ -123,12 +123,6 @@ export default function Login() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs py-1">
-                <span className="inline-flex items-center gap-1.5 text-ink-soft font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                  Session remembered for 7 days
-                </span>
-              </div>
 
               <button
                 type="submit"

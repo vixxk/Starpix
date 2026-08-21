@@ -6,6 +6,8 @@ import { COLORS, FONTS } from '../constants/colors';
 import { fontScale, hp, SCREEN_PAD } from '../utils/responsive';
 import { hapticTap } from '../utils/haptics';
 
+import { useTranslation } from 'react-i18next';
+
 const SHARE_OPTIONS = [
   { id: 'whatsapp', name: 'WhatsApp', sub: 'Status', icon: 'logo-whatsapp', bg: '#25D366', color: '#FFF' },
   { id: 'instagram', name: 'Instagram', sub: 'Story', icon: 'logo-instagram', bg: '#E1306C', color: '#FFF' },
@@ -16,6 +18,7 @@ const SHARE_OPTIONS = [
 ];
 
 export default function ShareModal({ visible, onClose, onShareOption }) {
+  const { t } = useTranslation();
   if (!visible) return null;
 
   return (
@@ -33,8 +36,8 @@ export default function ShareModal({ visible, onClose, onShareOption }) {
           {/* Modal Header */}
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.title}>Share to Story</Text>
-              <Text style={styles.subtitle}>Select app to share your status</Text>
+              <Text style={styles.title}>{t('share')}</Text>
+              <Text style={styles.subtitle}>{t('select_app_to_share') || 'Select app to share your status'}</Text>
             </View>
             <PressableScale onPress={onClose} scaleTo={0.88} style={styles.closeBtn} contentStyle={styles.centerContent}>
               <Ionicons name="close" size={18} color={COLORS.inkMuted} />

@@ -3,6 +3,7 @@ import API from '../services/api';
 import {
   UploadSimple,
   VideoCamera,
+  MusicNote,
   CheckCircle,
   ArrowsClockwise,
 } from '@phosphor-icons/react';
@@ -15,6 +16,7 @@ export default function MediaUploadZone({ label, value, onChange, folder = 'uplo
   const inputRef = useRef(null);
 
   const isVideo = value && (value.endsWith('.mp4') || value.endsWith('.mov') || value.endsWith('.webm') || value.includes('video'));
+  const isAudio = value && (value.endsWith('.mp3') || value.endsWith('.wav') || value.endsWith('.ogg') || value.endsWith('.m4a') || value.endsWith('.aac') || value.endsWith('.flac') || value.includes('audio'));
   const hasPreview = value && typeof value === 'string' && value.startsWith('http');
 
   const handleUpload = useCallback(async (file) => {
@@ -80,62 +82,84 @@ export default function MediaUploadZone({ label, value, onChange, folder = 'uplo
         <input
           ref={inputRef}
           type="file"
-          accept={accept || 'image/*,video/mp4,video/webm'}
+          accept={accept || 'image/*,video/mp4,video/webm,audio/*'}
           onChange={handleFileSelect}
           className="hidden"
         />
 
         {hasPreview ? (
           /* Preview state */
-          <div className="flex items-center gap-3 p-2.5">
-            <div className="w-14 h-14 rounded-[2px] border-2 border-ink/20 overflow-hidden bg-paper-100 flex-shrink-0">
-              {isVideo ? (
-                <div className="w-full h-full flex items-center justify-center bg-ink/10">
-                  <VideoCamera className="w-6 h-6 text-ink-mute" weight="duotone" />
-                </div>
-              ) : (
-                <img src={value} alt="" className="w-full h-full object-cover" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" weight="fill" />
-                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Uploaded to S3</span>
+          <div className="p-2.5 space-y-2 overflow-hidden">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-[2px] border-2 border-ink/20 overflow-hidden bg-paper-100 flex-shrink-0 flex items-center justify-center">
+                {isAudio ? (
+                  <div className="w-full h-full flex items-center justify-center bg-flame-500/20 text-flame-600">
+                    <MusicNote className="w-5 h-5" weight="fill" />
+                  </div>
+                ) : isVideo ? (
+                  <div className="w-full h-full flex items-center justify-center bg-ink/10">
+                    <VideoCamera className="w-5 h-5 text-ink-mute" weight="duotone" />
+                  </div>
+                ) : (
+                  <img src={value} alt="" className="w-full h-full object-cover" />
+                )}
               </div>
-              <p className="text-[10px] text-ink-mute font-medium truncate mt-0.5" title={value}>
-                {value.split('/').pop()?.substring(0, 40)}
-              </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" weight="fill" />
+                  <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+                    {isAudio ? 'Audio Uploaded to S3' : 'Uploaded to S3'}
+                  </span>
+                </div>
+                {!isAudio && (
+                  <p className="text-[10px] text-ink-mute font-medium truncate" title={value}>
+                    {value.split('/').pop()?.substring(0, 35)}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+                className="p-1.5 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors flex-shrink-0"
+                title="Replace file"
+              >
+                <ArrowsClockwise className="w-4 h-4" weight="bold" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="p-1.5 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors flex-shrink-0"
-              title="Replace file"
-            >
-              <ArrowsClockwise className="w-4 h-4" weight="bold" />
-            </button>
+
+            {isAudio && (
+              <div className="w-full overflow-hidden pt-0.5">
+                <audio src={value} controls className="h-7 w-full max-w-full block" onClick={(e) => e.stopPropagation()} />
+              </div>
+            )}
           </div>
         ) : uploading ? (
           /* Uploading state */
-          <div className="p-4 text-center">
-            <div className="w-full h-1.5 bg-paper-200 rounded-full overflow-hidden mb-2">
+          <div className="p-5 text-center space-y-2.5">
+            <div className="w-full h-3.5 bg-paper-200 border border-ink/20 rounded-full overflow-hidden shadow-inner p-0.5">
               <div
-                className="h-full bg-flame-500 transition-all duration-300 rounded-full"
-                style={{ width: `${progress}%` }}
+                className="h-full bg-gradient-to-r from-flame-500 to-amber-500 transition-all duration-300 rounded-full shadow-sm"
+                style={{ width: `${Math.max(progress, 5)}%` }}
               />
             </div>
-            <p className="text-[11px] font-bold text-ink-mute uppercase tracking-wider">
-              Uploading to S3… {progress}%
+            <p className="text-xs font-bold text-ink uppercase tracking-wider">
+              Uploading to S3…
             </p>
           </div>
         ) : (
           /* Empty state */
           <div className="p-4 text-center">
-            <UploadSimple className="w-6 h-6 text-ink/30 mx-auto mb-1" weight="duotone" />
+            {accept?.includes('audio') ? (
+              <MusicNote className="w-6 h-6 text-flame-500/70 mx-auto mb-1" weight="duotone" />
+            ) : (
+              <UploadSimple className="w-6 h-6 text-ink/30 mx-auto mb-1" weight="duotone" />
+            )}
             <p className="text-[11px] font-bold text-ink-mute uppercase tracking-wider">
-              Drop image file or click to upload
+              {accept?.includes('audio') ? 'Drop audio file or click to upload' : 'Drop image/file or click to upload'}
             </p>
-            <p className="text-[10px] text-ink-faint mt-0.5">JPG, PNG, WEBP, GIF · Uploads directly to S3</p>
+            <p className="text-[10px] text-ink-faint mt-0.5">
+              {accept?.includes('audio') ? 'MP3, WAV, AAC, M4A, OGG · Uploads directly to S3' : 'JPG, PNG, WEBP, GIF, MP4 · Uploads directly to S3'}
+            </p>
           </div>
         )}
       </div>

@@ -21,8 +21,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
+import { useTranslation } from 'react-i18next';
+
 export default function DownloadsScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
@@ -323,8 +326,8 @@ export default function DownloadsScreen() {
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
         <SectionHeader
           icon="📥"
-          title="My Downloads"
-          subtitle="All your saved & exported status creations"
+          title={t('my_creations')}
+          subtitle={t('downloads_subtitle')}
           style={styles.header}
         />
 
@@ -341,7 +344,7 @@ export default function DownloadsScreen() {
               contentStyle={styles.clearBtnContent}
             >
               <Ionicons name="trash-outline" size={14} color={COLORS.error} />
-              <Text style={styles.clearBtnText}>Clear All</Text>
+              <Text style={styles.clearBtnText}>{t('clear_all')}</Text>
             </PressableScale>
           </View>
         )}
@@ -380,9 +383,9 @@ export default function DownloadsScreen() {
             <View style={styles.emptyIconWrap}>
               <Ionicons name="cloud-download-outline" size={42} color={COLORS.orange} />
             </View>
-            <Text style={styles.emptyTitle}>No Downloads Yet</Text>
+            <Text style={styles.emptyTitle}>{t('no_downloads_yet')}</Text>
             <Text style={styles.emptySub}>
-              Create and export personalized status templates with your photo or name to see them here.
+              {t('no_downloads_sub')}
             </Text>
             <ExploreCta onPress={() => router.replace('/(tabs)')} style={styles.ctaWrap} />
           </View>
@@ -436,7 +439,7 @@ export default function DownloadsScreen() {
                       contentStyle={styles.actionContent}
                     >
                       <Ionicons name="download-outline" size={14} color={COLORS.white} />
-                      <Text style={styles.actionTextPrimary}>Re-download</Text>
+                      <Text style={styles.actionTextPrimary}>{t('re_download')}</Text>
                     </PressableScale>
 
                     <PressableScale
@@ -446,7 +449,7 @@ export default function DownloadsScreen() {
                       contentStyle={styles.actionContent}
                     >
                       <Ionicons name="share-social-outline" size={14} color={COLORS.ink} />
-                      <Text style={styles.actionTextSecondary}>Share</Text>
+                      <Text style={styles.actionTextSecondary}>{t('share')}</Text>
                     </PressableScale>
 
                     <PressableScale
@@ -467,14 +470,14 @@ export default function DownloadsScreen() {
         {/* Delete Confirmation Modal */}
         <ConfirmModal
           visible={Boolean(deleteTarget)}
-          title={deleteTarget?.mode === 'all' ? 'Clear All Downloads?' : 'Delete Download?'}
+          title={deleteTarget?.mode === 'all' ? t('clear_all_downloads_title') : t('delete_download_title')}
           message={
             deleteTarget?.mode === 'all'
-              ? 'Are you sure you want to remove all saved creations from your downloads list?'
-              : 'Are you sure you want to remove this downloaded creation?'
+              ? t('clear_all_downloads_msg')
+              : t('delete_download_msg')
           }
-          confirmText="Yes, Delete"
-          cancelText="Cancel"
+          confirmText={t('yes_delete')}
+          cancelText={t('cancel')}
           onConfirm={handleConfirmDelete}
           onCancel={() => setDeleteTarget(null)}
         />
@@ -482,9 +485,9 @@ export default function DownloadsScreen() {
         {/* Share Fallback Alert */}
         <ConfirmModal
           visible={shareAlert}
-          title="Share Creation"
-          message="Direct device sharing is not available on this device environment."
-          confirmText="Got It"
+          title={t('share')}
+          message={t('select_app_to_share')}
+          confirmText={t('got_it')}
           showCancel={false}
           onConfirm={() => setShareAlert(false)}
         />
@@ -492,9 +495,9 @@ export default function DownloadsScreen() {
         {/* Re-download Success Alert */}
         <ConfirmModal
           visible={redownloadSuccessAlert}
-          title="Downloaded Again!"
-          message="Your status creation has been saved again to your device storage."
-          confirmText="Great"
+          title={t('redownloaded_title')}
+          message={t('redownloaded_msg')}
+          confirmText={t('got_it')}
           showCancel={false}
           onConfirm={() => setRedownloadSuccessAlert(false)}
         />
@@ -680,6 +683,7 @@ const styles = StyleSheet.create({
   actionContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 4,
@@ -688,11 +692,15 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: fontScale(11),
     fontFamily: FONTS.bold,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   actionTextSecondary: {
     color: COLORS.ink,
     fontSize: fontScale(11),
     fontFamily: FONTS.bold,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   deleteIconBtn: {
     backgroundColor: '#Fee2e2',

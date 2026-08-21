@@ -17,8 +17,11 @@ import { hapticTap } from '../../src/utils/haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
+import { useTranslation } from 'react-i18next';
+
 export default function TrendingScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const activeIndexRef = useRef(0);
   const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
   const dragStartY = useRef(0);
@@ -80,8 +83,8 @@ export default function TrendingScreen() {
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
         <SectionHeader
           icon="🔥"
-          title="Trending"
-          subtitle="Most popular status templates with high engagement"
+          title={t('trending_today')}
+          subtitle={t('trending_subtitle')}
           style={styles.pageHeader}
         />
 
@@ -113,8 +116,8 @@ export default function TrendingScreen() {
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Ionicons name="flame-outline" size={44} color={COLORS.borderStrong} />
-                <Text style={styles.emptyTitle}>Nothing trending yet</Text>
-                <Text style={styles.emptyText}>Check back soon for fresh viral statuses.</Text>
+                <Text style={styles.emptyTitle}>{t('nothing_trending_yet')}</Text>
+                <Text style={styles.emptyText}>{t('nothing_trending_msg')}</Text>
               </View>
             }
           />

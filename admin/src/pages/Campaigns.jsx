@@ -19,6 +19,7 @@ import {
   Layout,
   Star,
   Image as ImageIcon,
+  MusicNote,
 } from '@phosphor-icons/react';
 
 export default function Campaigns() {
@@ -30,12 +31,15 @@ export default function Campaigns() {
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [toggleActiveTarget, setToggleActiveTarget] = useState(null);
+  const [toggling, setToggling] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     heroBackground: '',
+    music: '',
     featuredTemplates: [],
     active: true,
     showOnAppOpening: false,
@@ -74,6 +78,7 @@ export default function Campaigns() {
       name: '',
       description: '',
       heroBackground: '',
+      music: '',
       featuredTemplates: [],
       active: true,
       showOnAppOpening: false,
@@ -88,6 +93,7 @@ export default function Campaigns() {
       name: c.name || '',
       description: c.description || '',
       heroBackground: c.heroBackground || c.heroImage || '',
+      music: c.music || '',
       featuredTemplates: (c.featuredTemplates || []).map((t) => (typeof t === 'object' ? t._id : t)),
       active: c.active !== undefined ? c.active : true,
       showOnAppOpening: Boolean(c.showOnAppOpening),
@@ -138,13 +144,19 @@ export default function Campaigns() {
     }
   };
 
-  const handleToggleActive = async (c) => {
+  const handleConfirmToggleActive = async () => {
+    if (!toggleActiveTarget) return;
+    setToggling(true);
+    const newStatus = !toggleActiveTarget.active;
     try {
-      await API.put(`/campaigns/${c._id}`, { ...c, active: !c.active });
-      toast.success(`"${c.name}" status updated`);
+      await API.put(`/campaigns/${toggleActiveTarget._id}`, { ...toggleActiveTarget, active: newStatus });
+      toast.success(`"${toggleActiveTarget.name}" ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      setToggleActiveTarget(null);
       fetchCampaigns();
     } catch (err) {
       toast.error('Failed to update campaign status');
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -194,7 +206,7 @@ export default function Campaigns() {
             const coverImage = c.heroBackground || c.heroImage;
             return (
               <div key={c._id} className="panel p-3 sm:p-5 space-y-2.5 sm:space-y-4 panel-hover anim flex flex-col justify-between overflow-hidden">
-                <div className="space-y-2 sm:space-y-3">
+                <div className="space-y-1.5 sm:space-y-2">
                   {/* Cover Background Preview Banner */}
                   {coverImage ? (
                     <div className="relative h-28 sm:h-36 rounded overflow-hidden border border-paper-300 bg-night-900">
@@ -206,15 +218,42 @@ export default function Campaigns() {
                   ) : null}
 
                   <div className="flex items-start justify-between gap-2 sm:gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       {!coverImage && <h4 className="display text-sm sm:text-lg font-bold text-ink truncate">{c.name}</h4>}
                       {c.description ? (
-                        <p className="text-xs text-ink-mute line-clamp-1 mt-0.5">{c.description}</p>
+                        <p className="text-xs text-ink-mute line-clamp-1">{c.description}</p>
                       ) : null}
-                      <p className="text-[10px] sm:text-xs text-ink-soft flex items-center gap-1 sm:gap-1.5 mt-0.5">
+                      <p className="text-[10px] sm:text-xs text-ink-soft flex items-center gap-1 sm:gap-1.5">
                         <Layout className="w-3 h-3 sm:w-4 sm:h-4 text-flame-500 shrink-0" weight="duotone" />
                         <span>{templates.length} {templates.length === 1 ? 'Template' : 'Templates'} Attached</span>
                       </p>
+
+                      {/* Template previews list directly below text */}
+                      {templates.length > 0 ? (
+                        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pt-1 pb-0.5">
+                          {templates.map((t, idx) => {
+                            const preview = typeof t === 'object' ? t.previewUrl : null;
+                            const title = typeof t === 'object' ? t.name : 'Template';
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-1.5 bg-paper-100 border border-paper-300 rounded p-1 sm:p-1.5 shrink-0 max-w-[130px] sm:max-w-[160px]"
+                              >
+                                {preview ? (
+                                  <img src={preview} alt="" className="w-5 h-5 sm:w-7 sm:h-7 rounded object-cover border border-paper-300 shrink-0" />
+                                ) : (
+                                  <div className="w-5 h-5 sm:w-7 sm:h-7 rounded bg-night-800 flex items-center justify-center text-[9px] sm:text-[10px] text-white font-bold shrink-0">
+                                    #{idx + 1}
+                                  </div>
+                                )}
+                                <span className="text-[10px] sm:text-xs font-semibold text-ink line-clamp-1">{title}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] sm:text-xs text-ink-mute italic">No templates attached to this campaign.</p>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
@@ -233,41 +272,20 @@ export default function Campaigns() {
                           <Star className="w-3 h-3" weight="fill" /> Auto-Opens
                         </span>
                       )}
+
+                      {c.music && (
+                        <span className="badge !bg-purple-600 !text-white !border-purple-500 text-[9px] sm:text-xs px-1.5 py-0.5 flex items-center gap-1">
+                          <MusicNote className="w-3 h-3" weight="fill" /> Audio Track
+                        </span>
+                      )}
                     </div>
                   </div>
-
-                  {/* Template previews list */}
-                  {templates.length > 0 ? (
-                    <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pt-0.5 sm:pt-1 pb-1 sm:pb-2">
-                      {templates.map((t, idx) => {
-                        const preview = typeof t === 'object' ? t.previewUrl : null;
-                        const title = typeof t === 'object' ? t.name : 'Template';
-                        return (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-1.5 bg-paper-100 border border-paper-300 rounded p-1 sm:p-1.5 shrink-0 max-w-[130px] sm:max-w-[160px]"
-                          >
-                            {preview ? (
-                              <img src={preview} alt="" className="w-5 h-5 sm:w-7 sm:h-7 rounded object-cover border border-paper-300 shrink-0" />
-                            ) : (
-                              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded bg-night-800 flex items-center justify-center text-[9px] sm:text-[10px] text-white font-bold shrink-0">
-                                #{idx + 1}
-                              </div>
-                            )}
-                            <span className="text-[10px] sm:text-xs font-semibold text-ink line-clamp-1">{title}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-[10px] sm:text-xs text-ink-mute italic">No templates attached to this campaign.</p>
-                  )}
                 </div>
 
                 <div className="pt-2 sm:pt-3 border-t border-paper-200 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => handleToggleActive(c)}
+                      onClick={() => setToggleActiveTarget(c)}
                       className={`px-2 py-1 text-[10px] sm:text-xs font-bold rounded transition-colors ${
                         c.active
                           ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20'
@@ -359,6 +377,15 @@ export default function Campaigns() {
                 onChange={(url) => setFormData({ ...formData, heroBackground: url })}
                 folder="campaigns"
                 accept="image/*"
+              />
+
+              {/* Audio Track Upload (Optional) */}
+              <MediaUploadZone
+                label="Campaign Audio Track (Optional S3 Audio)"
+                value={formData.music}
+                onChange={(url) => setFormData({ ...formData, music: url })}
+                folder="campaigns/audio"
+                accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
               />
 
               {/* Template Multi-Selection */}
@@ -490,6 +517,18 @@ export default function Campaigns() {
         loading={deleting}
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      {/* Confirm Activate/Deactivate Modal */}
+      <ConfirmModal
+        isOpen={toggleActiveTarget !== null}
+        title={toggleActiveTarget?.active ? 'Deactivate Campaign' : 'Activate Campaign'}
+        message={`Are you sure you want to ${toggleActiveTarget?.active ? 'deactivate' : 'activate'} campaign "${toggleActiveTarget?.name || 'this item'}"?`}
+        confirmText={toggleActiveTarget?.active ? 'Deactivate' : 'Activate'}
+        danger={toggleActiveTarget?.active}
+        loading={toggling}
+        onConfirm={handleConfirmToggleActive}
+        onClose={() => setToggleActiveTarget(null)}
       />
     </div>
   );

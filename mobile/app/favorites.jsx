@@ -20,11 +20,14 @@ import { resolveMediaUrl } from '../src/utils/media';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
+import { useTranslation } from 'react-i18next';
+
 const FAV_CARD_WIDTH = (wp(1) - SCREEN_PAD * 2 - GRID_GAP) / 2;
 const THUMB_HEIGHT = FAV_CARD_WIDTH * 1.35;
 
 export default function FavoritesScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
@@ -111,8 +114,8 @@ export default function FavoritesScreen() {
     const prevStoreUser = storeUser ? { ...storeUser } : null;
 
     // 1. Immediate local state update (0ms delay)
-    setFavorites((prev) => prev.filter((t) => t._id !== target._id));
-    showToast('Removed from favorites');
+    setFavorites((prev) => prev.filter((tItem) => tItem._id !== target._id));
+    showToast(t('removed_from_favorites'));
 
     // 2. Immediate Auth store state update
     if (storeUser && Array.isArray(storeUser.favorites)) {
@@ -134,7 +137,7 @@ export default function FavoritesScreen() {
         useAuthStore.setState({ user: prevStoreUser });
         AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(prevStoreUser)).catch(() => {});
       }
-      showToast('Failed to update favorite');
+      showToast(t('failed_update_favorite'));
       console.error('Error unfavoriting:', err);
     }
   };
@@ -143,7 +146,7 @@ export default function FavoritesScreen() {
     <AppBackground>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        <ScreenHeader icon="❤️" title="My Saved Favorites" subtitle="Your loved status templates" onBack={() => router.back()} />
+        <ScreenHeader icon="❤️" title={t('my_saved_favorites')} subtitle="Your loved status templates" onBack={() => router.back()} />
 
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -161,9 +164,9 @@ export default function FavoritesScreen() {
             <View style={styles.emptyIconWrap}>
               <Ionicons name="heart-outline" size={40} color={COLORS.orange} />
             </View>
-            <Text style={styles.emptyTitle}>No favorites yet</Text>
+            <Text style={styles.emptyTitle}>{t('no_favorites_yet')}</Text>
             <Text style={styles.emptySub}>
-              Tap the heart on any status template to save it here for quick access.
+              {t('no_favorites_sub')}
             </Text>
             <ExploreCta onPress={() => router.replace('/(tabs)')} style={styles.ctaWrap} />
           </View>
@@ -236,10 +239,10 @@ export default function FavoritesScreen() {
         {/* Themed Confirmation Modal for Removing Favorites */}
         <ConfirmModal
           visible={itemToRemove !== null}
-          title="Remove Favorite?"
-          message={itemToRemove ? `Are you sure you want to remove "${itemToRemove.name}" from your saved favorites?` : ''}
-          confirmText="Remove"
-          cancelText="Cancel"
+          title={t('remove_favorite_title')}
+          message={itemToRemove ? `${t('remove_favorite_msg')}` : ''}
+          confirmText={t('remove')}
+          cancelText={t('cancel')}
           icon="heart-dislike-outline"
           iconColor={COLORS.error}
           onCancel={() => setItemToRemove(null)}

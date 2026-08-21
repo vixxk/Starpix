@@ -18,9 +18,11 @@ import { hapticTap } from '../../src/utils/haptics';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
   const dragStartY = useRef(0);
 
@@ -100,7 +102,7 @@ export default function ExploreScreen() {
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search status, quotes, festivals..."
+              placeholder={t('enter_name_placeholder')}
               placeholderTextColor={COLORS.inkFaint}
               style={styles.searchInput}
             />
@@ -157,8 +159,8 @@ export default function ExploreScreen() {
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Ionicons name="search" size={44} color={COLORS.borderStrong} />
-                <Text style={styles.emptyTitle}>No results found</Text>
-                <Text style={styles.emptyText}>Try a different search or category.</Text>
+                <Text style={styles.emptyTitle}>{t('no_results_found')}</Text>
+                <Text style={styles.emptyText}>{t('try_different_search')}</Text>
               </View>
             }
           />

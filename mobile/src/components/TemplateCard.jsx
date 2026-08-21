@@ -31,7 +31,10 @@ const getFooterThumbnail = (foot) => {
 
 const DEFAULT_FOOTERS = [];
 
+import { useTranslation } from 'react-i18next';
+
 export default function TemplateCard({ template, onPress, width, height, actionWidth, style, shouldPlay = true }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const storeUserPhotoUri = useCreationStore((s) => s.userPhotoUri || s.defaultUserPhotoUri);
   const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
@@ -98,8 +101,15 @@ export default function TemplateCard({ template, onPress, width, height, actionW
           style={styles.editBtn}
           contentStyle={styles.btnContent}
         >
-          <Ionicons name="create-outline" size={fontScale(16)} color={COLORS.ink} />
-          <Text style={styles.editBtnText}>Edit Details</Text>
+          <Ionicons name="create-outline" size={fontScale(14)} color={COLORS.ink} />
+          <Text
+            style={styles.editBtnText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.65}
+          >
+            {t('edit_details')}
+          </Text>
         </PressableScale>
 
         <PressableScale
@@ -108,8 +118,15 @@ export default function TemplateCard({ template, onPress, width, height, actionW
           style={styles.downloadBtn}
           contentStyle={styles.btnContent}
         >
-          <Ionicons name="arrow-down-circle-outline" size={fontScale(17)} color={COLORS.white} />
-          <Text style={styles.downloadBtnText}>Download</Text>
+          <Ionicons name="arrow-down-circle-outline" size={fontScale(15)} color={COLORS.white} />
+          <Text
+            style={styles.downloadBtnText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.65}
+          >
+            {t('download')}
+          </Text>
         </PressableScale>
       </View>
 
@@ -236,8 +253,12 @@ const styles = StyleSheet.create({
   },
   editBtnText: {
     color: COLORS.ink,
-    fontSize: fontScale(12),
+    fontSize: fontScale(11.5),
     fontFamily: FONTS.bold,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   downloadBtn: {
     flex: 1,
@@ -252,15 +273,21 @@ const styles = StyleSheet.create({
   },
   downloadBtnText: {
     color: COLORS.white,
-    fontSize: fontScale(12),
+    fontSize: fontScale(11.5),
     fontFamily: FONTS.bold,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   btnContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
     height: '100%',
+    width: '100%',
+    paddingHorizontal: 4,
   },
   footerSelectorRow: {
     marginTop: hp(0.008),

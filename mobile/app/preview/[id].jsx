@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, Share, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Share, ActivityIndicator, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -19,6 +19,7 @@ import { useCreationStore } from '../../src/store/useCreationStore';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CANVAS_WIDTH = SCREEN_WIDTH * 0.85;
@@ -26,6 +27,7 @@ const CANVAS_HEIGHT = CANVAS_WIDTH * (16 / 9);
 
 export default function PreviewScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [isEntitled, setIsEntitled] = useState(false);
@@ -312,7 +314,7 @@ export default function PreviewScreen() {
           <PressableScale onPress={() => router.back()} scaleTo={0.88} style={styles.headerBtn} contentStyle={styles.iconContent}>
             <Ionicons name="chevron-back" size={24} color={COLORS.orange} />
           </PressableScale>
-          <Text numberOfLines={1} style={styles.headerTitle}>Status Preview</Text>
+          <Text numberOfLines={1} style={styles.headerTitle}>{t('preview_status')}</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -348,8 +350,8 @@ export default function PreviewScreen() {
                   <Ionicons name="diamond" size={20} color={COLORS.gold} />
                 </View>
                 <View style={styles.unlockTextWrap}>
-                  <Text style={styles.unlockLabel}>VIP Exclusive Template</Text>
-                  <Text style={styles.unlockPrice}>Get the Pass · ₹199/mo</Text>
+                  <Text style={styles.unlockLabel}>{t('vip_title')}</Text>
+                  <Text style={styles.unlockPrice}>{t('subscribe_now')} · ₹199/mo</Text>
                 </View>
                 <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
               </PressableScale>
@@ -359,8 +361,8 @@ export default function PreviewScreen() {
                   <Ionicons name="crown" size={20} color={COLORS.gold} />
                 </View>
                 <View style={styles.unlockTextWrap}>
-                  <Text style={styles.unlockLabel}>Unlock HD Export</Text>
-                  <Text style={styles.unlockPrice}>₹{activeTemplate.price || 49} · one time</Text>
+                  <Text style={styles.unlockLabel}>{t('hd_export')}</Text>
+                  <Text style={styles.unlockPrice}>₹{activeTemplate.price || 49}</Text>
                 </View>
                 <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
               </PressableScale>
@@ -377,12 +379,12 @@ export default function PreviewScreen() {
                 {sharing ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <ActivityIndicator size="small" color={COLORS.orange} />
-                    <Text style={styles.shareText}>Preparing…</Text>
+                    <Text style={styles.shareText}>{t('share')}…</Text>
                   </View>
                 ) : (
                   <React.Fragment>
                     <Ionicons name="share-social-outline" size={19} color={COLORS.orange} />
-                    <Text style={styles.shareText}>Share</Text>
+                    <Text style={styles.shareText}>{t('share')}</Text>
                   </React.Fragment>
                 )}
               </PressableScale>
@@ -398,12 +400,12 @@ export default function PreviewScreen() {
                 {downloading ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <ActivityIndicator size="small" color={COLORS.white} />
-                    <Text style={styles.downloadText}>Saving…</Text>
+                    <Text style={styles.downloadText}>{t('download')}…</Text>
                   </View>
                 ) : (
                   <React.Fragment>
                     <Ionicons name="download-outline" size={20} color={COLORS.white} />
-                    <Text style={styles.downloadText}>Save HD</Text>
+                    <Text style={styles.downloadText}>{t('save_hd')}</Text>
                   </React.Fragment>
                 )}
               </PressableScale>
@@ -424,13 +426,13 @@ export default function PreviewScreen() {
         {/* Themed Alert (replaces native Alert) */}
         <ConfirmModal
           visible={alertInfo !== null}
-          title={alertInfo && alertInfo.kind === 'failed' ? 'Download Failed' : 'Download Saved'}
+          title={alertInfo && alertInfo.kind === 'failed' ? t('download_failed_title') : t('download_saved_title')}
           message={
             alertInfo && alertInfo.kind === 'failed'
               ? alertInfo.message
-              : 'Your status was saved to your device successfully.'
+              : t('download_saved_msg')
           }
-          confirmText="Got It"
+          confirmText={t('got_it')}
           icon={alertInfo && alertInfo.kind === 'failed' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
           iconColor={COLORS.orange}
           hideCancel

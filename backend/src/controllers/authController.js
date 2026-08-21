@@ -55,7 +55,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
     await user.save();
   }
 
-  const token = generateToken(user._id, 'user');
+  const token = generateToken(user._id, 'user', '3650d');
 
   res.status(200).json({
     success: true,

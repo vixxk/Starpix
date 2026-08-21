@@ -12,40 +12,37 @@ import { useAuthStore } from '../src/store/useAuthStore';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-
-const BENEFITS = [
-  {
-    icon: 'infinite-outline',
-    title: 'All-Access Library',
-    desc: 'Unlock 100+ HD photo & video status templates',
-  },
-  {
-    icon: 'download-outline',
-    title: 'Unlimited HD Exports',
-    desc: 'Save in ultra-high resolution with 0 watermarks',
-  },
-  {
-    icon: 'sparkles-outline',
-    title: 'Ad-Free Studio',
-    desc: 'Fast, smooth editing with zero pop-up distractions',
-  },
-  {
-    icon: 'flash-outline',
-    title: 'Early Access Drops',
-    desc: 'Be first to access trending daily & festival designs',
-  },
-  {
-    icon: 'shield-checkmark-outline',
-    title: 'Priority VIP Support',
-    desc: 'Instant help & custom photo placement support',
-  },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function VipScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [showComingSoon, setShowComingSoon] = useState(false);
+
+  const benefits = [
+    {
+      icon: 'infinite-outline',
+      title: t('unlock_all'),
+      desc: t('vip_subtitle'),
+    },
+    {
+      icon: 'download-outline',
+      title: t('hd_export'),
+      desc: t('no_watermark'),
+    },
+    {
+      icon: 'sparkles-outline',
+      title: t('no_watermark'),
+      desc: t('hd_export'),
+    },
+    {
+      icon: 'flash-outline',
+      title: t('vip_title'),
+      desc: t('unlock_all'),
+    },
+  ];
 
   const isVipActive = Boolean(user && user.isPremium && user.subscriptionStatus === 'active');
   const isSmall = SCREEN_DIMENSIONS.isSmallDevice;
@@ -64,8 +61,8 @@ export default function VipScreen() {
       >
         <ScreenHeader
           icon="👑"
-          title="VIP Pass Subscription"
-          subtitle="Unlock the full Statuzzz experience"
+          title={t('vip_title')}
+          subtitle={t('vip_subtitle')}
           onBack={() => router.back()}
         />
 
@@ -81,36 +78,36 @@ export default function VipScreen() {
               <View style={styles.passTitleWrap}>
                 <Text style={[styles.passTitle, isSmall && styles.passTitleSmall]}>STATUZZZ VIP</Text>
                 <Text style={styles.passSubtitle} numberOfLines={1}>
-                  {user?.name || 'Member'} · All-Access Pass
+                  {user?.name || 'Member'} · {t('unlock_all')}
                 </Text>
               </View>
               {isVipActive && (
                 <View style={[styles.statusBadge, styles.statusActive]}>
                   <View style={[styles.statusDot, styles.dotActive]} />
-                  <Text style={[styles.statusText, styles.statusTextActive]}>ACTIVE</Text>
+                  <Text style={[styles.statusText, styles.statusTextActive]}>{t('vip')}</Text>
                 </View>
               )}
             </View>
 
             <View style={styles.passBottom}>
               <Text style={[styles.passPrice, isSmall && styles.passPriceSmall]}>
-                ₹199<Text style={styles.passPriceUnit}>/month</Text>
+                ₹199<Text style={styles.passPriceUnit}>/mo</Text>
               </Text>
               <Text style={styles.passNote} numberOfLines={1}>
-                {isVipActive ? 'Enjoy unlimited premium creations.' : 'One pass. Every template unlocked.'}
+                {isVipActive ? t('vip_subtitle') : t('unlock_all')}
               </Text>
             </View>
           </View>
 
           {/* What's Included Section Header */}
           <View style={styles.sectionHeaderWrap}>
-            <Text style={styles.sectionLabel}>What's Included</Text>
-            <Text style={styles.sectionSubtitle}>Everything you get with VIP access</Text>
+            <Text style={styles.sectionLabel}>{t('vip_title')}</Text>
+            <Text style={styles.sectionSubtitle}>{t('vip_subtitle')}</Text>
           </View>
 
           {/* Benefits — Stacked 1-under-another Row Cards */}
           <View style={styles.benefitsList}>
-            {BENEFITS.map((b) => (
+            {benefits.map((b) => (
               <View key={b.title} style={styles.benefitRow}>
                 <View style={styles.benefitIconWrap}>
                   <Ionicons name={b.icon} size={fontScale(18)} color={COLORS.orange} />
@@ -130,7 +127,7 @@ export default function VipScreen() {
 
           {/* Bottom Upgrade CTA Button */}
           <AppButton
-            title={isVipActive ? 'VIP Pass Active' : 'Upgrade to VIP Pass · ₹199/mo'}
+            title={isVipActive ? t('vip') : `${t('subscribe_now')} · ₹199/mo`}
             onPress={() => setShowComingSoon(true)}
             variant={isVipActive ? 'secondary' : 'primary'}
             style={styles.ctaBtn}
@@ -141,9 +138,9 @@ export default function VipScreen() {
       {/* Themed Coming Soon Modal */}
       <ConfirmModal
         visible={showComingSoon}
-        title="VIP Pass Coming Soon"
-        message="The VIP all-access subscription is almost here. Meanwhile, unlock any premium template individually with a one-time payment."
-        confirmText="Got It"
+        title={t('vip_title')}
+        message={t('vip_subtitle')}
+        confirmText={t('got_it')}
         icon="trophy-outline"
         iconColor={COLORS.orange}
         hideCancel

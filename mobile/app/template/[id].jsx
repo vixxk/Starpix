@@ -21,6 +21,7 @@ import { hapticTap } from '../../src/utils/haptics';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 const isVideoUrl = (url) => {
   if (!url || typeof url !== 'string') return false;
@@ -47,6 +48,7 @@ const TABS = [
 
 export default function TemplateEditorScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState('photo');
@@ -89,7 +91,7 @@ export default function TemplateEditorScreen() {
     setIsFav(nextFav);
     if (showToastNotification) {
       showToast(
-        nextFav ? 'Added to favorites' : 'Removed from favorites',
+        nextFav ? t('added_to_favorites') : t('removed_from_favorites'),
         nextFav ? 'heart' : 'heart-dislike'
       );
     }
@@ -132,22 +134,22 @@ export default function TemplateEditorScreen() {
     if (isFav) {
       setFavModalInfo({
         type: 'remove',
-        title: 'Remove Favorite?',
-        message: `Are you sure you want to remove "${activeTemplate.name}" from your saved favorites?`,
+        title: t('remove_favorite_title'),
+        message: t('remove_favorite_msg'),
         icon: 'heart-dislike-outline',
         iconColor: COLORS.error,
-        confirmText: 'Remove',
-        cancelText: 'Cancel',
+        confirmText: t('remove'),
+        cancelText: t('cancel'),
       });
     } else {
       performFavoriteAction(true, false);
       setFavModalInfo({
         type: 'add',
-        title: 'Saved to Favorites!',
-        message: `"${activeTemplate.name}" has been added to your saved favorites library.`,
+        title: t('saved_to_favorites'),
+        message: t('added_to_favorites'),
         icon: 'heart',
         iconColor: COLORS.orange,
-        confirmText: 'Got It',
+        confirmText: t('got_it'),
         hideCancel: true,
       });
     }
@@ -391,7 +393,7 @@ export default function TemplateEditorScreen() {
               contentStyle={styles.tabItemContent}
             >
               <Ionicons name="camera-outline" size={16} color={activeTab === 'photo' ? COLORS.white : '#8A7A68'} />
-              <Text style={[styles.tabText, activeTab === 'photo' && styles.activeTabText]}>Photo</Text>
+              <Text style={[styles.tabText, activeTab === 'photo' && styles.activeTabText]}>{t('photo')}</Text>
             </PressableScale>
 
             <PressableScale
@@ -401,7 +403,7 @@ export default function TemplateEditorScreen() {
               contentStyle={styles.tabItemContent}
             >
               <Ionicons name="text-outline" size={16} color={activeTab === 'text' ? COLORS.white : '#8A7A68'} />
-              <Text style={[styles.tabText, activeTab === 'text' && styles.activeTabText]}>Name</Text>
+              <Text style={[styles.tabText, activeTab === 'text' && styles.activeTabText]}>{t('name')}</Text>
             </PressableScale>
 
             <PressableScale
@@ -411,7 +413,7 @@ export default function TemplateEditorScreen() {
               contentStyle={styles.tabItemContent}
             >
               <Ionicons name="film-outline" size={16} color={(activeTab === 'footers' || activeTab === 'effects') ? COLORS.white : '#8A7A68'} />
-              <Text style={[styles.tabText, (activeTab === 'footers' || activeTab === 'effects') && styles.activeTabText]}>Footers</Text>
+              <Text style={[styles.tabText, (activeTab === 'footers' || activeTab === 'effects') && styles.activeTabText]}>{t('footers')}</Text>
             </PressableScale>
           </View>
 
@@ -427,7 +429,7 @@ export default function TemplateEditorScreen() {
                   >
                     <Ionicons name="images-outline" size={20} color={COLORS.white} />
                     <Text style={styles.gallerySelectText}>
-                      {userPhotoUri ? 'Change Photo from Gallery' : 'Select Photo from Gallery'}
+                      {userPhotoUri ? t('change_photo_gallery') : t('select_photo_gallery')}
                     </Text>
                   </PressableScale>
                   {userPhotoUri && (
@@ -449,7 +451,7 @@ export default function TemplateEditorScreen() {
                   contentStyle={styles.previewActionContent}
                 >
                   <Text style={styles.previewActionText}>
-                    {isFreeOrUnlocked ? 'Preview Status' : `Pay ₹${itemPrice} to Unlock`}
+                    {isFreeOrUnlocked ? t('preview_status') : `${t('pay_to_unlock')} (₹${itemPrice})`}
                   </Text>
                   <Ionicons
                     name={isFreeOrUnlocked ? 'arrow-forward' : 'card-outline'}
@@ -463,12 +465,12 @@ export default function TemplateEditorScreen() {
 
             {activeTab === 'text' && (
               <View style={styles.controlsStack}>
-                <Text style={styles.inputLabel}>Personalized Name</Text>
+                <Text style={styles.inputLabel}>{t('full_name')}</Text>
                 <View style={styles.textInputRow}>
                   <TextInput
                     value={userNameText}
                     onChangeText={setUserNameText}
-                    placeholder="Enter your name"
+                    placeholder={t('enter_name_placeholder')}
                     placeholderTextColor={COLORS.inkFaint}
                     style={styles.textInputFlex}
                   />
@@ -579,9 +581,9 @@ export default function TemplateEditorScreen() {
       {/* Themed Alert (replaces native Alert) */}
       <ConfirmModal
         visible={alertInfo !== null}
-        title={(alertInfo && alertInfo.title) || 'Photo Access Required'}
-        message={(alertInfo && alertInfo.message) || 'Permission to access your photo library is required to add your photo to this status.'}
-        confirmText="Got It"
+        title={(alertInfo && alertInfo.title) || t('photo_access_required')}
+        message={(alertInfo && alertInfo.message) || t('photo_permission_msg')}
+        confirmText={t('got_it')}
         icon={(alertInfo && alertInfo.icon) || 'images-outline'}
         iconColor={(alertInfo && alertInfo.iconColor) || COLORS.orange}
         hideCancel
@@ -599,8 +601,8 @@ export default function TemplateEditorScreen() {
             setIsEntitled(true);
             setEntitlementStatus(true);
             setAlertInfo({
-              title: 'Template Unlocked!',
-              message: `You now have lifetime access to "${activeTemplate.name}". Watermark removed!`,
+              title: t('template_unlocked_title'),
+              message: `${t('template_unlocked_msg')} "${activeTemplate.name}".`,
               icon: 'checkmark-circle-outline',
               iconColor: COLORS.orange,
             });
@@ -613,8 +615,8 @@ export default function TemplateEditorScreen() {
         visible={favModalInfo !== null}
         title={favModalInfo?.title || ''}
         message={favModalInfo?.message || ''}
-        confirmText={favModalInfo?.confirmText || 'Got It'}
-        cancelText={favModalInfo?.cancelText || 'Cancel'}
+        confirmText={favModalInfo?.confirmText || t('got_it')}
+        cancelText={favModalInfo?.cancelText || t('cancel')}
         icon={favModalInfo?.icon || 'heart'}
         iconColor={favModalInfo?.iconColor || COLORS.orange}
         hideCancel={favModalInfo?.hideCancel || false}

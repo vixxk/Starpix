@@ -11,12 +11,22 @@ const fileFilter = (req, file, cb) => {
     'video/mp4',
     'video/quicktime',
     'video/webm',
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/ogg',
+    'audio/aac',
+    'audio/m4a',
+    'audio/x-m4a',
+    'audio/mp4',
+    'audio/flac',
+    'audio/webm',
   ];
 
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  if (allowedMimeTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, GIF, MP4, MOV and WEBM files are allowed.'), false);
+    cb(new Error('Invalid file type. Only Images, Videos, and Audio files (MP3, WAV, AAC, M4A, OGG) are allowed.'), false);
   }
 };
 

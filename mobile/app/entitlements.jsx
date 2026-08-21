@@ -17,9 +17,11 @@ import { useAuthStore } from '../src/store/useAuthStore';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 export default function EntitlementsScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
@@ -74,7 +76,7 @@ export default function EntitlementsScreen() {
     <AppBackground>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        <ScreenHeader icon="💳" title="Unlocked Entitlements" subtitle="Your paid unlocks & purchases" onBack={() => router.back()} />
+        <ScreenHeader icon="💳" title={t('unlocked_entitlements')} subtitle={t('unlocked_sub')} onBack={() => router.back()} />
 
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -103,9 +105,9 @@ export default function EntitlementsScreen() {
             <View style={styles.emptyIconWrap}>
               <Ionicons name="card-outline" size={40} color={COLORS.orange} />
             </View>
-            <Text style={styles.emptyTitle}>No unlocks yet</Text>
+            <Text style={styles.emptyTitle}>{t('no_purchases_title')}</Text>
             <Text style={styles.emptySub}>
-              Unlock premium templates to get HD, watermark-free exports. They'll be listed here.
+              {t('no_purchases_sub')}
             </Text>
             <PressableScale
               onPress={() => router.replace('/(tabs)')}
@@ -114,7 +116,7 @@ export default function EntitlementsScreen() {
               contentStyle={styles.browseContent}
             >
               <Ionicons name="sparkles" size={18} color={COLORS.white} />
-              <Text style={styles.browseBtnText}>Explore Status Templates</Text>
+              <Text style={styles.browseBtnText}>{t('explore_status_templates')}</Text>
             </PressableScale>
           </View>
         ) : (
@@ -145,17 +147,17 @@ export default function EntitlementsScreen() {
 
             <View style={styles.list}>
               {purchases.map((p) => {
-                const t = p.templateId;
+                const tmpl = p.templateId;
                 return (
                   <View key={p._id} style={styles.card}>
                     <View style={styles.cardContent}>
                       <PressableScale
-                        onPress={() => handleTemplatePress(t)}
+                        onPress={() => handleTemplatePress(tmpl)}
                         scaleTo={0.97}
                         style={styles.thumbWrap}
                       >
-                        {t && (t.thumbnail || t.mainMedia) ? (
-                          <Image source={{ uri: t.thumbnail || t.mainMedia }} style={styles.thumb} resizeMode="cover" />
+                        {tmpl && (tmpl.thumbnail || tmpl.mainMedia) ? (
+                          <Image source={{ uri: tmpl.thumbnail || tmpl.mainMedia }} style={styles.thumb} resizeMode="cover" />
                         ) : (
                           <View style={styles.thumbPlaceholder}>
                             <Ionicons name="image-outline" size={22} color={COLORS.inkFaint} />
@@ -164,11 +166,11 @@ export default function EntitlementsScreen() {
                       </PressableScale>
 
                       <PressableScale
-                        onPress={() => handleTemplatePress(t)}
+                        onPress={() => handleTemplatePress(tmpl)}
                         scaleTo={0.98}
                         style={styles.cardBody}
                       >
-                        <Text style={styles.cardTitle} numberOfLines={1}>{t ? t.name : 'Purchased Template'}</Text>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{tmpl ? tmpl.name : 'Purchased Template'}</Text>
                         <Text style={styles.cardSub}>
                           ₹{p.amount || 49} · {formatDate(p.createdAt)}
                         </Text>
@@ -184,7 +186,7 @@ export default function EntitlementsScreen() {
                         contentStyle={styles.receiptContent}
                       >
                         <Ionicons name="document-text-outline" size={13} color={COLORS.orangeDeep} />
-                        <Text style={styles.receiptBtnText}>Invoice</Text>
+                        <Text style={styles.receiptBtnText}>{t('invoice') || 'Invoice'}</Text>
                       </PressableScale>
                     </View>
                   </View>
