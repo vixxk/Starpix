@@ -2,6 +2,7 @@
   "expo": {
     "name": "Statuzzz",
     "slug": "statuzzz",
+    "owner": "mingo123",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +34,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4fc5e0c4-d2ab-4ed0-af6f-4dc207c4c013"
+        "projectId": "f473dfd5-f4a4-4bb0-9379-92808eef8b7d"
       }
     }
   }
