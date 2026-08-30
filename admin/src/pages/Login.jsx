@@ -49,7 +49,7 @@ export default function Login() {
     <div className="min-h-screen bg-paper-50 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* Oversized watermark */}
       <span className="absolute -left-3 bottom-6 font-display text-[11rem] leading-none text-ink/[0.045] select-none pointer-events-none uppercase tracking-tight">
-        Statuzzz
+        Starpix
       </span>
       <span className="absolute right-4 top-4 label !text-ink/30">Control Room // v2.0</span>
 
@@ -59,12 +59,13 @@ export default function Login() {
           {/* FORM SIDE */}
           <div className="p-8 sm:p-10 flex flex-col justify-center bg-white">
             <div className="mb-8 flex items-center gap-3">
-              <div className="w-12 h-12 bg-ink text-flame-400 border-2 border-ink shadow-hard-sm flex items-center justify-center">
-                <Crown className="w-6 h-6" weight="fill" />
-              </div>
+              <img
+                src="/starpix-logo.png"
+                alt="Starpix Logo"
+                className="w-12 h-12 border-2 border-ink shadow-hard-sm object-cover bg-white rounded-[2px]"
+              />
               <div>
-                <h1 className="display text-2xl text-ink">Statuzzz</h1>
-                <p className="label !text-flame-600 mt-0.5">Control Room Access</p>
+                <h1 className="display text-2xl text-ink">Starpix</h1>
               </div>
             </div>
 
@@ -94,7 +95,7 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="input pl-11"
-                    placeholder="admin@statuzzz.com"
+                    placeholder="admin@starpix.com"
                   />
                 </div>
               </div>
@@ -148,7 +149,7 @@ export default function Login() {
               <div className="border-2 border-paper-50/50 bg-night-950 shadow-hard-white">
                 <img
                   src="/hero-art.png"
-                  alt="Statuzzz Photo Status Studio"
+                  alt="Starpix Photo Status Studio"
                   className="w-full h-52 object-cover object-center"
                 />
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-t-2 border-paper-50/50">
@@ -182,7 +183,7 @@ export default function Login() {
             </div>
 
             <p className="relative z-10 label !text-paper-50/40 mt-8">
-              © Statuzzz · Mobile Status Platform
+              © Starpix · Mobile Status Platform
             </p>
           </div>
         </div>

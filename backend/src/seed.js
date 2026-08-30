@@ -50,7 +50,7 @@ const seedData = async () => {
     console.log('[Seed] Connected to MongoDB');
 
     // Create Default Admin from environment variables if not present
-    const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@statuzzz.com';
+    const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@starpix.com';
     const adminPassword = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
 
     let admin = await Admin.findOne({ email: adminEmail.toLowerCase() });

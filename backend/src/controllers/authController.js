@@ -31,27 +31,43 @@ const requestOtp = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/verify-otp
 // @access  Public
 const verifyOtp = asyncHandler(async (req, res) => {
-  const { phoneNumber, countryCode = '+91', otp, name } = req.body;
+  const { phoneNumber, countryCode = '+91', otp, name, isNewUser } = req.body;
 
   if (!phoneNumber) {
     return res.status(400).json({ success: false, message: 'Phone number is required' });
   }
 
-  // TODO: Replace development OTP bypass with actual OTP provider before production.
-  // In development, accept any OTP code as valid.
   const fullPhone = `${countryCode}${phoneNumber}`.replace(/\s+/g, '');
 
   let user = await User.findOne({ phoneNumber: fullPhone });
+  const isSigningUp = isNewUser === true || isNewUser === 'true' || Boolean(name && name.trim());
 
-  if (!user) {
+  if (user && user.isDeleted) {
+    if (isSigningUp) {
+      // Reactivate deleted user account on Sign Up request
+      user.isDeleted = false;
+      user.deletedAt = null;
+      user.deletionReason = '';
+      if (name) user.name = name;
+      user.lastLoginAt = new Date();
+      await user.save();
+    } else {
+      // Block standard Log In for deleted accounts
+      return res.status(403).json({
+        success: false,
+        message: 'This account has been deleted. Please sign up to reactivate your account.',
+      });
+    }
+  } else if (!user) {
     user = await User.create({
       phoneNumber: fullPhone,
       countryCode,
-      name: name || `Statuzzz User ${fullPhone.slice(-4)}`,
+      name: name || `Starpix User ${fullPhone.slice(-4)}`,
       lastLoginAt: new Date(),
     });
   } else {
     user.lastLoginAt = new Date();
+    if (name) user.name = name;
     await user.save();
   }
 
@@ -107,9 +123,31 @@ const updateProfile = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Delete user account
+// @route   POST /api/auth/delete-account
+// @access  Private
+const deleteAccount = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+
+  user.isDeleted = true;
+  user.deletedAt = new Date();
+  user.deletionReason = req.body.reason || 'User requested account deletion';
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Your account has been deleted successfully.',
+  });
+});
+
 module.exports = {
   requestOtp,
   verifyOtp,
   getMe,
   updateProfile,
+  deleteAccount,
 };

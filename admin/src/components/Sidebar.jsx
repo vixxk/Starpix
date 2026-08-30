@@ -11,6 +11,7 @@ import {
   ChartPieSlice,
   UsersThree,
   Tag,
+  Flag,
   X,
   SignOut,
   Crown,
@@ -22,7 +23,9 @@ const navigation = [
   { name: 'Categories', href: '/categories', icon: FolderSimple },
   { name: 'Campaigns', href: '/campaigns', icon: MegaphoneSimple },
   { name: 'Purchases', href: '/purchases', icon: CreditCard },
-  { name: 'Reports', href: '/reports', icon: ChartPieSlice },
+  { name: 'Subscriptions', href: '/subscriptions', icon: Crown },
+  { name: 'User Reports', href: '/user-reports', icon: Flag },
+  { name: 'Revenue Reports', href: '/reports', icon: ChartPieSlice },
   { name: 'Users', href: '/users', icon: UsersThree },
   { name: 'Pricing', href: '/pricing', icon: Tag },
 ];
@@ -36,11 +39,13 @@ export default function Sidebar({ open, onClose }) {
       {/* Brand — ink slab with stamped orange mark */}
       <div className="px-5 pt-6 pb-5 border-b-2 border-paper-100/15">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-flame-500 border-2 border-paper-100 flex items-center justify-center shadow-hard-white">
-            <Crown className="w-5 h-5 text-ink" weight="fill" />
-          </div>
+          <img
+            src="/starpix-logo.png"
+            alt="Starpix"
+            className="w-11 h-11 border-2 border-paper-100 rounded-[2px] object-cover shadow-hard-white bg-paper-100"
+          />
           <div className="min-w-0">
-            <h1 className="display text-xl text-white leading-none tracking-wide">STATUZZZ</h1>
+            <h1 className="display text-xl text-white leading-none tracking-wide">STARPIX</h1>
             <p className="font-mono text-[9px] font-bold tracking-[0.24em] text-flame-400 uppercase mt-1">
               Control Room
             </p>
@@ -141,7 +146,7 @@ export default function Sidebar({ open, onClose }) {
             </div>
             <h3 className="display text-xl text-ink mb-1.5">Confirm Logout</h3>
             <p className="text-xs text-ink-mute mb-6 leading-relaxed">
-              Are you sure you want to log out of Statuzzz Control Room? You will need to authenticate again to access admin features.
+              Are you sure you want to log out of Starpix Control Room? You will need to authenticate again to access admin features.
             </p>
             <div className="flex items-center gap-3">
               <button

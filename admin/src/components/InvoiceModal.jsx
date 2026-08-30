@@ -70,7 +70,7 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
             <Crown className="w-5 h-5 text-ink" weight="fill" />
           </div>
           <div>
-            <h4 className="display text-2xl text-white leading-none tracking-wide">STATUZZZ</h4>
+            <h4 className="display text-2xl text-white leading-none tracking-wide">STARPIX</h4>
             <p className="font-mono text-[9px] text-flame-400 font-bold tracking-[0.22em] uppercase mt-1">
               Digital Status Platform
             </p>
@@ -89,9 +89,9 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
         {/* Billed by */}
         <div>
           <p className="label !text-ink/60 mb-2">Billed By</p>
-          <p className="font-bold text-ink text-sm">Statuzzz Digital Media</p>
+          <p className="font-bold text-ink text-sm">Starpix Digital Media</p>
           <p className="text-xs text-ink-mute mt-1">Mobile Status &amp; Creative Quote Platform</p>
-          <p className="text-xs text-ink-mute">support@statuzzz.com</p>
+          <p className="text-xs text-ink-mute">support@starpix.com</p>
         </div>
 
         {/* Billed to */}
@@ -99,7 +99,7 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
           <p className="label !text-ink/60 mb-2 flex items-center gap-1.5">
             <UserCircle className="w-3.5 h-3.5" /> Billed To
           </p>
-          <p className="font-bold text-ink text-sm">{purchase?.userId?.name || 'Statuzzz User'}</p>
+          <p className="font-bold text-ink text-sm">{purchase?.userId?.name || 'Starpix User'}</p>
           <p className="font-mono text-xs text-ink-mute mt-1">
             {countryCode} {userPhone}
           </p>
@@ -160,7 +160,7 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
                     paid: 'Paid Template Unlock',
                     vip: 'VIP Exclusive Template',
                   }[purchase?.templateId?.accessType] || 'Premium Template Unlock'}{' '}
-                  · {purchase?.productId || 'statuzzz_single_unlock'}
+                  · {purchase?.productId || 'starpix_single_unlock'}
                 </p>
               </td>
               <td className="text-center px-3 py-3 border-2 border-ink/20 font-bold text-ink">1</td>
@@ -231,7 +231,7 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
       {/* Footer */}
       <div className="px-7 py-5 bg-paper-50 border-t-2 border-ink flex items-center justify-between gap-3">
         <p className="text-[10px] text-ink-mute">
-          This is a computer-generated invoice for the Statuzzz digital status platform.
+          This is a computer-generated invoice for the Starpix digital status platform.
         </p>
         <p className="text-[10px] text-ink-mute shrink-0 flex items-center gap-1">
           <DeviceMobile className="w-3 h-3" /> Generated {formatDate(Date.now())}

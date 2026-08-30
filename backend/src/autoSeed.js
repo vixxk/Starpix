@@ -11,7 +11,7 @@ const Analytics = require('./models/Analytics');
 const autoSeedIfEmpty = async () => {
   try {
     // 1. Ensure Super Admin account exists
-    const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@statuzzz.com';
+    const adminEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@starpix.com';
     const adminPassword = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
     const existingAdmin = await Admin.findOne({ email: adminEmail.toLowerCase() });
     if (!existingAdmin) {
@@ -78,7 +78,7 @@ const autoSeedIfEmpty = async () => {
     await Campaign.deleteMany({
       name: {
         $in: [
-          '🎉 Statuzzz Festival Carnival 2026',
+          '🎉 Starpix Festival Carnival 2026',
           '🔥 Daily Trending Creator Spotlight',
           '🎬 Motion Video Status Reel Hub',
         ],
@@ -89,7 +89,7 @@ const autoSeedIfEmpty = async () => {
       name: {
         $in: [
           'विजयी भव: Daily Motivation Status',
-          'Statuzzz Cyber Emerald VIP Reel',
+          'Starpix Cyber Emerald VIP Reel',
           'शुभ प्रभात: Morning Sunrise Blessings',
           'हर हर महादेव: Devotional Shiva Status',
           'Happy Birthday Celebration Video',

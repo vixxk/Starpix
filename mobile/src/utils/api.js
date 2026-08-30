@@ -31,7 +31,7 @@ const getBaseUrl = () => {
 };
 
 const API_BASE_URL = getBaseUrl();
-console.log(`[Statuzzz Mobile API] Connecting to backend at: ${API_BASE_URL}`);
+console.log(`[Starpix Mobile API] Connecting to backend at: ${API_BASE_URL}`);
 
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -40,11 +40,11 @@ const API = axios.create({
 
 API.interceptors.request.use(async (config) => {
   try {
-    const token = await AsyncStorage.getItem('statuzzz_user_token');
+    const token = await AsyncStorage.getItem('starpix_user_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    const lang = await AsyncStorage.getItem('statuzzz_user_language');
+    const lang = await AsyncStorage.getItem('starpix_user_language');
     if (lang) {
       config.headers['Accept-Language'] = lang;
     }
@@ -58,8 +58,8 @@ API.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response && error.response.status === 401) {
-      await AsyncStorage.removeItem('statuzzz_user_token');
-      await AsyncStorage.removeItem('statuzzz_user_data');
+      await AsyncStorage.removeItem('starpix_user_token');
+      await AsyncStorage.removeItem('starpix_user_data');
       try {
         const { useAuthStore } = require('../store/useAuthStore');
         useAuthStore.getState().logout();

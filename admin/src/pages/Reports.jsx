@@ -335,7 +335,7 @@ export default function Reports() {
           {/* Footer (prints) */}
           <div className="flex items-center justify-between border-2 border-ink bg-paper-50 px-5 py-3.5">
             <p className="text-[10px] text-ink-mute">
-              Statuzzz Digital Status Platform · Revenue Report · {rangeText(from, to)}
+              Starpix Digital Status Platform · Revenue Report · {rangeText(from, to)}
             </p>
             <p className="font-mono text-[10px] font-bold text-ink-mute uppercase tracking-wider">
               Total {inr(totalRevenue)}

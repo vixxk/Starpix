@@ -17,6 +17,8 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const creationRoutes = require('./routes/creationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const webRoutes = require('./routes/webRoutes');
 
 const app = express();
 
@@ -50,13 +52,17 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/creations', creationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/reports', reportRoutes);
+
+// Web routes for Google Play compliance (Account Deletion web request)
+app.use('/', webRoutes);
 
 // Home and Health check endpoints
 const healthCheckHandler = (req, res) => {
   res.status(200).json({
     success: true,
     status: 'online',
-    app: 'Statuzzz Backend API',
+    app: 'Starpix Backend API',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
   });

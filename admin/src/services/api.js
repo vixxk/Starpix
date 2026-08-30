@@ -16,7 +16,7 @@ const API = axios.create({
 });
 
 API.interceptors.request.use((config) => {
-  const token = localStorage.getItem('statuzzz_admin_token');
+  const token = localStorage.getItem('starpix_admin_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -27,9 +27,9 @@ API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('statuzzz_admin_token');
-      localStorage.removeItem('statuzzz_admin_user');
-      localStorage.removeItem('statuzzz_admin_expiry');
+      localStorage.removeItem('starpix_admin_token');
+      localStorage.removeItem('starpix_admin_user');
+      localStorage.removeItem('starpix_admin_expiry');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

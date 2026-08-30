@@ -14,6 +14,48 @@ const isVideoMedia = (url) => {
   );
 };
 
+const getPhotoShapeStyles = (shape, width, height) => {
+  const minDim = Math.min(width || 100, height || 100);
+  switch (shape) {
+    case 'circle':
+      return {
+        borderRadius: minDim / 2,
+        clipPath: 'circle(50% at 50% 50%)',
+      };
+    case 'diamond':
+      return {
+        borderRadius: 0,
+        clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+      };
+    case 'hexagon':
+      return {
+        borderRadius: 0,
+        clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
+      };
+    case 'star':
+      return {
+        borderRadius: 0,
+        clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
+      };
+    case 'heart':
+      return {
+        borderRadius: 0,
+        clipPath: 'polygon(50% 15%, 65% 0%, 85% 0%, 100% 15%, 100% 35%, 50% 90%, 0% 35%, 0% 15%, 15% 0%, 35% 0%)',
+      };
+    case 'rounded':
+      return {
+        borderRadius: minDim * 0.2,
+        clipPath: 'inset(0 round 20%)',
+      };
+    case 'rectangle':
+    default:
+      return {
+        borderRadius: 0,
+        clipPath: 'none',
+      };
+  }
+};
+
 function DraggablePhotoLayer({
   layer,
   userPhotoUri,
@@ -23,6 +65,9 @@ function DraggablePhotoLayer({
   layerHeight,
   onPressPhotoSlot,
 }) {
+  const shape = layer.shape || 'rectangle';
+  const shapeStyle = getPhotoShapeStyles(shape, layerWidth, layerHeight);
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -36,11 +81,11 @@ function DraggablePhotoLayer({
           height: layerHeight,
           zIndex: layer.zIndex !== undefined ? layer.zIndex : 15,
           overflow: 'hidden',
-          borderRadius: layer.borderRadius || 0,
           borderWidth: userPhotoUri ? 0 : 2,
           borderColor: COLORS.orange,
           borderStyle: userPhotoUri ? 'solid' : 'dashed',
           backgroundColor: userPhotoUri ? 'transparent' : 'rgba(249, 115, 22, 0.18)',
+          ...shapeStyle,
         },
       ]}
     >
@@ -48,7 +93,7 @@ function DraggablePhotoLayer({
         <Image
           source={{ uri: resolveMediaUrl(userPhotoUri) }}
           style={StyleSheet.absoluteFillObject}
-          resizeMode="stretch"
+          resizeMode="cover"
         />
       ) : (
         <View style={styles.photoPlaceholderInner}>
@@ -347,10 +392,10 @@ export default function TemplateRenderer({
       {showWatermark && (
         <View style={styles.watermarkContainer} pointerEvents="none">
           <View style={styles.watermarkGrid}>
-            <Text style={styles.watermarkText}>STATUZZZ · PREVIEW</Text>
-            <Text style={styles.watermarkText}>STATUZZZ · PREVIEW</Text>
-            <Text style={styles.watermarkText}>STATUZZZ · PREVIEW</Text>
-            <Text style={styles.watermarkText}>STATUZZZ · PREVIEW</Text>
+            <Text style={styles.watermarkText}>STARPIX · PREVIEW</Text>
+            <Text style={styles.watermarkText}>STARPIX · PREVIEW</Text>
+            <Text style={styles.watermarkText}>STARPIX · PREVIEW</Text>
+            <Text style={styles.watermarkText}>STARPIX · PREVIEW</Text>
           </View>
         </View>
       )}

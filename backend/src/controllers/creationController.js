@@ -201,7 +201,7 @@ const shareCreation = asyncHandler(async (req, res) => {
     success: true,
     data: {
       shareUrl,
-      message: `Check out my personalized status creation on Statuzzz!`,
+      message: `Check out my personalized status creation on Starpix!`,
     },
   });
 });

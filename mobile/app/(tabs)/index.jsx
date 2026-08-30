@@ -249,7 +249,7 @@ export default function HomeScreen() {
 
         return false;
       })
-      .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || (b.trendingScore || 0) - (a.trendingScore || 0));
+      .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || ((a.order !== undefined ? a.order : (a.sortOrder || 0)) - (b.order !== undefined ? b.order : (b.sortOrder || 0))) || (b.trendingScore || 0) - (a.trendingScore || 0));
 
     setCategoryTemplates(instant);
     setCategoryFetching(true);
@@ -545,9 +545,14 @@ export default function HomeScreen() {
             {loading ? (
               <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
                 <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
-                <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
-                  <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
-                  <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
+                  <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
+                  <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', width: CARD_WIDTH, marginTop: hp(0.008), gap: 6 }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
+                  ))}
                 </View>
               </View>
             ) : selectedCategory ? (
@@ -557,9 +562,14 @@ export default function HomeScreen() {
                 ) : categoryFetching ? (
                   <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
                     <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
-                    <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
-                      <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
-                      <Skeleton height={hp(0.055)} width="48%" borderRadius={14} />
+                    <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
+                      <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
+                      <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', width: CARD_WIDTH, marginTop: hp(0.008), gap: 6 }}>
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
+                      ))}
                     </View>
                   </View>
                 ) : (

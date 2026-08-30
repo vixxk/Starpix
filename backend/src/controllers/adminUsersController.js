@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Purchase = require('../models/Purchase');
 const Analytics = require('../models/Analytics');
 
-// @desc    Get all registered users with metrics
+// @desc    Get all registered users with metrics and deletion status
 // @route   GET /api/admin/users
 // @access  Private (Admin)
 const getUsers = asyncHandler(async (req, res) => {
@@ -11,7 +11,7 @@ const getUsers = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
-  const { search, isPremium } = req.query;
+  const { search, isPremium, status } = req.query;
 
   let query = {};
   if (search) {
@@ -24,7 +24,18 @@ const getUsers = asyncHandler(async (req, res) => {
   if (isPremium === 'true') query.isPremium = true;
   if (isPremium === 'false') query.isPremium = false;
 
-  const total = await User.countDocuments(query);
+  if (status === 'deleted') {
+    query.isDeleted = true;
+  } else if (status === 'active') {
+    query.isDeleted = { $ne: true };
+  }
+
+  const [total, activeCount, deletedCount] = await Promise.all([
+    User.countDocuments(query),
+    User.countDocuments({ isDeleted: { $ne: true } }),
+    User.countDocuments({ isDeleted: true }),
+  ]);
+
   const users = await User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
   // Compute aggregated purchase metrics for each user
@@ -42,6 +53,11 @@ const getUsers = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: usersWithMetrics,
+    summary: {
+      totalAll: activeCount + deletedCount,
+      active: activeCount,
+      deleted: deletedCount,
+    },
     pagination: {
       total,
       page,
@@ -67,6 +83,27 @@ const toggleUserVip = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: `User VIP status updated to ${user.isPremium ? 'Active VIP' : 'Free Member'}`,
+    data: user,
+  });
+});
+
+// @desc    Restore deleted user account
+// @route   PUT /api/admin/users/:id/restore
+// @access  Private (Admin)
+const restoreUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+
+  user.isDeleted = false;
+  user.deletedAt = null;
+  user.deletionReason = '';
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'User account restored successfully',
     data: user,
   });
 });
@@ -107,8 +144,87 @@ const getUserDetails = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get user subscriptions listing for admin
+// @route   GET /api/admin/subscriptions
+// @access  Private (Admin)
+const getSubscriptions = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+  const { search, status = 'all' } = req.query;
+
+  let query = {
+    $or: [
+      { isPremium: true },
+      { subscriptionStatus: { $in: ['active', 'expired', 'cancelled'] } },
+    ],
+  };
+
+  if (status === 'active') {
+    query.subscriptionStatus = 'active';
+  } else if (status === 'expired') {
+    query.subscriptionStatus = 'expired';
+  } else if (status === 'cancelled') {
+    query.subscriptionStatus = 'cancelled';
+  }
+
+  if (search) {
+    query.$and = [
+      {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { phoneNumber: { $regex: search, $options: 'i' } },
+        ],
+      },
+    ];
+  }
+
+  const total = await User.countDocuments(query);
+  const activeCount = await User.countDocuments({ isPremium: true, subscriptionStatus: 'active' });
+  const users = await User.find(query).sort({ updatedAt: -1 }).skip(skip).limit(limit);
+
+  const usersWithSubDetails = await Promise.all(
+    users.map(async (u) => {
+      const userPurchases = await Purchase.find({ userId: u._id, status: 'successful' }).sort({ createdAt: -1 });
+      const totalSpent = userPurchases.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+      const vipPurchase = userPurchases.find((p) => p.productId === 'starpix_vip_unlock');
+
+      const userObj = u.toObject();
+      userObj.totalSpent = totalSpent;
+      userObj.totalPurchases = userPurchases.length;
+      userObj.subscribedAt = vipPurchase ? vipPurchase.createdAt : u.updatedAt;
+      userObj.latestTransaction = userPurchases[0] || null;
+      return userObj;
+    })
+  );
+
+  const allVipPurchases = await Purchase.find({
+    status: 'successful',
+    $or: [{ productId: 'starpix_vip_unlock' }, { amount: 199 }, { amount: 299 }],
+  });
+  const totalSubRevenue = allVipPurchases.reduce((acc, p) => acc + (p.amount || 0), 0);
+
+  res.status(200).json({
+    success: true,
+    data: usersWithSubDetails,
+    summary: {
+      totalSubscriptions: total,
+      activeSubscriptions: activeCount,
+      totalSubRevenue,
+    },
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      limit,
+    },
+  });
+});
+
 module.exports = {
   getUsers,
   toggleUserVip,
+  restoreUser,
   getUserDetails,
+  getSubscriptions,
 };

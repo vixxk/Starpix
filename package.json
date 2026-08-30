@@ -1,7 +1,7 @@
 {
-  "name": "statuzzz-root",
+  "name": "starpix-root",
   "version": "1.0.0",
-  "description": "Statuzzz Full-Stack Monorepo Workspace",
+  "description": "Starpix Full-Stack Monorepo Workspace",
   "private": true,
   "scripts": {
     "start:backend": "npm --prefix backend start",

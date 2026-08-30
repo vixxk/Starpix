@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
@@ -39,18 +39,17 @@ export default function LoginScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
         {/* Watermark */}
         <Text style={styles.watermark} numberOfLines={1}>
-          STATUZZZ
+          STARPIX
         </Text>
 
         <View style={styles.header}>
           <View style={styles.logoWrap}>
             <View style={styles.logoPlate} pointerEvents="none" />
             <View style={styles.logoBadge}>
-              <Text style={styles.logoLetter}>S</Text>
+              <Image source={require('../../assets/icon.png')} style={styles.logoImage} resizeMode="cover" />
             </View>
           </View>
-          <Text style={styles.brandTitle}>STATUZZZ</Text>
-          <Text style={styles.brandSubtitle}>CONTROL ROOM // STATUS ENGINE</Text>
+          <Text style={styles.brandTitle}>STARPIX</Text>
         </View>
 
         <BrutalCard offset={wp(0.018)}>
@@ -105,7 +104,7 @@ export default function LoginScreen() {
 
             {/* Toggle to Sign Up */}
             <View style={styles.switchRow}>
-              <Text style={styles.switchText}>New to Statuzzz?</Text>
+              <Text style={styles.switchText}>New to Starpix?</Text>
               <TouchableOpacity onPress={() => router.push('/signup')}>
                 <Text style={styles.switchLink}>Create Account</Text>
               </TouchableOpacity>
@@ -113,7 +112,7 @@ export default function LoginScreen() {
           </View>
         </BrutalCard>
 
-        <Text style={styles.footerStamp}>© STATUZZZ · MOBILE STATUS PLATFORM</Text>
+        <Text style={styles.footerStamp}>© STARPIX · MOBILE STATUS PLATFORM</Text>
       </KeyboardAvoidingView>
 
       {/* Themed Validation Alert */}
@@ -176,10 +175,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoLetter: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(36),
-    fontFamily: FONTS.display,
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 2,
   },
   brandTitle: {
     color: BRUTAL.ink,

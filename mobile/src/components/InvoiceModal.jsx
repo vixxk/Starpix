@@ -81,7 +81,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
         <html>
         <head>
           <meta charset="utf-8" />
-          <title>Statuzzz Tax Invoice</title>
+          <title>Starpix Tax Invoice</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
             body {
@@ -260,7 +260,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
                 <td class="logo-cell">
                   <div class="brand-badge">S</div>
                   <div style="display: inline-block; vertical-align: middle;">
-                    <div class="brand-title">STATUZZZ</div>
+                    <div class="brand-title">STARPIX</div>
                     <div class="brand-sub">DIGITAL STATUS PLATFORM</div>
                   </div>
                 </td>
@@ -274,13 +274,13 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
             <div class="meta-grid">
               <div class="meta-col">
                 <div class="meta-label">BILLED BY</div>
-                <div class="meta-value">Statuzzz Digital Media</div>
+                <div class="meta-value">Starpix Digital Media</div>
                 <div class="meta-small">Mobile Status Platform</div>
-                <div class="meta-small">support@statuzzz.com</div>
+                <div class="meta-small">support@starpix.com</div>
               </div>
               <div class="meta-col">
                 <div class="meta-label">BILLED TO</div>
-                <div class="meta-value">${user?.name || 'Statuzzz User'}</div>
+                <div class="meta-value">${user?.name || 'Starpix User'}</div>
                 <div class="meta-small">${displayPhone}</div>
               </div>
             </div>
@@ -317,7 +317,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
                   <td>
                     <strong>${templateName}</strong><br/>
                     <span style="font-size:12px; color:#666;">
-                      ${purchase?.productId || 'statuzzz_single_unlock'} · ${template?.accessType || 'Premium'} Unlock
+                      ${purchase?.productId || 'starpix_single_unlock'} · ${template?.accessType || 'Premium'} Unlock
                     </span>
                   </td>
                   <td class="text-center">1</td>
@@ -346,7 +346,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
             </table>
 
             <div class="footer">
-              This is an official computer-generated tax invoice for Statuzzz digital status platform.<br/>
+              This is an official computer-generated tax invoice for Starpix digital status platform.<br/>
               Transaction Ref: ${transactionId} · Generated ${new Date().toLocaleString()}
             </div>
           </div>
@@ -418,7 +418,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
                   <Text style={styles.brandBadgeLetter}>S</Text>
                 </View>
                 <View>
-                  <Text style={styles.brandName}>STATUZZZ</Text>
+                  <Text style={styles.brandName}>STARPIX</Text>
                   <Text style={styles.brandSub}>DIGITAL STATUS PLATFORM</Text>
                 </View>
               </View>
@@ -432,13 +432,13 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
             <View style={styles.metaGrid}>
               <View style={styles.billedCol}>
                 <Text style={styles.sectionLabel}>BILLED BY</Text>
-                <Text style={styles.metaTitle}>Statuzzz Digital Media</Text>
+                <Text style={styles.metaTitle}>Starpix Digital Media</Text>
                 <Text style={styles.metaSmall}>Mobile Status Platform</Text>
-                <Text style={styles.metaSmall}>support@statuzzz.com</Text>
+                <Text style={styles.metaSmall}>support@starpix.com</Text>
               </View>
               <View style={styles.billedCol}>
                 <Text style={styles.sectionLabel}>BILLED TO</Text>
-                <Text style={styles.metaTitle}>{user?.name || 'Statuzzz User'}</Text>
+                <Text style={styles.metaTitle}>{user?.name || 'Starpix User'}</Text>
                 <Text style={styles.metaSmallMono}>
                   {displayPhone}
                 </Text>
@@ -477,7 +477,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
                     paid: 'Paid Template Unlock',
                     vip: 'VIP Exclusive Template',
                   }[template?.accessType] || 'Premium Template Unlock'}{' '}
-                  · {purchase?.productId || 'statuzzz_single_unlock'}
+                  · {purchase?.productId || 'starpix_single_unlock'}
                 </Text>
               </View>
               <Text style={[styles.cellQty, styles.itemQty]}>1</Text>
@@ -518,7 +518,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
             {/* Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                This is a computer-generated invoice for the Statuzzz digital status platform.
+                This is a computer-generated invoice for the Starpix digital status platform.
               </Text>
               <Text style={styles.footerText}>
                 Generated {fmtDate(new Date().toISOString())}

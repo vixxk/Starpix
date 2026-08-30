@@ -11,7 +11,7 @@ const isMockS3 = !process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID
 const getBucketName = () =>
   process.env.AWS_S3_BUCKET ||
   process.env.AWS_S3_BUCKET_NAME ||
-  'statuzzz-media-bucket';
+  'starpix-media-bucket';
 
 let s3Client = null;
 if (!isMockS3) {
@@ -68,7 +68,7 @@ const getSignedDownloadUrl = async (objectKeyOrUrl, expiresInSeconds = 300) => {
   if (isMockS3 || objectKeyOrUrl.startsWith('http')) {
     // Return direct URL or simulated signed URL with token parameter
     const separator = objectKeyOrUrl.includes('?') ? '&' : '?';
-    return `${objectKeyOrUrl}${separator}token=statuzzz_signed_dev_${Date.now()}&expiresIn=${expiresInSeconds}`;
+    return `${objectKeyOrUrl}${separator}token=starpix_signed_dev_${Date.now()}&expiresIn=${expiresInSeconds}`;
   }
 
   const bucketName = getBucketName();

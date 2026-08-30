@@ -11,7 +11,7 @@ import PressableScale from '../../src/components/PressableScale';
 import TemplateCard from '../../src/components/TemplateCard';
 import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
-import { wp, SCREEN_PAD, GRID_GAP, CARD_WIDTH, SINGLE_CARD_SNAP_HEIGHT, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
+import { wp, hp, fontScale, SCREEN_PAD, GRID_GAP, CARD_WIDTH, SINGLE_CARD_SNAP_HEIGHT, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
 import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { resolveMediaUrl } from '../../src/utils/media';
@@ -181,12 +181,48 @@ export default function CampaignScreen() {
     return (
       <AppBackground>
         <StatusBar style="dark" />
-        <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16) }]}>
-          <View style={styles.skeletonContainer}>
+        <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
+          <View style={styles.headerBar}>
             <Skeleton height={38} width={38} borderRadius={19} />
-            <View style={{ marginTop: 24, flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Skeleton height={wp(0.435) * 1.55} width={wp(0.435)} borderRadius={18} />
-              <Skeleton height={wp(0.435) * 1.55} width={wp(0.435)} borderRadius={18} />
+          </View>
+
+          <View style={styles.centeredCardContainer}>
+            <View style={{ alignItems: 'center' }}>
+              {/* Main 9:16 Template Card Skeleton */}
+              <Skeleton
+                width={CAMPAIGN_CARD_WIDTH}
+                height={CAMPAIGN_CARD_WIDTH * (16 / 9)}
+                borderRadius={0}
+              />
+
+              {/* Action Buttons Row (Edit Details & Download) */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  width: CAMPAIGN_CARD_WIDTH,
+                  marginTop: hp(0.008),
+                  gap: wp(0.025),
+                }}
+              >
+                <Skeleton width="48%" height={hp(0.044)} borderRadius={hp(0.012)} />
+                <Skeleton width="48%" height={hp(0.044)} borderRadius={hp(0.012)} />
+              </View>
+
+              {/* Footer Selectors Thumbnail Row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  width: CAMPAIGN_CARD_WIDTH,
+                  marginTop: hp(0.008),
+                  gap: 6,
+                }}
+              >
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
+                ))}
+              </View>
             </View>
           </View>
         </View>

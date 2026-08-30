@@ -1,7 +1,7 @@
 {
-  "name": "statuzzz-backend",
+  "name": "starpix-backend",
   "version": "1.0.0",
-  "description": "Backend API for Statuzzz - Creative Status Application",
+  "description": "Backend API for Starpix - Creative Status Application",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

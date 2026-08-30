@@ -76,7 +76,7 @@ export default function VipScreen() {
                 <MaterialCommunityIcons name="crown" size={isSmall ? 20 : 24} color="#1c1917" />
               </View>
               <View style={styles.passTitleWrap}>
-                <Text style={[styles.passTitle, isSmall && styles.passTitleSmall]}>STATUZZZ VIP</Text>
+                <Text style={[styles.passTitle, isSmall && styles.passTitleSmall]}>STARPIX VIP</Text>
                 <Text style={styles.passSubtitle} numberOfLines={1}>
                   {user?.name || 'Member'} · {t('unlock_all')}
                 </Text>

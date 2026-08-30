@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      default: 'Statuzzz User',
+      default: 'Starpix User',
       trim: true,
     },
     profilePhoto: {
@@ -39,6 +39,18 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
       default: Date.now,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletionReason: {
+      type: String,
+      default: '',
     },
   },
   {

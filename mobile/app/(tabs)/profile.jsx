@@ -13,6 +13,8 @@ import { resolveMediaUrl } from '../../src/utils/media';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
 import Toast from '../../src/components/Toast';
+import ReportModal from '../../src/components/ReportModal';
+import API from '../../src/utils/api';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -30,8 +32,11 @@ export default function ProfileScreen() {
 
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showIssueReportModal, setShowIssueReportModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
@@ -45,6 +50,16 @@ export default function ProfileScreen() {
     { icon: 'heart-outline', label: t('my_saved_favorites'), route: '/favorites' },
     { icon: 'card-outline', label: t('unlocked_entitlements'), route: '/entitlements' },
     { icon: 'trophy-outline', label: t('vip_pass_subscription'), route: '/vip' },
+    {
+      icon: 'alert-circle-outline',
+      label: t('report_an_issue'),
+      onPress: () => setShowIssueReportModal(true),
+    },
+    {
+      icon: 'document-text-outline',
+      label: t('my_issues_reports'),
+      route: '/my-reports',
+    },
     {
       icon: 'language-outline',
       label: t('app_language'),
@@ -127,6 +142,21 @@ export default function ProfileScreen() {
       router.replace('/login');
     } finally {
       setLogoutLoading(false);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    setDeleteLoading(true);
+    try {
+      await API.post('/auth/delete-account', { reason: 'User requested account deletion' });
+      setShowDeleteModal(false);
+      await logout();
+      router.replace('/login');
+    } catch (err) {
+      console.error('Delete account error:', err);
+      showToast(err.response?.data?.message || 'Failed to delete account');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -215,8 +245,21 @@ export default function ProfileScreen() {
             <Ionicons name="log-out-outline" size={18} color={COLORS.orange} />
             <Text style={styles.logoutText}>{t('log_out_account')}</Text>
           </PressableScale>
+
+          <PressableScale onPress={() => setShowDeleteModal(true)} scaleTo={0.97} haptic="impact" style={styles.deleteAccountButton} contentStyle={styles.deleteAccountContent}>
+            <Ionicons name="trash-outline" size={17} color={COLORS.error || '#ef4444'} />
+            <Text style={styles.deleteAccountText}>{t('delete_account')}</Text>
+          </PressableScale>
         </ScrollView>
       </View>
+
+      {/* Report Issue Modal */}
+      <ReportModal
+        visible={showIssueReportModal}
+        type="issue"
+        onClose={() => setShowIssueReportModal(false)}
+        onSuccess={() => showToast('Issue report submitted successfully!')}
+      />
 
       {/* Language Selector Modal */}
       <LanguageModal
@@ -240,6 +283,20 @@ export default function ProfileScreen() {
         confirmLoading={logoutLoading}
         onCancel={() => setShowLogoutModal(false)}
         onConfirm={handleConfirmLogout}
+      />
+
+      {/* Themed Account Delete Confirmation */}
+      <ConfirmModal
+        visible={showDeleteModal}
+        title={t('delete_account_title')}
+        message={t('delete_account_msg')}
+        confirmText={t('confirm')}
+        cancelText={t('cancel')}
+        icon="trash-outline"
+        iconColor={COLORS.error || '#ef4444'}
+        confirmLoading={deleteLoading}
+        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDeleteAccount}
       />
     </AppBackground>
   );
@@ -515,6 +572,25 @@ const styles = StyleSheet.create({
   logoutText: {
     color: COLORS.orange,
     fontSize: fontScale(14),
+    fontFamily: FONTS.bold,
+  },
+  deleteAccountButton: {
+    paddingVertical: 14,
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    marginTop: 12,
+  },
+  deleteAccountContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteAccountText: {
+    color: COLORS.error || '#ef4444',
+    fontSize: fontScale(13.5),
     fontFamily: FONTS.bold,
   },
 });

@@ -11,8 +11,8 @@ export const useAuthStore = create((set, get) => ({
 
   initializeAuth: async () => {
     try {
-      const savedToken = await AsyncStorage.getItem('statuzzz_user_token');
-      const savedUser = await AsyncStorage.getItem('statuzzz_user_data');
+      const savedToken = await AsyncStorage.getItem('starpix_user_token');
+      const savedUser = await AsyncStorage.getItem('starpix_user_data');
 
       if (savedToken && savedUser) {
         set({ token: savedToken, user: JSON.parse(savedUser) });
@@ -21,7 +21,7 @@ export const useAuthStore = create((set, get) => ({
           const res = await API.get('/auth/me');
           if (res.data && res.data.success) {
             set({ user: res.data.data });
-            await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
+            await AsyncStorage.setItem('starpix_user_data', JSON.stringify(res.data.data));
             const { useCreationStore } = require('./useCreationStore');
             if (res.data.data.profilePhoto) {
               useCreationStore.getState().setDefaultUserPhotoUri(res.data.data.profilePhoto);
@@ -32,8 +32,8 @@ export const useAuthStore = create((set, get) => ({
           }
         } catch (e) {
           if (e.response && e.response.status === 401) {
-            await AsyncStorage.removeItem('statuzzz_user_token');
-            await AsyncStorage.removeItem('statuzzz_user_data');
+            await AsyncStorage.removeItem('starpix_user_token');
+            await AsyncStorage.removeItem('starpix_user_data');
             set({ user: null, token: null });
           }
         }
@@ -61,14 +61,14 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  verifyOtp: async (phoneNumber, countryCode = '+91', otp = '123456', name = '') => {
+  verifyOtp: async (phoneNumber, countryCode = '+91', otp = '123456', name = '', isNewUser = false) => {
     set({ isAuthenticating: true, error: null });
     try {
-      const res = await API.post('/auth/verify-otp', { phoneNumber, countryCode, otp, name });
+      const res = await API.post('/auth/verify-otp', { phoneNumber, countryCode, otp, name, isNewUser });
       const { user, token } = res.data.data;
 
-      await AsyncStorage.setItem('statuzzz_user_token', token);
-      await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(user));
+      await AsyncStorage.setItem('starpix_user_token', token);
+      await AsyncStorage.setItem('starpix_user_data', JSON.stringify(user));
 
       if (user?.name) {
         const { useCreationStore } = require('./useCreationStore');
@@ -89,8 +89,8 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: async () => {
-    await AsyncStorage.removeItem('statuzzz_user_token');
-    await AsyncStorage.removeItem('statuzzz_user_data');
+    await AsyncStorage.removeItem('starpix_user_token');
+    await AsyncStorage.removeItem('starpix_user_data');
     set({ user: null, token: null });
   },
 
@@ -99,7 +99,7 @@ export const useAuthStore = create((set, get) => ({
       const res = await API.put('/auth/profile', updatedData);
       if (res.data.success) {
         set({ user: res.data.data });
-        await AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(res.data.data));
+        await AsyncStorage.setItem('starpix_user_data', JSON.stringify(res.data.data));
         const { useCreationStore } = require('./useCreationStore');
         if (res.data.data.profilePhoto || updatedData.profilePhoto) {
           useCreationStore.getState().setDefaultUserPhotoUri(res.data.data.profilePhoto || updatedData.profilePhoto);

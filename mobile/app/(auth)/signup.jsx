@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
@@ -55,18 +55,17 @@ export default function SignUpScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
         {/* Watermark background */}
         <Text style={styles.watermark} numberOfLines={1}>
-          STATUZZZ
+          STARPIX
         </Text>
 
         <View style={styles.header}>
           <View style={styles.logoWrap}>
             <View style={styles.logoPlate} pointerEvents="none" />
             <View style={styles.logoBadge}>
-              <Text style={styles.logoLetter}>S</Text>
+              <Image source={require('../../assets/icon.png')} style={styles.logoImage} resizeMode="cover" />
             </View>
           </View>
-          <Text style={styles.brandTitle}>STATUZZZ</Text>
-          <Text style={styles.brandSubtitle}>STATUS PLATFORM // NEW ACCOUNT</Text>
+          <Text style={styles.brandTitle}>STARPIX</Text>
         </View>
 
         <BrutalCard offset={wp(0.018)}>
@@ -81,7 +80,7 @@ export default function SignUpScreen() {
 
           <View style={styles.cardBody}>
             <Text style={styles.cardSubtitle}>
-              Join Statuzzz to build custom status cards and video reels with your photo.
+              Join Starpix to build custom status cards and video reels with your photo.
             </Text>
 
             {error && (
@@ -161,7 +160,7 @@ export default function SignUpScreen() {
           </View>
         </BrutalCard>
 
-        <Text style={styles.footerStamp}>© STATUZZZ · MOBILE STATUS PLATFORM</Text>
+        <Text style={styles.footerStamp}>© STARPIX · MOBILE STATUS PLATFORM</Text>
       </KeyboardAvoidingView>
 
       {/* Validation Modal */}
@@ -224,10 +223,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoLetter: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(34),
-    fontFamily: FONTS.display,
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 2,
   },
   brandTitle: {
     color: BRUTAL.ink,

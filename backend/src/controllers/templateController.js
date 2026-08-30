@@ -45,13 +45,15 @@ const getTemplates = asyncHandler(async (req, res) => {
     ];
   }
 
-  let sortOption = { createdAt: -1 };
+  let sortOption = { isPinned: -1, order: 1, sortOrder: 1, createdAt: -1 };
   if (sort === 'trending' || filter === 'trending') {
-    sortOption = { isPinned: -1, trendingScore: -1, views: -1 };
+    sortOption = { isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1, views: -1 };
   } else if (sort === 'popular') {
-    sortOption = { uses: -1, views: -1 };
+    sortOption = { isPinned: -1, order: 1, sortOrder: 1, uses: -1, views: -1 };
   } else if (sort === 'newest') {
-    sortOption = { createdAt: -1 };
+    sortOption = { isPinned: -1, order: 1, sortOrder: 1, createdAt: -1 };
+  } else if (sort === 'order' || sort === 'sortOrder') {
+    sortOption = { isPinned: -1, order: 1, sortOrder: 1, createdAt: -1 };
   }
 
   const total = await Template.countDocuments(query);
@@ -80,7 +82,7 @@ const getTrendingTemplates = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const templates = await Template.find({ active: { $ne: false } })
     .populate('categoryId', 'name slug icon')
-    .sort({ isPinned: -1, trendingScore: -1, uses: -1, views: -1 })
+    .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1, uses: -1, views: -1 })
     .limit(limit);
 
   res.status(200).json({
@@ -112,29 +114,29 @@ const getHomeFeed = asyncHandler(async (req, res) => {
   const [trending, goodMorning, motivation, festival, allRecent] = await Promise.all([
     Template.find({ active: { $ne: false } })
       .populate('categoryId', 'name slug icon')
-      .sort({ isPinned: -1, trendingScore: -1, uses: -1, views: -1 })
+      .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1, uses: -1, views: -1 })
       .limit(8),
     gmCat
       ? Template.find({ active: { $ne: false }, categoryId: gmCat._id })
           .populate('categoryId', 'name slug icon')
-          .sort({ trendingScore: -1 })
+          .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1 })
           .limit(6)
       : [],
     motCat
       ? Template.find({ active: { $ne: false }, categoryId: motCat._id })
           .populate('categoryId', 'name slug icon')
-          .sort({ trendingScore: -1 })
+          .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1 })
           .limit(6)
       : [],
     festCat
       ? Template.find({ active: { $ne: false }, categoryId: festCat._id })
           .populate('categoryId', 'name slug icon')
-          .sort({ trendingScore: -1 })
+          .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1 })
           .limit(6)
       : [],
     Template.find({ active: { $ne: false } })
       .populate('categoryId', 'name slug icon')
-      .sort({ createdAt: -1 })
+      .sort({ isPinned: -1, order: 1, sortOrder: 1, createdAt: -1 })
       .limit(12),
   ]);
 
@@ -191,6 +193,10 @@ const createTemplate = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Invalid categoryId' });
   }
 
+  const orderVal = templateData.order !== undefined ? Number(templateData.order) : (templateData.sortOrder !== undefined ? Number(templateData.sortOrder) : 0);
+  templateData.order = orderVal;
+  templateData.sortOrder = orderVal;
+
   const template = await Template.create(templateData);
 
   res.status(201).json({
@@ -209,7 +215,14 @@ const updateTemplate = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  template = await Template.findByIdAndUpdate(req.params.id, req.body, {
+  const updateData = { ...req.body };
+  if (updateData.order !== undefined || updateData.sortOrder !== undefined) {
+    const orderVal = updateData.order !== undefined ? Number(updateData.order) : Number(updateData.sortOrder);
+    updateData.order = orderVal;
+    updateData.sortOrder = orderVal;
+  }
+
+  template = await Template.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true,
   });

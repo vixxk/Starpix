@@ -243,7 +243,7 @@ export default function DownloadsScreen() {
 
       // If remote URL, download temporarily for native sharing
       if (fileOrUrl.startsWith('http://') || fileOrUrl.startsWith('https://')) {
-        const fileUri = `${FileSystem.documentDirectory}statuzzz_share_${Date.now()}.jpg`;
+        const fileUri = `${FileSystem.documentDirectory}starpix_share_${Date.now()}.jpg`;
         const downloaded = await FileSystem.downloadAsync(fileOrUrl, fileUri);
         shareUri = downloaded.uri;
       }
@@ -251,7 +251,7 @@ export default function DownloadsScreen() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(shareUri, {
           mimeType: 'image/jpeg',
-          dialogTitle: 'Share Statuzzz Creation',
+          dialogTitle: 'Share Starpix Creation',
         });
       } else {
         setShareAlert(true);
@@ -268,7 +268,7 @@ export default function DownloadsScreen() {
       if (!uri) return;
 
       if (uri.startsWith('http://') || uri.startsWith('https://')) {
-        const targetPath = `${FileSystem.documentDirectory}statuzzz_dl_${Date.now()}.jpg`;
+        const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.jpg`;
         await FileSystem.downloadAsync(uri, targetPath);
       }
       setRedownloadSuccessAlert(true);

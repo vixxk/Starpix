@@ -171,7 +171,7 @@ export default function Purchases() {
                       </span>
                     </td>
                     <td>
-                      <p className="font-semibold text-ink">{p.userId?.name || 'Statuzzz User'}</p>
+                      <p className="font-semibold text-ink">{p.userId?.name || 'Starpix User'}</p>
                       <p className="text-[11px] text-ink-mute font-mono">{p.userId?.phoneNumber || 'N/A'}</p>
                     </td>
                     <td>
@@ -201,7 +201,7 @@ export default function Purchases() {
                     <td className="font-bold text-glow-700 tabular-nums">
                       {p.templateId?.accessType === 'free' ? (
                         <span className="text-ink-mute font-medium">—</span>
-                      ) : (p.userId?.isPremium || p.productId === 'statuzzz_vip_unlock') ? (
+                      ) : (p.userId?.isPremium || p.productId === 'starpix_vip_unlock') ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30 uppercase">PASS</span>
                       ) : (
                         <>

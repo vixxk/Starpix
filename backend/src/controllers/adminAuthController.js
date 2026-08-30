@@ -15,7 +15,7 @@ const adminLogin = asyncHandler(async (req, res) => {
   let admin = await Admin.findOne({ email: email.toLowerCase() });
 
   // Auto-provision admin from environment variables if DB was freshly created
-  const envEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@statuzzz.com';
+  const envEmail = process.env.ADMIN_DEFAULT_EMAIL || 'admin@starpix.com';
   const envPass = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
 
   if (!admin && email.toLowerCase() === envEmail.toLowerCase() && password === envPass) {

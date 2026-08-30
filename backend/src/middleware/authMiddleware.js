@@ -6,10 +6,13 @@ const protectUser = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'statuzzz_super_secret_jwt_key_2026_dev');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'starpix_super_secret_jwt_key_2026_dev');
       req.user = await User.findById(decoded.id).select('-password');
       if (!req.user) {
         return res.status(401).json({ success: false, message: 'User not found' });
+      }
+      if (req.user.isDeleted) {
+        return res.status(401).json({ success: false, message: 'This account has been deleted' });
       }
       return next();
     } catch (error) {

@@ -12,7 +12,7 @@ const connectWithTimeout = (uri, options, timeoutMs = 2500) => {
 };
 
 const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/statuzzz';
+  const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/starpix';
 
   // 1. Try primary configured URI with strict 2.5s cap (prevents SRV DNS hang)
   try {
@@ -27,7 +27,7 @@ const connectDB = async () => {
   // 2. Try local standalone MongoDB instance
   if (!mongoUri.includes('127.0.0.1') && !mongoUri.includes('localhost')) {
     try {
-      const localConn = await connectWithTimeout('mongodb://127.0.0.1:27017/statuzzz', { serverSelectionTimeoutMS: 2000 }, 2000);
+      const localConn = await connectWithTimeout('mongodb://127.0.0.1:27017/starpix', { serverSelectionTimeoutMS: 2000 }, 2000);
       console.log(`[MongoDB] Connected to local fallback MongoDB: ${localConn.connection.host}`);
       return localConn;
     } catch (localErr) {

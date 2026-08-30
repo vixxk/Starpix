@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { List, CalendarDot, ArrowClockwise } from '@phosphor-icons/react';
 
 const pathTitles = {
-  '/': { title: 'Overview', desc: 'Live pulse of the Statuzzz platform' },
+  '/': { title: 'Overview', desc: 'Live pulse of the Starpix platform' },
   '/templates': { title: 'Templates', desc: 'Design, curate & publish status templates' },
   '/categories': { title: 'Categories', desc: 'Organize content into browsable groups' },
   '/filters': { title: 'Video Filters', desc: 'Animated video footers & overlay filters' },
@@ -21,7 +21,7 @@ function formatDate() {
 
 export default function Header({ onMenuClick }) {
   const location = useLocation();
-  const { title, desc } = pathTitles[location.pathname] || { title: 'Console', desc: 'Statuzzz administration' };
+  const { title, desc } = pathTitles[location.pathname] || { title: 'Console', desc: 'Starpix administration' };
 
   return (
     <header className="sticky top-0 z-30 border-b-2 border-ink bg-paper-50 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">

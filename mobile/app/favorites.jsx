@@ -66,7 +66,7 @@ export default function FavoritesScreen() {
         if (currentUser) {
           const newUser = { ...currentUser, favorites: fullFavs };
           useAuthStore.setState({ user: newUser });
-          AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(newUser)).catch(() => {});
+          AsyncStorage.setItem('starpix_user_data', JSON.stringify(newUser)).catch(() => {});
         }
       }
     } catch (err) {
@@ -124,7 +124,7 @@ export default function FavoritesScreen() {
       );
       const newUser = { ...storeUser, favorites: updatedStoreFavs };
       useAuthStore.setState({ user: newUser });
-      AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(newUser)).catch(() => {});
+      AsyncStorage.setItem('starpix_user_data', JSON.stringify(newUser)).catch(() => {});
     }
 
     // 3. Backend API sync with rollback on failure
@@ -135,7 +135,7 @@ export default function FavoritesScreen() {
       setFavorites(prevFavorites);
       if (prevStoreUser) {
         useAuthStore.setState({ user: prevStoreUser });
-        AsyncStorage.setItem('statuzzz_user_data', JSON.stringify(prevStoreUser)).catch(() => {});
+        AsyncStorage.setItem('starpix_user_data', JSON.stringify(prevStoreUser)).catch(() => {});
       }
       showToast(t('failed_update_favorite'));
       console.error('Error unfavoriting:', err);

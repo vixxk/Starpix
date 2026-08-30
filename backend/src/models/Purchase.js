@@ -14,7 +14,7 @@ const purchaseSchema = new mongoose.Schema(
     },
     productId: {
       type: String,
-      default: 'statuzzz_single_unlock',
+      default: 'starpix_single_unlock',
     },
     amount: {
       type: Number,

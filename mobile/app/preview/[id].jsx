@@ -103,7 +103,7 @@ export default function PreviewScreen() {
         try {
           const a = document.createElement('a');
           a.href = downloadUrl;
-          a.download = `statuzzz_${Date.now()}.${ext}`;
+          a.download = `starpix_${Date.now()}.${ext}`;
           a.target = '_blank';
           document.body.appendChild(a);
           a.click();
@@ -115,7 +115,7 @@ export default function PreviewScreen() {
       } else {
         // Native iOS / Android download flow
         if (downloadUrl && (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://'))) {
-          const fileUri = `${FileSystem.documentDirectory}statuzzz_${Date.now()}.${ext}`;
+          const fileUri = `${FileSystem.documentDirectory}starpix_${Date.now()}.${ext}`;
           const downloaded = await FileSystem.downloadAsync(downloadUrl, fileUri);
           targetUri = downloaded.uri;
         }
@@ -232,8 +232,8 @@ export default function PreviewScreen() {
       if (Platform.OS === 'web') {
         if (typeof navigator !== 'undefined' && navigator.share) {
           await navigator.share({
-            title: activeTemplate.name || 'Statuzzz Creation',
-            text: 'Check out my custom status created with Statuzzz!',
+            title: activeTemplate.name || 'Starpix Creation',
+            text: 'Check out my custom status created with Starpix!',
             url: downloadUrl,
           });
         } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -245,7 +245,7 @@ export default function PreviewScreen() {
         }
       } else {
         if (downloadUrl && (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://'))) {
-          const fileUri = `${FileSystem.documentDirectory}statuzzz_share_${Date.now()}.${ext}`;
+          const fileUri = `${FileSystem.documentDirectory}starpix_share_${Date.now()}.${ext}`;
           const downloaded = await FileSystem.downloadAsync(downloadUrl, fileUri);
           targetUri = downloaded.uri;
         }
@@ -258,7 +258,7 @@ export default function PreviewScreen() {
           });
         } else {
           await Share.share({
-            message: `Check out my custom status created with Statuzzz! ${downloadUrl}`,
+            message: `Check out my custom status created with Starpix! ${downloadUrl}`,
           });
         }
       }

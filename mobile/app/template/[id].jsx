@@ -9,6 +9,7 @@ import TemplateRenderer from '../../src/components/TemplateRenderer';
 import AppButton from '../../src/components/AppButton';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import PaywallModal from '../../src/components/PaywallModal';
+import ReportModal from '../../src/components/ReportModal';
 import Toast from '../../src/components/Toast';
 import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
@@ -59,6 +60,7 @@ export default function TemplateEditorScreen() {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [alertInfo, setAlertInfo] = useState(null); // { kind: 'permission' }
   const [isFav, setIsFav] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [toastInfo, setToastInfo] = useState(null);
 
   const router = useRouter();
@@ -349,6 +351,18 @@ export default function TemplateEditorScreen() {
           </View>
           <View style={styles.headerRightGroup}>
             <PressableScale
+              onPress={() => setShowReportModal(true)}
+              scaleTo={0.88}
+              style={styles.favHeaderBtn}
+              contentStyle={styles.favHeaderContent}
+            >
+              <Ionicons
+                name="flag-outline"
+                size={18}
+                color={COLORS.orange}
+              />
+            </PressableScale>
+            <PressableScale
               onPress={handleToggleFavorite}
               scaleTo={0.88}
               style={styles.favHeaderBtn}
@@ -626,6 +640,17 @@ export default function TemplateEditorScreen() {
             performFavoriteAction(false);
           }
           setFavModalInfo(null);
+        }}
+      />
+
+      {/* Report Template Modal */}
+      <ReportModal
+        visible={showReportModal}
+        type="template"
+        template={activeTemplate}
+        onClose={() => setShowReportModal(false)}
+        onSuccess={() => {
+          showToast('Report submitted successfully!', 'checkmark-circle');
         }}
       />
 

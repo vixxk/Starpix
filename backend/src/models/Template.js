@@ -71,6 +71,8 @@ const templateSchema = new mongoose.Schema(
           fontFamily: { type: String, default: 'Inter' },
           fontWeight: { type: String, default: '700' },
           textAlign: { type: String, default: 'center' },
+          // Shape mask for photo layer (rectangle, circle, diamond, hexagon, star, heart, rounded)
+          shape: { type: String, default: 'rectangle' },
           // Frame or Effect default assets
           assetUrl: { type: String, default: '' },
         },
@@ -106,6 +108,8 @@ const templateSchema = new mongoose.Schema(
     favoritesCount: { type: Number, default: 0 },
     purchasesCount: { type: Number, default: 0 },
     trendingScore: { type: Number, default: 0 },
+    sortOrder: { type: Number, default: 0 },
+    order: { type: Number, default: 0 },
     isPinned: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
   },
@@ -114,7 +118,7 @@ const templateSchema = new mongoose.Schema(
   }
 );
 
-templateSchema.index({ categoryId: 1, active: 1, accessType: 1, createdAt: -1 });
+templateSchema.index({ categoryId: 1, active: 1, accessType: 1, isPinned: -1, order: 1, sortOrder: 1, createdAt: -1 });
 templateSchema.index({ trendingScore: -1 });
 templateSchema.index({ views: -1, uses: -1 });
 

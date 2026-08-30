@@ -34,6 +34,8 @@ const initialForm = (firstCategoryId) => ({
   previewAsset: '',
   mainMedia: '',
   footers: [],
+  order: 0,
+  sortOrder: 0,
   isPinned: false,
   active: true,
   canvasConfig: {
@@ -122,6 +124,8 @@ export default function Templates() {
       previewAsset: t.previewAsset,
       mainMedia: t.mainMedia,
       footers: t.footers || [],
+      order: t.order !== undefined ? t.order : (t.sortOrder !== undefined ? t.sortOrder : 0),
+      sortOrder: t.sortOrder !== undefined ? t.sortOrder : (t.order !== undefined ? t.order : 0),
       isPinned: t.isPinned || false,
       active: t.active !== undefined ? t.active : true,
       canvasConfig: t.canvasConfig || {
@@ -298,6 +302,7 @@ export default function Templates() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>Order</th>
                   <th>Template</th>
                   <th>Category</th>
                   <th>Type</th>
@@ -311,6 +316,11 @@ export default function Templates() {
               <tbody>
                 {templates.map((t) => (
                   <tr key={t._id} className="anim">
+                    <td>
+                      <span className="font-mono font-bold text-xs bg-paper-100 border border-ink/20 px-2 py-1 rounded-[2px] text-ink whitespace-nowrap">
+                        #{t.order !== undefined ? t.order : (t.sortOrder !== undefined ? t.sortOrder : 0)}
+                      </span>
+                    </td>
                     <td>
                       <div className="flex items-center gap-3">
                         <img
@@ -420,7 +430,7 @@ export default function Templates() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="field-label">Access Tier</label>
                   <select
@@ -461,6 +471,20 @@ export default function Templates() {
                     <option value="image">Photo Template</option>
                     <option value="video">Video Template</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="field-label">Display Order (Lower = First)</label>
+                  <input
+                    type="number"
+                    value={formData.order ?? 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setFormData({ ...formData, order: val, sortOrder: val });
+                    }}
+                    className="input"
+                    placeholder="0"
+                  />
                 </div>
               </div>
 

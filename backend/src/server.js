@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 5000;
 
 // 1. Listen immediately on port 5000 so frontend never receives ERR_CONNECTION_REFUSED
 const server = app.listen(PORT, () => {
-  console.log(`[Statuzzz Server] Running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`[Starpix Server] Running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 
 // 2. Connect to database and seed asynchronously

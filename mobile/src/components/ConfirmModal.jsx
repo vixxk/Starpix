@@ -9,7 +9,7 @@ import PressableScale from './PressableScale';
 import { useTranslation } from 'react-i18next';
 
 /**
- * Themed confirmation dialog that matches the Statuzzz design language
+ * Themed confirmation dialog that matches the Starpix design language
  * (warm cream surfaces, orange brand, Poppins type, spring animations).
  * Replaces the native Alert for destructive/decision prompts.
  */

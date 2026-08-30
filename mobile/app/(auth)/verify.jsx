@@ -11,7 +11,7 @@ import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
 export default function VerifyScreen() {
-  const { phone, name } = useLocalSearchParams();
+  const { phone, name, isNewUser } = useLocalSearchParams();
   const [otp, setOtp] = useState('123456');
   const [alertMessage, setAlertMessage] = useState(null);
   const { verifyOtp, isAuthenticating, error } = useAuthStore();
@@ -23,7 +23,7 @@ export default function VerifyScreen() {
       return;
     }
     try {
-      await verifyOtp(phone, '+91', otp, name);
+      await verifyOtp(phone, '+91', otp, name, isNewUser);
       router.replace('/(tabs)');
     } catch (e) {
       // Error handled in store
@@ -35,7 +35,7 @@ export default function VerifyScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
         {/* Watermark */}
         <Text style={styles.watermark} numberOfLines={1}>
-          STATUZZZ
+          STARPIX
         </Text>
 
         <BrutalCard offset={wp(0.018)}>
@@ -96,7 +96,7 @@ export default function VerifyScreen() {
           </View>
         </BrutalCard>
 
-        <Text style={styles.footerStamp}>© STATUZZZ · SECURE OTP VERIFICATION</Text>
+        <Text style={styles.footerStamp}>© STARPIX · SECURE OTP VERIFICATION</Text>
       </KeyboardAvoidingView>
 
       {/* Themed Validation Alert */}

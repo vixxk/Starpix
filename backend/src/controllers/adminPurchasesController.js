@@ -33,7 +33,7 @@ const getAllPurchases = asyncHandler(async (req, res) => {
   const totalRevenue = filtered
     .filter((p) => p.status === 'successful')
     .reduce((acc, p) => {
-      const isVipUser = Boolean(p.userId?.isPremium || p.amount === 0 || p.productId === 'statuzzz_vip_unlock');
+      const isVipUser = Boolean(p.userId?.isPremium || p.amount === 0 || p.productId === 'starpix_vip_unlock');
       if (isVipUser) return acc;
       return acc + (p.amount || 0);
     }, 0);

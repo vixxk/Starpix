@@ -9,6 +9,26 @@ import {
   ArrowsOutCardinal,
 } from '@phosphor-icons/react';
 
+const getPhotoShapeStyles = (shape) => {
+  switch (shape) {
+    case 'circle':
+      return { borderRadius: '50%', clipPath: 'circle(50% at 50% 50%)' };
+    case 'diamond':
+      return { borderRadius: '0px', clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' };
+    case 'hexagon':
+      return { borderRadius: '0px', clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
+    case 'star':
+      return { borderRadius: '0px', clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' };
+    case 'heart':
+      return { borderRadius: '0px', clipPath: 'polygon(50% 15%, 65% 0%, 85% 0%, 100% 15%, 100% 35%, 50% 90%, 0% 35%, 0% 15%, 15% 0%, 35% 0%)' };
+    case 'rounded':
+      return { borderRadius: '24px', clipPath: 'inset(0 round 20%)' };
+    case 'rectangle':
+    default:
+      return { borderRadius: '2px', clipPath: 'none' };
+  }
+};
+
 export default function CanvasEditor({
   canvasConfig,
   value,
@@ -106,7 +126,7 @@ export default function CanvasEditor({
         height: 0.1,
       };
     } else if (type === 'photo') {
-      newLayer = { ...newLayer, width: 0.65, height: 0.4 };
+      newLayer = { ...newLayer, width: 0.65, height: 0.4, shape: 'rectangle' };
     }
 
     const updated = [...layers, newLayer];
@@ -530,9 +550,17 @@ export default function CanvasEditor({
                     }}
                   >
                     {l.type === 'photo' && (
-                      <div className="w-full h-full bg-flame-500/20 border-2 border-dashed border-flame-400 rounded-[2px] flex flex-col items-center justify-center p-2 text-center text-flame-300">
+                      <div
+                        className="w-full h-full bg-flame-500/20 border-2 border-dashed border-flame-400 flex flex-col items-center justify-center p-2 text-center text-flame-300 overflow-hidden"
+                        style={getPhotoShapeStyles(l.shape || 'rectangle')}
+                      >
                         <Image className="w-6 h-6 mb-1 opacity-90" weight="duotone" />
                         <span className="text-[10px] font-bold tracking-wide">User Photo Area</span>
+                        {l.shape && l.shape !== 'rectangle' && (
+                          <span className="text-[9px] uppercase font-mono font-bold text-flame-200 bg-flame-500/40 px-1 py-0.5 mt-0.5 rounded">
+                            {l.shape}
+                          </span>
+                        )}
                       </div>
                     )}
                     {l.type === 'text' && (
@@ -645,17 +673,25 @@ export default function CanvasEditor({
                 </button>
               </div>
 
-              {selectedLayerId === 'footer_layer' && (
+              {selectedLayer.type === 'photo' && (
                 <div>
-                  <label className="field-label !text-paper-100">Object Fit</label>
+                  <label className="field-label !text-paper-100">Photo Box Shape Mask</label>
                   <select
-                    value={previewFooter.objectFit || 'contain'}
-                    onChange={(e) => updateSelectedLayer('objectFit', e.target.value)}
-                    className="select"
+                    value={selectedLayer.shape || 'rectangle'}
+                    onChange={(e) => updateSelectedLayer('shape', e.target.value)}
+                    className="select font-bold text-xs"
                   >
-                    <option value="contain">Contain (Leaves sides visible)</option>
-                    <option value="cover">Cover (Full stretch)</option>
+                    <option value="rectangle">Square / Rectangle (Default)</option>
+                    <option value="circle">Circle / Oval</option>
+                    <option value="diamond">Diamond</option>
+                    <option value="hexagon">Hexagon</option>
+                    <option value="star">5-Point Star</option>
+                    <option value="heart">Heart</option>
+                    <option value="rounded">Rounded Squircle</option>
                   </select>
+                  <p className="text-[10px] text-night-400 mt-1">
+                    Clips user photo into this shape without squishing or resizing image aspect ratio.
+                  </p>
                 </div>
               )}
 

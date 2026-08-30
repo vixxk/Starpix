@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DOWNLOADS_KEY = 'statuzzz_downloaded_creations';
-const DEFAULT_PHOTO_KEY = 'statuzzz_default_user_photo';
-const DEFAULT_NAME_KEY = 'statuzzz_default_user_name';
+const DOWNLOADS_KEY = 'starpix_downloaded_creations';
+const DEFAULT_PHOTO_KEY = 'starpix_default_user_photo';
+const DEFAULT_NAME_KEY = 'starpix_default_user_name';
 
 // Fire-and-forget persistence for the downloaded creations list.
 const persistDownloads = (creations) => {

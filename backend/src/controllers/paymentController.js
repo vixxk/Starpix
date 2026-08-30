@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 // @route   POST /api/payments/create
 // @access  Private (User)
 const createPayment = asyncHandler(async (req, res) => {
-  const { templateId, productId = 'statuzzz_single_unlock', amount = 49 } = req.body;
+  const { templateId, productId = 'starpix_single_unlock', amount = 49 } = req.body;
   const userId = req.user._id;
 
   if (!templateId) {

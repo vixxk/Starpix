@@ -9,7 +9,9 @@ import Categories from './pages/Categories';
 import Campaigns from './pages/Campaigns';
 import Purchases from './pages/Purchases';
 import ReportsPage from './pages/Reports';
+import UserReports from './pages/UserReports';
 import UsersPage from './pages/Users';
+import SubscriptionsPage from './pages/Subscriptions';
 import Pricing from './pages/Pricing';
 import { useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -68,6 +70,8 @@ export default function App() {
           <Route path="/categories" element={<Categories />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/purchases" element={<Purchases />} />
+          <Route path="/subscriptions" element={<SubscriptionsPage />} />
+          <Route path="/user-reports" element={<UserReports />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/pricing" element={<Pricing />} />

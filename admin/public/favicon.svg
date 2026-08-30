@@ -23,7 +23,7 @@
   <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#bgGrad)"/>
   <rect x="16" y="16" width="480" height="480" rx="128" fill="none" stroke="url(#glowBorder)" stroke-width="12"/>
 
-  <!-- Center Statuzzz "S" Graphic with Glow -->
+  <!-- Center Starpix "S" Graphic with Glow -->
   <g filter="url(#shadow)">
     <!-- Stylized "S" Path -->
     <path d="M 330 160 C 330 115 290 100 256 100 C 200 100 160 135 160 190 C 160 270 330 260 330 335 C 330 395 285 412 256 412 C 190 412 150 365 150 315" 
