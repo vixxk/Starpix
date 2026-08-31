@@ -2,7 +2,7 @@
   "expo": {
     "name": "Starpix",
     "slug": "starpix",
-    "owner": "mingo123",
+    "owner": "talkmingo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,7 +34,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "f473dfd5-f4a4-4bb0-9379-92808eef8b7d"
+        "projectId": "2c69a468-1d14-4f95-8622-55ceecc93e15"
       }
     }
   }

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,7 +26,7 @@ import { SUPPORTED_LANGUAGES } from '../../src/i18n';
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
-  const { user, logout, fetchUser, updateUserProfile, isLoading } = useAuthStore();
+  const { user, token, logout, fetchUser, updateUserProfile, isLoading } = useAuthStore();
   const defaultUserPhotoUri = useCreationStore((state) => state.defaultUserPhotoUri);
   const setDefaultUserPhotoUri = useCreationStore((state) => state.setDefaultUserPhotoUri);
 
@@ -148,13 +148,15 @@ export default function ProfileScreen() {
   const handleConfirmDeleteAccount = async () => {
     setDeleteLoading(true);
     try {
-      await API.post('/auth/delete-account', { reason: 'User requested account deletion' });
+      const baseUrl = API.defaults?.baseURL || 'http://localhost:5000/api';
+      const webDeleteUrl = `${baseUrl.replace(/\/api\/?$/, '')}/delete${token ? `?token=${encodeURIComponent(token)}` : ''}`;
       setShowDeleteModal(false);
+      await Linking.openURL(webDeleteUrl);
       await logout();
       router.replace('/login');
     } catch (err) {
       console.error('Delete account error:', err);
-      showToast(err.response?.data?.message || 'Failed to delete account');
+      showToast(err.message || 'Failed to open account deletion page');
     } finally {
       setDeleteLoading(false);
     }
