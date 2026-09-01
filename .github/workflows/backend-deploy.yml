@@ -51,8 +51,8 @@ jobs:
           port: 22
           script: |
             export PATH=$PATH:/usr/bin:/usr/local/bin:$HOME/.nvm/versions/node/$(node -v 2>/dev/null)/bin
-            cd /var/www/backend || cd ~/Starpix/backend
+            cd /home/ubuntu/Statuzzz_Status_With_Photo/backend || cd /var/www/backend || cd ~/Starpix/backend
             git pull origin main || git pull origin master
             npm install --production
-            pm2 restart starpix-backend || pm2 start src/server.js --name "starpix-backend"
+            pm2 restart all || pm2 restart starpix-backend || pm2 start src/server.js --name "starpix-backend"
             pm2 save
