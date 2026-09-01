@@ -55,6 +55,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/ai-video', aiVideoRoutes);
+app.use('/api/admin/ai-video', aiVideoRoutes);
 
 // Web routes for Google Play compliance (Account Deletion web request)
 app.use('/', webRoutes);
