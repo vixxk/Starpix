@@ -15,6 +15,7 @@ import {
   FloppyDisk,
   Star,
   HashStraight,
+  Sparkle,
 } from '@phosphor-icons/react';
 
 // Preset emoji set for category icons — matches the categories used across the app
@@ -32,8 +33,23 @@ export default function Categories() {
   const { toast } = useToast();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+
+  const handleSeedCategories = async () => {
+    setSeeding(true);
+    try {
+      const res = await API.post('/categories/seed');
+      toast.success(res.data?.message || '12 categories seeded successfully!');
+      fetchCategories();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error seeding categories');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     icon: '✨',
@@ -128,9 +144,20 @@ export default function Categories() {
         title="Categories"
         subtitle={`${categories.length} content groupings`}
         actions={
-          <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
-            <Plus className="w-4 h-4" weight="bold" /> Add Category
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleSeedCategories}
+              disabled={seeding}
+              className="btn-secondary w-full sm:w-auto"
+              title="Seed 12 default categories for the home page"
+            >
+              <Sparkle className="w-4 h-4 text-flame-500" weight="fill" />
+              {seeding ? 'Seeding...' : 'Seed 12 Categories'}
+            </button>
+            <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
+              <Plus className="w-4 h-4" weight="bold" /> Add Category
+            </button>
+          </div>
         }
       />
 

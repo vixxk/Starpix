@@ -10,6 +10,11 @@ const server = app.listen(PORT, () => {
   console.log(`[Starpix Server] Running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 
+// Increase server timeouts for long-running AI generation requests (fal.ai can take longer for long videos)
+server.timeout = 900000; // 15 minutes
+server.keepAliveTimeout = 300000; // 5 minutes
+server.headersTimeout = 905000; // slightly more than server.timeout
+
 // 2. Connect to database and seed asynchronously
 (async () => {
   try {

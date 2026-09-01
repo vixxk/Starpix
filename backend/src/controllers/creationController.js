@@ -3,6 +3,7 @@ const Template = require('../models/Template');
 const Purchase = require('../models/Purchase');
 const User = require('../models/User');
 const Creation = require('../models/Creation');
+const Analytics = require('../models/Analytics');
 const { uploadToS3, getSignedDownloadUrl } = require('../services/s3Service');
 
 // @desc    Record a new download/creation (uploads image to AWS S3 & saves Creation document)
@@ -48,6 +49,13 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     downloadedAt: new Date(),
   });
 
+  try {
+    await Analytics.create({ eventType: 'template_download', userId, templateId: templateId || null });
+    if (editedPhoto || customizationState?.userPhotoUri) {
+      await Analytics.create({ eventType: 'photo_upload', userId, templateId: templateId || null });
+    }
+  } catch (e) {}
+
   const populated = await Creation.findById(creation._id).populate('templateId', 'name thumbnail previewAsset mainMedia canvasConfig layers categoryId type accessType price');
 
   res.status(201).json({
@@ -70,6 +78,10 @@ const getUserDownloads = asyncHandler(async (req, res) => {
         path: 'categoryId',
         select: 'name icon',
       },
+    })
+    .populate({
+      path: 'aiTemplateId',
+      select: 'title thumbnailUrl sampleSourceImageUrl mediaType videoUrl',
     })
     .sort({ downloadedAt: -1, createdAt: -1 });
 

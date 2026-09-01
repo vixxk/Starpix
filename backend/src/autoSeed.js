@@ -28,24 +28,6 @@ const autoSeedIfEmpty = async () => {
     const seededUserPhoneNumbers = ['+919876543210', '+919123456789'];
     await User.deleteMany({ phoneNumber: { $in: seededUserPhoneNumbers } });
 
-    await Category.deleteMany({
-      slug: {
-        $in: [
-          'for-you',
-          'motivation',
-          'love',
-          'devotional',
-          'good-morning',
-          'birthday',
-          'quotes',
-          'festival',
-          'attitude',
-          'reels',
-          'business',
-          'good-night',
-        ],
-      },
-    });
 
     await Frame.deleteMany({
       name: {

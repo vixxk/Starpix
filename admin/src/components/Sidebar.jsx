@@ -5,6 +5,7 @@ import ModalPortal from './ModalPortal';
 import {
   ChartBar,
   Sparkle,
+  VideoCamera,
   FolderSimple,
   MegaphoneSimple,
   CreditCard,
@@ -20,6 +21,7 @@ import {
 const navigation = [
   { name: 'Overview', href: '/', icon: ChartBar },
   { name: 'Templates', href: '/templates', icon: Sparkle },
+  { name: 'AI Content Studio', href: '/ai-video-templates', icon: VideoCamera },
   { name: 'Categories', href: '/categories', icon: FolderSimple },
   { name: 'Campaigns', href: '/campaigns', icon: MegaphoneSimple },
   { name: 'Purchases', href: '/purchases', icon: CreditCard },

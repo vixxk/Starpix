@@ -32,3 +32,13 @@ export const hapticSuccess = () => {
     // ignore
   }
 };
+
+// Warning / Error buzz for failed actions.
+export const hapticError = () => {
+  if (!isSupported) return;
+  try {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch (e) {
+    // ignore
+  }
+};

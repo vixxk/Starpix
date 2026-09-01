@@ -18,6 +18,7 @@ const creationRoutes = require('./routes/creationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const aiVideoRoutes = require('./routes/aiVideoRoutes');
 const webRoutes = require('./routes/webRoutes');
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/creations', creationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/ai-video', aiVideoRoutes);
 
 // Web routes for Google Play compliance (Account Deletion web request)
 app.use('/', webRoutes);

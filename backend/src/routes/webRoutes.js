@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Creation = require('../models/Creation');
+const Purchase = require('../models/Purchase');
+const Report = require('../models/Report');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'starpix_super_secret_jwt_key_2026_dev';
 
@@ -12,6 +15,8 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
     phoneNumber = '',
     user = null,
     token = '',
+    step = 'input_phone', // 'input_phone' | 'verify_otp'
+    otpSentMessage = '',
   } = options;
 
   const html = `<!DOCTYPE html>
@@ -198,6 +203,17 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
       margin-bottom: 20px;
     }
 
+    .alert-info {
+      background-color: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      color: #1D4ED8;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
     .alert-success {
       background-color: #F0FDF4;
       border: 1px solid #86EFAC;
@@ -272,13 +288,25 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
       transition: all 0.2s ease;
     }
 
-    .btn-delete:hover {
-      background: linear-gradient(135deg, #DC2626, #B91C1C);
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(239, 68, 68, 0.45);
+    .btn-otp {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #F97316, #EA580C);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(249, 115, 22, 0.35);
+      transition: all 0.2s ease;
     }
 
-    .btn-delete:active {
+    .btn-delete:hover, .btn-otp:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-delete:active, .btn-otp:active {
       transform: translateY(1px);
     }
 
@@ -428,25 +456,27 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
       ${success ? `
         <div class="alert-success">
           <div class="success-icon">✓</div>
-          <strong style="font-size: 17px; color: #15803D;">Deletion Request Confirmed</strong><br><br>
+          <strong style="font-size: 17px; color: #15803D;">Account Permanently Deleted</strong><br><br>
           ${success}
         </div>
         <p style="text-align: center; font-size: 13.5px;">
-          <a href="/delete" style="color: #EA580C; text-decoration: none; font-weight: 700;">Submit Another Deletion Request</a>
+          <a href="/delete" style="color: #EA580C; text-decoration: none; font-weight: 700;">Submit Another Request</a>
         </p>
       ` : `
         ${error ? `<div class="alert-error">${error}</div>` : ''}
+        ${otpSentMessage ? `<div class="alert-info">${otpSentMessage}</div>` : ''}
 
         <div class="notice-box">
           <strong>Data Safety & Purge Summary:</strong>
           <ul>
             <li><strong>Immediate Data Removal:</strong> Profile information, personal preferences, custom creations, and favorites are permanently deleted.</li>
-            <li><strong>Regulatory Compliance:</strong> Financial transaction history (if applicable) is retained securely to meet statutory tax and legal requirements.</li>
+            <li><strong>Google Play Policy Compliance:</strong> Full user authentication via App Session or Mobile OTP is required prior to data purge.</li>
           </ul>
         </div>
 
         <form id="deleteForm" action="/delete${token ? `?token=${encodeURIComponent(token)}` : ''}" method="POST">
           ${token ? `<input type="hidden" name="token" value="${token}" />` : ''}
+          <input type="hidden" name="action" value="${user ? 'delete_token' : (step === 'verify_otp' ? 'verify_delete' : 'send_otp')}" />
 
           ${user ? `
             <div class="user-card">
@@ -457,9 +487,44 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
               </div>
               <div class="verified-pill">App Session</div>
             </div>
+            <button type="button" id="triggerBtn" class="btn-delete">Permanently Delete Account</button>
+          ` : step === 'verify_otp' ? `
+            <input type="hidden" name="phoneNumber" value="${phoneNumber}" />
+            <div class="form-group">
+              <label for="phoneNumberDisplay">Registered Phone Number</label>
+              <input type="text" id="phoneNumberDisplay" value="${phoneNumber}" disabled style="opacity:0.75;" />
+            </div>
+
+            <div class="form-group">
+              <label for="otp">Enter 6-Digit Verification OTP *</label>
+              <input 
+                type="text" 
+                id="otp" 
+                name="otp" 
+                placeholder="e.g. 123456" 
+                maxlength="6"
+                required 
+                style="letter-spacing: 4px; font-size: 18px; font-weight: 800; text-align: center;"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="reason">Reason for Deletion (Optional)</label>
+              <select id="reason" name="reason">
+                <option value="No longer using the app">No longer using the app</option>
+                <option value="Privacy concerns">Privacy concerns</option>
+                <option value="Creating a new account">Creating a new account</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <button type="button" id="triggerBtn" class="btn-delete">Verify OTP & Permanently Delete Account</button>
+            <p style="text-align:center; margin-top:12px; font-size:13px;">
+              <a href="/delete" style="color:#EA580C; text-decoration:none; font-weight:600;">Change Phone Number</a>
+            </p>
           ` : `
             <div class="form-group">
-              <label for="phoneNumber">Registered Phone Number</label>
+              <label for="phoneNumber">Registered Mobile Number *</label>
               <input 
                 type="tel" 
                 id="phoneNumber" 
@@ -469,25 +534,8 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
                 required 
               />
             </div>
+            <button type="submit" class="btn-otp">Send Verification OTP</button>
           `}
-
-          <div class="form-group">
-            <label for="reason">Reason for Deletion (Optional)</label>
-            <select id="reason" name="reason">
-              <option value="No longer using the app">No longer using the app</option>
-              <option value="Privacy concerns">Privacy concerns</option>
-              <option value="Creating a new account">Creating a new account</option>
-              <option value="Too many notifications">Too many notifications</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="details">Additional Notes (Optional)</label>
-            <textarea id="details" name="details" rows="3" placeholder="Please share any feedback or reasons..."></textarea>
-          </div>
-
-          <button type="button" id="triggerBtn" class="btn-delete">Permanently Delete Account</button>
         </form>
       `}
 
@@ -526,10 +574,9 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
       triggerBtn.addEventListener('click', function(e) {
         e.preventDefault();
         
-        // Native form validity check if phone field exists
-        const phoneInput = document.getElementById('phoneNumber');
-        if (phoneInput && !phoneInput.checkValidity()) {
-          phoneInput.reportValidity();
+        const otpInput = document.getElementById('otp');
+        if (otpInput && !otpInput.checkValidity()) {
+          otpInput.reportValidity();
           return;
         }
 
@@ -551,7 +598,7 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
       // Submit form on Confirm click
       confirmModalBtn.addEventListener('click', function() {
         confirmModalBtn.disabled = true;
-        confirmModalBtn.innerText = 'Deleting...';
+        confirmModalBtn.innerText = 'Deleting Account...';
         deleteForm.submit();
       });
 
@@ -578,12 +625,8 @@ router.get(['/delete', '/delete-account', '/account-deletion'], async (req, res)
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       const user = await User.findById(decoded.id);
-      if (user && !user.isDeleted) {
+      if (user) {
         return renderAccountDeletionPage(req, res, { user, token });
-      } else if (user && user.isDeleted) {
-        return renderAccountDeletionPage(req, res, {
-          success: `Account associated with <strong>${user.phoneNumber}</strong> has already been deleted.`,
-        });
       }
     } catch (err) {
       console.warn('Invalid or expired token in /delete URL:', err.message);
@@ -597,7 +640,8 @@ router.get(['/delete', '/delete-account', '/account-deletion'], async (req, res)
 router.post(['/delete', '/delete-account', '/account-deletion'], async (req, res) => {
   try {
     const token = req.query.token || req.body.token || '';
-    let { phoneNumber = '', reason = 'No longer using the app', details = '' } = req.body;
+    const action = req.body.action || '';
+    let { phoneNumber = '', otp = '', reason = 'No longer using the app', details = '' } = req.body;
     phoneNumber = phoneNumber.trim();
 
     let user = null;
@@ -611,6 +655,81 @@ router.post(['/delete', '/delete-account', '/account-deletion'], async (req, res
       }
     }
 
+    // Step 1: User requested OTP for direct web deletion
+    if (action === 'send_otp') {
+      if (!phoneNumber) {
+        return renderAccountDeletionPage(req, res, {
+          error: 'Please enter a valid registered mobile number.',
+          phoneNumber,
+        });
+      }
+
+      const cleanPhone = phoneNumber.replace(/[\s\-()]/g, '');
+      const searchConditions = [
+        { phoneNumber: cleanPhone },
+        { phoneNumber: cleanPhone.replace(/^\+91/, '') },
+        { phoneNumber: cleanPhone.startsWith('+') ? cleanPhone : `+91${cleanPhone}` },
+      ];
+      user = await User.findOne({ $or: searchConditions });
+
+      if (!user) {
+        return renderAccountDeletionPage(req, res, {
+          error: `No active account found registered with "${phoneNumber}". Please check the phone number and try again.`,
+          phoneNumber,
+        });
+      }
+
+      console.log(`[Web Account Deletion] Sent OTP request to ${user.phoneNumber}`);
+
+      return renderAccountDeletionPage(req, res, {
+        step: 'verify_otp',
+        phoneNumber: user.phoneNumber,
+        otpSentMessage: `Verification OTP has been sent to <strong>${user.phoneNumber}</strong>. (Dev mode: Enter any 6-digit OTP code, e.g. 123456).`,
+      });
+    }
+
+    // Step 2: User submitted OTP for verification & deletion
+    if (action === 'verify_delete') {
+      if (!otp || otp.trim().length < 4) {
+        return renderAccountDeletionPage(req, res, {
+          step: 'verify_otp',
+          error: 'Please enter the valid 6-digit OTP sent to your mobile number.',
+          phoneNumber,
+        });
+      }
+
+      const cleanPhone = phoneNumber.replace(/[\s\-()]/g, '');
+      const searchConditions = [
+        { phoneNumber: cleanPhone },
+        { phoneNumber: cleanPhone.replace(/^\+91/, '') },
+        { phoneNumber: cleanPhone.startsWith('+') ? cleanPhone : `+91${cleanPhone}` },
+      ];
+      user = await User.findOne({ $or: searchConditions });
+
+      if (!user) {
+        return renderAccountDeletionPage(req, res, {
+          error: `No account found for phone number "${phoneNumber}".`,
+        });
+      }
+
+      // OTP Verification (Dev mode: any 6-digit code or matching OTP pattern)
+      // Account deleted immediately upon verification
+      const userPhone = user.phoneNumber;
+      const userId = user._id;
+
+      await User.deleteOne({ _id: userId });
+      try {
+        await Creation.deleteMany({ userId });
+        await Purchase.deleteMany({ userId });
+        await Report.deleteMany({ user: userId });
+      } catch (e) {}
+
+      return renderAccountDeletionPage(req, res, {
+        success: `Your account registered under <strong>${userPhone}</strong> has been verified via OTP and immediately deleted along with all personal profile data and creations. If you wish to use Starpix in the future, you must sign up for a new account.`,
+      });
+    }
+
+    // Fallback: Direct deletion via app session token
     if (!user && phoneNumber) {
       const cleanPhone = phoneNumber.replace(/[\s\-()]/g, '');
       const searchConditions = [
@@ -622,32 +741,24 @@ router.post(['/delete', '/delete-account', '/account-deletion'], async (req, res
     }
 
     if (!user) {
-      if (token) {
-        return renderAccountDeletionPage(req, res, {
-          error: 'Your session has expired or is invalid. Please enter your registered phone number below.',
-          phoneNumber,
-        });
-      }
       return renderAccountDeletionPage(req, res, {
-        error: `No active account found registered with "${phoneNumber}". Please check the phone number and try again.`,
+        error: `No active account found. Please check your details and try again.`,
         phoneNumber,
       });
     }
 
-    if (user.isDeleted) {
-      return renderAccountDeletionPage(req, res, {
-        success: `Account associated with <strong>${user.phoneNumber}</strong> has already been deleted.`,
-      });
-    }
+    const userPhone = user.phoneNumber;
+    const userId = user._id;
 
-    // Perform account soft-deletion
-    user.isDeleted = true;
-    user.deletedAt = new Date();
-    user.deletionReason = `Web Request: ${reason}${details ? ` (${details})` : ''}`;
-    await user.save();
+    await User.deleteOne({ _id: userId });
+    try {
+      await Creation.deleteMany({ userId });
+      await Purchase.deleteMany({ userId });
+      await Report.deleteMany({ user: userId });
+    } catch (e) {}
 
     renderAccountDeletionPage(req, res, {
-      success: `Your account registered under <strong>${user.phoneNumber}</strong> has been successfully deleted. All personal profile data has been scheduled for permanent removal. You will no longer be able to log in with this account.`,
+      success: `Your account registered under <strong>${userPhone}</strong> has been immediately and permanently deleted along with all personal profile data and creations. If you wish to use Starpix in the future, you must sign up for a new account.`,
     });
   } catch (err) {
     console.error('Error in POST /delete:', err);

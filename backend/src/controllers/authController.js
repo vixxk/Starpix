@@ -1,19 +1,32 @@
 const asyncHandler = require('../utils/asyncHandler');
 const User = require('../models/User');
+const Creation = require('../models/Creation');
+const Purchase = require('../models/Purchase');
 const generateToken = require('../utils/generateToken');
 
 // @desc    Request OTP for phone number
 // @route   POST /api/auth/request-otp
 // @access  Public
 const requestOtp = asyncHandler(async (req, res) => {
-  const { phoneNumber, countryCode = '+91' } = req.body;
+  const { phoneNumber, countryCode = '+91', isNewUser } = req.body;
 
   if (!phoneNumber) {
     return res.status(400).json({ success: false, message: 'Phone number is required' });
   }
 
-  // TODO: Replace development OTP bypass with actual OTP provider before production.
-  // In development, OTP is always sent instantly and accepted.
+  const fullPhone = `${countryCode}${phoneNumber}`.replace(/\s+/g, '');
+  const existingUser = await User.findOne({ phoneNumber: fullPhone });
+
+  // If user is explicitly attempting to Log In (isNewUser is false/string 'false') but no user account exists
+  if (isNewUser === false || isNewUser === 'false') {
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this mobile number. Please sign up to create a new account.',
+      });
+    }
+  }
+
   console.log(`[OTP] Sent OTP request to ${countryCode} ${phoneNumber}`);
 
   res.status(200).json({
@@ -22,6 +35,7 @@ const requestOtp = asyncHandler(async (req, res) => {
     data: {
       phoneNumber,
       countryCode,
+      exists: Boolean(existingUser),
       devNote: 'Development mode active. Any 6-digit OTP will verify.',
     },
   });
@@ -38,27 +52,25 @@ const verifyOtp = asyncHandler(async (req, res) => {
   }
 
   const fullPhone = `${countryCode}${phoneNumber}`.replace(/\s+/g, '');
-
   let user = await User.findOne({ phoneNumber: fullPhone });
+
   const isSigningUp = isNewUser === true || isNewUser === 'true' || Boolean(name && name.trim());
 
-  if (user && user.isDeleted) {
-    if (isSigningUp) {
-      // Reactivate deleted user account on Sign Up request
-      user.isDeleted = false;
-      user.deletedAt = null;
-      user.deletionReason = '';
-      if (name) user.name = name;
-      user.lastLoginAt = new Date();
-      await user.save();
-    } else {
-      // Block standard Log In for deleted accounts
-      return res.status(403).json({
+  if (!user || user.isDeleted) {
+    if (!isSigningUp) {
+      // User does not exist or was deleted. Block login and instruct user to sign up.
+      return res.status(404).json({
         success: false,
-        message: 'This account has been deleted. Please sign up to reactivate your account.',
+        message: 'No account found with this mobile number. Please sign up to create a new account.',
       });
     }
-  } else if (!user) {
+
+    // If user record existed as soft-deleted, remove old document before fresh creation
+    if (user && user.isDeleted) {
+      await User.deleteOne({ _id: user._id });
+    }
+
+    // Create a brand-new user account for Sign Up
     user = await User.create({
       phoneNumber: fullPhone,
       countryCode,
@@ -123,24 +135,27 @@ const updateProfile = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete user account
+// @desc    Delete user account immediately
 // @route   POST /api/auth/delete-account
 // @access  Private
 const deleteAccount = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id);
+  const userId = req.user._id;
+  const user = await User.findById(userId);
 
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
 
-  user.isDeleted = true;
-  user.deletedAt = new Date();
-  user.deletionReason = req.body.reason || 'User requested account deletion';
-  await user.save();
+  // Delete user document and associated user data permanently & immediately
+  await User.deleteOne({ _id: userId });
+  try {
+    await Creation.deleteMany({ userId });
+    await Purchase.deleteMany({ userId });
+  } catch (e) {}
 
   res.status(200).json({
     success: true,
-    message: 'Your account has been deleted successfully.',
+    message: 'Your account has been deleted immediately.',
   });
 });
 

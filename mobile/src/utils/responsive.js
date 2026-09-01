@@ -7,11 +7,13 @@ const baseWidth = 375;
 const baseHeight = 812;
 
 export const wp = (percentage) => {
-  return SCREEN_WIDTH * percentage;
+  const val = percentage > 1 ? percentage / 100 : percentage;
+  return SCREEN_WIDTH * val;
 };
 
 export const hp = (percentage) => {
-  return SCREEN_HEIGHT * percentage;
+  const val = percentage > 1 ? percentage / 100 : percentage;
+  return SCREEN_HEIGHT * val;
 };
 
 export const scale = (size) => {
@@ -58,9 +60,13 @@ export const SPACING = {
 export const GRID_GAP = 8;
 
 // Pure percentage-based responsive layout tokens (Exact 1:1 snap alignment for zero cumulative drift)
-export const CARD_WIDTH = wp(0.72);
-export const CARD_HEIGHT = CARD_WIDTH * (16 / 9);
-export const SINGLE_CARD_SNAP_HEIGHT = CARD_HEIGHT + hp(0.125);
+const topInsetBaseline = 44;
+const bottomInsetBaseline = 34;
+const totalChromeBaseline = topInsetBaseline + 38 + 93 + (64 + bottomInsetBaseline);
+export const AVAILABLE_VIEWPORT_HEIGHT = SCREEN_HEIGHT - totalChromeBaseline;
+export const CARD_WIDTH = wp(0.70);
+export const CARD_HEIGHT = Math.min(CARD_WIDTH * (16 / 9), AVAILABLE_VIEWPORT_HEIGHT - 86);
+export const SINGLE_CARD_SNAP_HEIGHT = AVAILABLE_VIEWPORT_HEIGHT;
 
 // Shared surface shadow (subtle, warm-neutral)
 export const CARD_SHADOW = {

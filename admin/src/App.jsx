@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Templates from './pages/Templates';
+import AIVideoTemplates from './pages/AIVideoTemplates';
 import Categories from './pages/Categories';
 import Campaigns from './pages/Campaigns';
 import Purchases from './pages/Purchases';
@@ -67,6 +68,7 @@ export default function App() {
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/templates" element={<Templates />} />
+          <Route path="/ai-video-templates" element={<AIVideoTemplates />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/purchases" element={<Purchases />} />

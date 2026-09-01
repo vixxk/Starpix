@@ -11,7 +11,17 @@ const creationSchema = new mongoose.Schema(
     templateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Template',
-      required: true,
+      required: false,
+    },
+    aiTemplateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AIVideoTemplate',
+      required: false,
+    },
+    mediaType: {
+      type: String,
+      enum: ['image', 'video'],
+      default: 'image',
     },
     templateTitle: {
       type: String,

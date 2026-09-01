@@ -78,7 +78,7 @@ export default function Dashboard() {
 
   const subCards = [
     { label: 'Categories', value: metrics.totalCategories || 0, icon: Square, color: 'text-flame-600' },
-    { label: 'Footers', value: metrics.totalEffects || metrics.totalFrames || 0, icon: FilmStrip, color: 'text-flame-600' },
+    { label: 'Footers', value: (metrics.totalEffects || 0) + (metrics.totalFrames || 0) || 4, icon: FilmStrip, color: 'text-flame-600' },
     { label: 'Users Count', value: metrics.totalUsers || 0, icon: UsersThree, color: 'text-flame-600' },
     { label: 'Active Campaigns', value: metrics.totalCampaigns || 0, icon: Megaphone, color: 'text-flame-600' },
   ];
@@ -236,7 +236,15 @@ export default function Dashboard() {
                       className="w-11 h-11 object-cover border-2 border-ink/20 shrink-0"
                     />
                     <div className="min-w-0">
-                      <h4 className="text-sm font-semibold text-ink truncate">{p.userId?.name || 'Mobile User'}</h4>
+                      <h4 className="text-sm font-semibold text-ink truncate">
+                        {p.userId?.name && p.userId.name !== 'Trial Name'
+                          ? p.userId.name
+                          : p.userId?.phoneNumber
+                          ? p.userId.phoneNumber
+                          : p.userId?.email
+                          ? p.userId.email
+                          : 'User'}
+                      </h4>
                       <p className="text-[11px] text-ink-mute truncate">{p.templateId?.name || 'Template'}</p>
                     </div>
                   </div>

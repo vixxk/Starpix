@@ -122,10 +122,150 @@ const deleteCategory = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Seed default 12 categories (Admin)
+// @route   POST /api/categories/seed
+// @access  Private (Admin)
+const seedCategories = asyncHandler(async (req, res) => {
+  const defaultCategories = [
+    {
+      name: 'Good Morning',
+      slug: 'good-morning',
+      icon: '🌅',
+      description: 'Daily morning blessings, quotes, and sunrise video status templates',
+      sortOrder: 1,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Good Night',
+      slug: 'good-night',
+      icon: '🌙',
+      description: 'Peaceful night wishes, sweet dreams, and evening reflections',
+      sortOrder: 2,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Motivation',
+      slug: 'motivation',
+      icon: '💪',
+      description: 'Inspiring quotes, success suvichar, and high-energy motivational reels',
+      sortOrder: 3,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Devotional',
+      slug: 'devotional',
+      icon: '🙏',
+      description: 'Divine Mahadev, Hanuman, Krishna, and daily morning prayer templates',
+      sortOrder: 4,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Love & Romance',
+      slug: 'love',
+      icon: '❤️',
+      description: 'Romantic couple status, heart effects, and affection cards',
+      sortOrder: 5,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Festival & Celebration',
+      slug: 'festival',
+      icon: '🪔',
+      description: 'Indian festival greetings, Diwali, Holi, Navratri & seasonal wishes',
+      sortOrder: 6,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Birthday Wishes',
+      slug: 'birthday',
+      icon: '🎂',
+      description: 'Happy birthday video status, confetti frames, and custom photo cards',
+      sortOrder: 7,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Attitude & Swagger',
+      slug: 'attitude',
+      icon: '😎',
+      description: 'Bold swagger reels, royal status, and high-energy background tracks',
+      sortOrder: 8,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Trending Reels',
+      slug: 'reels',
+      icon: '🔥',
+      description: 'Viral short video status templates, beat-synced motion effects',
+      sortOrder: 9,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Business & Branding',
+      slug: 'business',
+      icon: '🚀',
+      description: 'Professional business cards, daily marketing posts, and company branding',
+      sortOrder: 10,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Suvichar & Quotes',
+      slug: 'quotes',
+      icon: '💬',
+      description: 'Thought of the day, Hindi & regional wisdom, and life lessons',
+      sortOrder: 11,
+      featured: true,
+      active: true,
+    },
+    {
+      name: 'Anniversary & Weddings',
+      slug: 'anniversary',
+      icon: '🎁',
+      description: 'Wedding wishes, wedding anniversary cards, and celebration status',
+      sortOrder: 12,
+      featured: true,
+      active: true,
+    },
+  ];
+
+  let seededCount = 0;
+  const createdCategories = [];
+
+  for (const cat of defaultCategories) {
+    const existing = await Category.findOne({ slug: cat.slug });
+    if (!existing) {
+      const created = await Category.create(cat);
+      createdCategories.push(created);
+      seededCount++;
+    } else {
+      existing.active = true;
+      await existing.save();
+      createdCategories.push(existing);
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Successfully seeded ${seededCount} new categories (${createdCategories.length} total active categories)`,
+    data: createdCategories,
+  });
+});
+
 module.exports = {
   getCategories,
   getCategoryById,
   createCategory,
   updateCategory,
   deleteCategory,
+  seedCategories,
 };
+

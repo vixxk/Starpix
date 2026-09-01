@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, Animated } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '../../src/components/AppBackground';
@@ -8,12 +8,10 @@ import FadeInView from '../../src/components/FadeInView';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
 import Toast from '../../src/components/Toast';
 import CategoryPill from '../../src/components/CategoryPill';
-import CampaignCard from '../../src/components/CampaignCard';
 import TemplateCard from '../../src/components/TemplateCard';
-import SectionHeader from '../../src/components/SectionHeader';
 import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, CARD_WIDTH, CARD_HEIGHT, SINGLE_CARD_SNAP_HEIGHT, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
+import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
 import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
@@ -32,6 +30,16 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
 
+  // Dynamic responsive viewport & template card sizing calculations
+  const topInset = Math.max(insets.top, 12);
+  const bottomInset = Math.max(insets.bottom, 12);
+  const totalChromeHeight = topInset + 38 + 93 + (64 + bottomInset);
+  const availableViewportHeight = Math.max(380, SCREEN_DIMENSIONS.height - totalChromeHeight);
+  const maxCardHeight = Math.min(wp(0.70) * (16 / 9), availableViewportHeight - 86);
+  const cardHeight = Math.max(250, maxCardHeight);
+  const cardWidth = cardHeight * (9 / 16);
+  const singleCardSnapHeight = availableViewportHeight;
+
   const activeIndexRef = useRef(0);
   const railActiveIndexRef = useRef({});
 
@@ -42,36 +50,6 @@ export default function HomeScreen() {
     dragStartY.current = e.nativeEvent.contentOffset.y;
   };
 
-
-
-  const [railIndices, setRailIndices] = useState({});
-  const [disableHorizontalInterval, setDisableHorizontalInterval] = useState({});
-  const dragStartX = useRef({});
-
-  const handleRailScrollBeginDrag = (key, e) => {
-    dragStartX.current[key] = e.nativeEvent.contentOffset.x;
-  };
-
-  const handleRailScroll = (key, e) => {
-    const offsetX = e.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / (CARD_WIDTH + GRID_GAP));
-    if (railActiveIndexRef.current[key] !== index && index >= 0) {
-      railActiveIndexRef.current[key] = index;
-      setRailIndices((prev) => ({ ...prev, [key]: index }));
-      hapticTap();
-    }
-
-    const startX = dragStartX.current[key] || 0;
-    if (offsetX > startX + 4) {
-      if (disableHorizontalInterval[key] === false) {
-        setDisableHorizontalInterval((prev) => ({ ...prev, [key]: true }));
-      }
-    } else if (offsetX < startX - 4) {
-      if (disableHorizontalInterval[key] !== false) {
-        setDisableHorizontalInterval((prev) => ({ ...prev, [key]: false }));
-      }
-    }
-  };
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [openingCampaign, setOpeningCampaign] = useState(null);
@@ -319,7 +297,6 @@ export default function HomeScreen() {
   }, [selectedCategory, categoryTemplates, homeFeed, allTemplates]);
 
   // Construct interleaved feed items: After every 2 simple template cards, insert 1 campaign card section (swiped left/right).
-  // When campaigns are over, no need to repeat; simply render remaining simple templates.
   const feedItems = React.useMemo(() => {
     const templates = displayTemplates || [];
     const campaigns = activeCampaigns || [];
@@ -450,7 +427,7 @@ export default function HomeScreen() {
 
   const handleVerticalScroll = (e) => {
     const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / SINGLE_CARD_SNAP_HEIGHT);
+    const index = Math.round(offsetY / singleCardSnapHeight);
     if (index !== activeIndexRef.current && index >= 0) {
       activeIndexRef.current = index;
       hapticTap();
@@ -486,7 +463,14 @@ export default function HomeScreen() {
   const renderGrid = (items) => (
     <View style={styles.grid}>
       {items.map((item) => (
-        <TemplateCard key={item._id} template={item} onPress={() => handleTemplatePress(item)} />
+        <TemplateCard
+          key={item._id}
+          template={item}
+          width={cardWidth}
+          height={cardHeight}
+          wrapperMinHeight={singleCardSnapHeight}
+          onPress={() => handleTemplatePress(item)}
+        />
       ))}
     </View>
   );
@@ -498,8 +482,32 @@ export default function HomeScreen() {
   return (
     <AppBackground bgImage={currentCoverBg}>
       <StatusBar style="dark" />
-      <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        {/* Sticky Top Categories Bar */}
+      <View style={[styles.safeArea, { paddingTop: topInset }]}>
+        {/* Top Header Bar with Brand & AI Video Button */}
+        <View style={styles.topHeaderBar}>
+          <View style={styles.brandTitleWrap}>
+            <Text style={styles.brandTitleText}>STARPIX</Text>
+            <View style={styles.brandTag}>
+              <Text style={styles.brandTagText}>PRO</Text>
+            </View>
+          </View>
+
+          <PressableScale
+            onPress={() => {
+              hapticTap();
+              router.push('/ai-video');
+            }}
+            scaleTo={0.94}
+            haptic="impact"
+            style={styles.aiHeaderBtn}
+            contentStyle={styles.aiHeaderBtnContent}
+          >
+            <Ionicons name="sparkles" size={fontScale(14)} color={COLORS.white} />
+            <Text style={styles.aiHeaderBtnText}>{t('ai_video_badge')}</Text>
+          </PressableScale>
+        </View>
+
+        {/* Sticky Top Categories Bar - Displaying 2 & 1/2 rows before scrolling */}
         <View style={styles.stickyCategoriesHeader}>
           <ScrollView
             nestedScrollEnabled={true}
@@ -529,7 +537,7 @@ export default function HomeScreen() {
           style={{ flex: 1 }}
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
-          snapToInterval={SINGLE_CARD_SNAP_HEIGHT}
+          snapToInterval={singleCardSnapHeight}
           snapToAlignment="start"
           decelerationRate="fast"
           disableIntervalMomentum={disableVerticalInterval}
@@ -541,15 +549,15 @@ export default function HomeScreen() {
           }
           contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
         >
-          <View style={{ marginTop: 4 }}>
+          <View style={{ marginTop: 0 }}>
             {loading ? (
-              <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
-                <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
-                <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
+              <View style={{ alignSelf: 'center', alignItems: 'center', minHeight: singleCardSnapHeight, justifyContent: 'center' }}>
+                <Skeleton height={cardHeight} width={cardWidth} borderRadius={0} />
+                <View style={{ flexDirection: 'row', width: cardWidth, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
                   <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
                   <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', width: CARD_WIDTH, marginTop: hp(0.008), gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', width: cardWidth, marginTop: hp(0.008), gap: 6 }}>
                   {[1, 2, 3, 4, 5].map((i) => (
                     <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
                   ))}
@@ -560,13 +568,13 @@ export default function HomeScreen() {
                 {categoryTemplates.length > 0 ? (
                   renderGrid(categoryTemplates)
                 ) : categoryFetching ? (
-                  <View style={{ alignSelf: 'center', alignItems: 'center', paddingVertical: 8 }}>
-                    <Skeleton height={CARD_HEIGHT} width={CARD_WIDTH} borderRadius={0} />
-                    <View style={{ flexDirection: 'row', width: CARD_WIDTH, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
+                  <View style={{ alignSelf: 'center', alignItems: 'center', minHeight: singleCardSnapHeight, justifyContent: 'center' }}>
+                    <Skeleton height={cardHeight} width={cardWidth} borderRadius={0} />
+                    <View style={{ flexDirection: 'row', width: cardWidth, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
                       <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
                       <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', width: CARD_WIDTH, marginTop: hp(0.008), gap: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', width: cardWidth, marginTop: hp(0.008), gap: 6 }}>
                       {[1, 2, 3, 4, 5].map((i) => (
                         <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
                       ))}
@@ -617,6 +625,9 @@ export default function HomeScreen() {
                         <TemplateCard
                           key={item.key}
                           template={item.data}
+                          width={cardWidth}
+                          height={cardHeight}
+                          wrapperMinHeight={singleCardSnapHeight}
                           onPress={() => handleTemplatePress(item.data)}
                         />
                       );
@@ -633,7 +644,7 @@ export default function HomeScreen() {
                             showsHorizontalScrollIndicator={false}
                             nestedScrollEnabled={true}
                             contentContainerStyle={[styles.campaignHorizontalContent, { paddingHorizontal: SCREEN_PAD }]}
-                            snapToInterval={CARD_WIDTH + GRID_GAP}
+                            snapToInterval={cardWidth + GRID_GAP}
                             snapToAlignment="start"
                             decelerationRate="fast"
                           >
@@ -641,6 +652,9 @@ export default function HomeScreen() {
                               <TemplateCard
                                 key={`c_t_${tItem._id}`}
                                 template={tItem}
+                                width={cardWidth}
+                                height={cardHeight}
+                                wrapperMinHeight={singleCardSnapHeight}
                                 onPress={() => handleTemplatePress(tItem)}
                               />
                             ))}
@@ -681,7 +695,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   categoriesScrollView: {
-    maxHeight: 120,
+    maxHeight: 81,
   },
   categoriesWrap: {
     flexDirection: 'row',
@@ -837,5 +851,60 @@ const styles = StyleSheet.create({
     gap: GRID_GAP,
     alignItems: 'center',
     paddingVertical: 4,
+  },
+  topHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SCREEN_PAD,
+    paddingVertical: 6,
+  },
+  brandTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  brandTitleText: {
+    fontSize: fontScale(20),
+    fontFamily: FONTS.black,
+    color: COLORS.ink,
+    letterSpacing: 0.8,
+  },
+  brandTag: {
+    backgroundColor: COLORS.orangeTint,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.orange,
+  },
+  brandTagText: {
+    fontSize: fontScale(9),
+    fontFamily: FONTS.bold,
+    color: COLORS.orangeDeep,
+  },
+  aiHeaderBtn: {
+    backgroundColor: COLORS.orange,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    shadowColor: COLORS.orangeDeep,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.white,
+  },
+  aiHeaderBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiHeaderBtnText: {
+    color: COLORS.white,
+    fontSize: fontScale(12),
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.3,
   },
 });

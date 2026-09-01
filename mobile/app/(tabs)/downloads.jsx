@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, Image, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, FlatList, Image, StyleSheet, ScrollView, Modal, Pressable } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
@@ -25,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 
 export default function DownloadsScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
@@ -35,6 +36,7 @@ export default function DownloadsScreen() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [shareAlert, setShareAlert] = useState(false);
   const [redownloadSuccessAlert, setRedownloadSuccessAlert] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
 
   const downloadedCreations = useCreationStore((state) => state.downloadedCreations || []);
   const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
@@ -102,23 +104,27 @@ export default function DownloadsScreen() {
   const getCardThumbnail = (item) => {
     if (!item) return resolveMediaUrl(null);
 
-    // 1. Check template object thumbnail first (which is guaranteed to be an image)
-    const tObj = item.template || item.activeTemplate || (typeof item.templateId === 'object' ? item.templateId : null);
-    if (tObj && tObj.thumbnail && !isVideoMedia(tObj.thumbnail)) {
-      return resolveMediaUrl(tObj.thumbnail);
+    // 1. Check AI Template or Standard Template object first for admin-uploaded thumbnail
+    const tObj =
+      item.aiTemplate ||
+      item.activeTemplate ||
+      item.template ||
+      (typeof item.aiTemplateId === 'object' ? item.aiTemplateId : null) ||
+      (typeof item.templateId === 'object' ? item.templateId : null);
+
+    if (tObj) {
+      const adminThumb = tObj.thumbnailUrl || tObj.thumbnail || tObj.sampleSourceImageUrl || tObj.previewAsset;
+      if (adminThumb && typeof adminThumb === 'string' && !isVideoMedia(adminThumb)) {
+        return resolveMediaUrl(adminThumb);
+      }
     }
 
-    // 2. Check if item.image or item.localUri or item.editedPhoto is an image
+    // 2. Check if item.image or item.localUri or item.editedPhoto is a static image fallback
     const candidates = [item.image, item.localUri, item.editedPhoto];
     for (const cand of candidates) {
       if (cand && typeof cand === 'string' && !isVideoMedia(cand)) {
         return resolveMediaUrl(cand);
       }
-    }
-
-    // 3. Fallback to template previewAsset if it's an image
-    if (tObj && tObj.previewAsset && !isVideoMedia(tObj.previewAsset)) {
-      return resolveMediaUrl(tObj.previewAsset);
     }
 
     return resolveMediaUrl(null);
@@ -134,17 +140,21 @@ export default function DownloadsScreen() {
     if (cId) seenIds.add(cId);
 
     const template = (typeof item.templateId === 'object' && item.templateId) ? item.templateId : {};
+    const aiTemplate = (typeof item.aiTemplateId === 'object' && item.aiTemplateId) ? item.aiTemplateId : null;
     const customState = item.customizationState || {};
+
+    const activeTmpl = aiTemplate || customState.activeTemplate || (template._id ? template : null);
 
     allCreations.push({
       _id: cId,
-      title: item.templateTitle || template.name || 'Personalized Status',
-      image: item.imageUrl || item.editedPhoto || template.previewAsset || template.thumbnail,
+      title: item.templateTitle || aiTemplate?.title || template.name || 'Personalized Status',
+      image: item.imageUrl || item.editedPhoto || aiTemplate?.thumbnailUrl || template.previewAsset || template.thumbnail,
       editedText: item.editedText || customState.userNameText || '',
       editedPhoto: item.editedPhoto || customState.userPhotoUri || '',
       downloadedAt: item.downloadedAt || item.createdAt,
       template: template,
-      activeTemplate: customState.activeTemplate || (template._id ? template : null),
+      aiTemplate: aiTemplate,
+      activeTemplate: activeTmpl,
       userPhotoUri: customState.userPhotoUri || item.editedPhoto || null,
       userNameText: customState.userNameText || item.editedText || '',
       userQuoteText: customState.userQuoteText || '',
@@ -187,14 +197,16 @@ export default function DownloadsScreen() {
     if (!isSameAsBackend) {
       if (cId) seenIds.add(cId);
       const customState = item.customizationState || {};
+      const aiTmpl = item.aiTemplate || customState.aiTemplate || null;
       allCreations.push({
         _id: cId || `local_${Date.now()}`,
-        title: item.name || 'Personalized Status',
+        title: item.name || aiTmpl?.title || 'Personalized Status',
         image: item.localUri || item.thumbnail || item.editedPhoto,
         editedText: text,
         editedPhoto: photo,
         downloadedAt: item.createdAt || new Date().toISOString(),
-        template: item.activeTemplate || item.template || null,
+        template: item.template || null,
+        aiTemplate: aiTmpl,
         activeTemplate: item.activeTemplate || customState.activeTemplate || item.template || null,
         userPhotoUri: photo || null,
         userNameText: item.userNameText || customState.userNameText || text,
@@ -307,16 +319,18 @@ export default function DownloadsScreen() {
   };
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return 'Recently Saved';
+    if (!dateStr) return null;
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString('en-IN', {
+      if (isNaN(d.getTime())) return null;
+      const locale = i18n.language || 'en';
+      return d.toLocaleDateString(locale, {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
       });
     } catch (e) {
-      return 'Recently Saved';
+      return null;
     }
   };
 
@@ -400,7 +414,7 @@ export default function DownloadsScreen() {
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <PressableScale
-                  onPress={() => handleOpenInEditor(item)}
+                  onPress={() => setPreviewItem(item)}
                   scaleTo={0.94}
                   style={styles.cardLeft}
                 >
@@ -409,9 +423,6 @@ export default function DownloadsScreen() {
                     style={styles.thumbnail}
                     resizeMode="cover"
                   />
-                  <View style={styles.editBadge}>
-                    <Ionicons name="pencil" size={11} color={COLORS.white} />
-                  </View>
                 </PressableScale>
 
                 <View style={styles.cardBody}>
@@ -419,13 +430,15 @@ export default function DownloadsScreen() {
                     {item.title}
                   </Text>
                   <Text style={styles.cardDate}>
-                    Saved on {formatDate(item.downloadedAt)}
+                    {item.downloadedAt && formatDate(item.downloadedAt)
+                      ? t('saved_on', { date: formatDate(item.downloadedAt) })
+                      : t('recently_saved')}
                   </Text>
 
                   {item.editedText ? (
                     <View style={styles.editTag}>
                       <Text style={styles.editTagText} numberOfLines={1}>
-                        ✍️ {item.editedText}
+                        {item.editedText}
                       </Text>
                     </View>
                   ) : null}
@@ -488,7 +501,7 @@ export default function DownloadsScreen() {
           title={t('share')}
           message={t('select_app_to_share')}
           confirmText={t('got_it')}
-          showCancel={false}
+          hideCancel={true}
           onConfirm={() => setShareAlert(false)}
         />
 
@@ -497,10 +510,83 @@ export default function DownloadsScreen() {
           visible={redownloadSuccessAlert}
           title={t('redownloaded_title')}
           message={t('redownloaded_msg')}
+          icon="document-text-outline"
+          iconColor={COLORS.orange}
           confirmText={t('got_it')}
-          showCancel={false}
+          hideCancel={true}
           onConfirm={() => setRedownloadSuccessAlert(false)}
         />
+
+        {/* Full Screen Image/Video Preview Modal */}
+        <Modal
+          visible={Boolean(previewItem)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPreviewItem(null)}
+        >
+          <View style={styles.fullscreenOverlay}>
+            <StatusBar style="light" />
+
+            {/* Header */}
+            <View style={[styles.fullscreenHeader, { paddingTop: Math.max(insets.top + 8, 20) }]}>
+              <Text style={styles.fullscreenTitle} numberOfLines={1}>
+                {previewItem?.title || 'Starpix Creation'}
+              </Text>
+              <PressableScale
+                onPress={() => setPreviewItem(null)}
+                scaleTo={0.9}
+                style={styles.closeBtn}
+              >
+                <Ionicons name="close" size={24} color={COLORS.white} />
+              </PressableScale>
+            </View>
+
+            {/* Main Full Screen Media Area */}
+            <Pressable style={styles.fullscreenContentArea} onPress={() => setPreviewItem(null)}>
+              {previewItem && isVideoMedia(previewItem.image || previewItem.localUri) ? (
+                <Video
+                  source={{ uri: resolveMediaUrl(previewItem.image || previewItem.localUri) }}
+                  style={styles.fullscreenMedia}
+                  useNativeControls
+                  resizeMode={ResizeMode.CONTAIN}
+                  isLooping
+                  shouldPlay
+                />
+              ) : previewItem ? (
+                <Image
+                  source={{ uri: resolveMediaUrl(previewItem.image || previewItem.localUri || getCardThumbnail(previewItem)) }}
+                  style={styles.fullscreenMedia}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </Pressable>
+
+            {/* Footer Action Controls */}
+            {previewItem && (
+              <View style={[styles.fullscreenFooter, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
+                <PressableScale
+                  onPress={() => handleRedownload(previewItem)}
+                  scaleTo={0.94}
+                  style={styles.fullscreenActionBtn}
+                  contentStyle={styles.fullscreenBtnContent}
+                >
+                  <Ionicons name="download-outline" size={18} color={COLORS.white} />
+                  <Text style={styles.fullscreenActionText}>{t('re_download')}</Text>
+                </PressableScale>
+
+                <PressableScale
+                  onPress={() => handleShare(previewItem.image || previewItem.localUri)}
+                  scaleTo={0.94}
+                  style={styles.fullscreenShareBtn}
+                  contentStyle={styles.fullscreenBtnContent}
+                >
+                  <Ionicons name="share-social-outline" size={18} color={COLORS.ink} />
+                  <Text style={[styles.fullscreenActionText, { color: COLORS.ink }]}>{t('share')}</Text>
+                </PressableScale>
+              </View>
+            )}
+          </View>
+        </Modal>
       </View>
     </AppBackground>
   );
@@ -713,5 +799,89 @@ const styles = StyleSheet.create({
     padding: 6,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)',
+    justifyContent: 'space-between',
+  },
+  fullscreenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    zIndex: 10,
+  },
+  fullscreenTitle: {
+    color: COLORS.white,
+    fontSize: fontScale(16),
+    fontFamily: FONTS.bold,
+    flex: 1,
+    marginRight: 12,
+  },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenContentArea: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  fullscreenMedia: {
+    width: wp(0.96),
+    height: hp(0.72),
+    borderRadius: 12,
+  },
+  fullscreenFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  fullscreenActionBtn: {
+    flex: 1,
+    height: 48,
+    backgroundColor: COLORS.orange,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: COLORS.ink,
+  },
+  fullscreenShareBtn: {
+    flex: 1,
+    height: 48,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: COLORS.ink,
+  },
+  fullscreenBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+    gap: 8,
+  },
+  fullscreenActionText: {
+    color: COLORS.white,
+    fontSize: fontScale(13),
+    fontFamily: FONTS.bold,
   },
 });

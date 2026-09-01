@@ -33,7 +33,16 @@ const DEFAULT_FOOTERS = [];
 
 import { useTranslation } from 'react-i18next';
 
-export default function TemplateCard({ template, onPress, width, height, actionWidth, style, shouldPlay = true }) {
+export default function TemplateCard({
+  template,
+  onPress,
+  width,
+  height,
+  actionWidth,
+  wrapperMinHeight,
+  style,
+  shouldPlay = true,
+}) {
   const { t } = useTranslation();
   const router = useRouter();
   const storeUserPhotoUri = useCreationStore((s) => s.userPhotoUri || s.defaultUserPhotoUri);
@@ -65,7 +74,16 @@ export default function TemplateCard({ template, onPress, width, height, actionW
   };
 
   return (
-    <View style={[styles.cardWrapper, { width: cardWidth }, style]}>
+    <View
+      style={[
+        styles.cardWrapper,
+        {
+          width: cardWidth,
+          minHeight: wrapperMinHeight !== undefined ? wrapperMinHeight : SINGLE_CARD_SNAP_HEIGHT,
+        },
+        style,
+      ]}
+    >
       {/* Main Template Card Frame */}
       <PressableScale
         onPress={handleDownload}

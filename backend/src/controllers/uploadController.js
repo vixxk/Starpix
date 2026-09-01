@@ -1,5 +1,6 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { uploadToS3 } = require('../services/s3Service');
+const sharp = require('sharp');
 
 // @desc    Upload single media asset (image/video/frame/effect)
 // @route   POST /api/uploads
@@ -10,7 +11,21 @@ const uploadSingleMedia = asyncHandler(async (req, res) => {
   }
 
   const folder = req.body.folder || 'media';
-  const fileUrl = await uploadToS3(req.file.buffer, req.file.originalname, req.file.mimetype, folder);
+  let bufferToUpload = req.file.buffer;
+
+  // Enforce 9:16 aspect ratio (1080x1920) with zoom/cover crop for image uploads
+  if (req.file.mimetype && req.file.mimetype.startsWith('image/')) {
+    try {
+      bufferToUpload = await sharp(req.file.buffer)
+        .resize(1080, 1920, { fit: 'cover', position: 'center' })
+        .toBuffer();
+      console.log('[Upload] Image asset processed into 9:16 aspect ratio (1080x1920 cover zoom)');
+    } catch (sharpErr) {
+      console.error('[Upload] Error processing image to 9:16 aspect ratio:', sharpErr.message);
+    }
+  }
+
+  const fileUrl = await uploadToS3(bufferToUpload, req.file.originalname, req.file.mimetype, folder);
 
   res.status(200).json({
     success: true,
@@ -18,7 +33,7 @@ const uploadSingleMedia = asyncHandler(async (req, res) => {
       url: fileUrl,
       fileName: req.file.originalname,
       mimeType: req.file.mimetype,
-      size: req.file.size,
+      size: bufferToUpload.length,
     },
   });
 });
