@@ -16,7 +16,9 @@ import {
   Star,
   HashStraight,
   Sparkle,
+  Globe,
 } from '@phosphor-icons/react';
+import MultilingualNameModal from '../components/MultilingualNameModal';
 
 // Preset emoji set for category icons — matches the categories used across the app
 const CATEGORY_ICONS = [
@@ -50,8 +52,10 @@ export default function Categories() {
     }
   };
 
+  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    nameTranslations: {},
     icon: '✨',
     thumbnail: '',
     description: '',
@@ -83,6 +87,7 @@ export default function Categories() {
     setEditingCategory(null);
     setFormData({
       name: '',
+      nameTranslations: {},
       icon: '✨',
       thumbnail: '',
       description: '',
@@ -97,6 +102,7 @@ export default function Categories() {
     setEditingCategory(c);
     setFormData({
       name: c.name,
+      nameTranslations: c.nameTranslations || {},
       icon: c.icon || '✨',
       thumbnail: c.thumbnail || '',
       description: c.description || '',
@@ -144,20 +150,9 @@ export default function Categories() {
         title="Categories"
         subtitle={`${categories.length} content groupings`}
         actions={
-          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={handleSeedCategories}
-              disabled={seeding}
-              className="btn-secondary w-full sm:w-auto"
-              title="Seed 12 default categories for the home page"
-            >
-              <Sparkle className="w-4 h-4 text-flame-500" weight="fill" />
-              {seeding ? 'Seeding...' : 'Seed 12 Categories'}
-            </button>
-            <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
-              <Plus className="w-4 h-4" weight="bold" /> Add Category
-            </button>
-          </div>
+          <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
+            <Plus className="w-4 h-4" weight="bold" /> Add Category
+          </button>
         }
       />
 
@@ -230,15 +225,36 @@ export default function Categories() {
 
             <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto">
               <div>
-                <label className="field-label">Category Name</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="field-label mb-0">Category Name</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsLangModalOpen(true)}
+                    className="text-[11px] font-bold text-flame-700 hover:text-flame-800 flex items-center gap-1 bg-flame-500/15 hover:bg-flame-500/25 px-2 py-0.5 rounded-[2px] transition-colors border border-flame-500/30 cursor-pointer"
+                    title="Set localized texts for supported languages"
+                  >
+                    <Globe className="w-3.5 h-3.5" weight="bold" />
+                    Languages / Translation 🌐
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input"
-                  placeholder="e.g. Motivation"
+                  onClick={() => setIsLangModalOpen(true)}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      name: newName,
+                    }));
+                  }}
+                  className="input cursor-pointer hover:border-flame-500"
+                  placeholder="e.g. Motivation (Click to open language popup)"
                 />
+                <p className="text-[10px] text-ink-mute mt-1">
+                  💡 Click on the input or button above to configure localized names for English, Hindi, Marathi, etc.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -352,6 +368,21 @@ export default function Categories() {
         loading={deleting}
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteTarget(null)}
+      />
+      {/* Multilingual Name Modal */}
+      <MultilingualNameModal
+        isOpen={isLangModalOpen}
+        onClose={() => setIsLangModalOpen(false)}
+        initialName={formData.name}
+        initialTranslations={formData.nameTranslations}
+        title="Category Name - Multilingual Settings"
+        onSave={(updatedName, updatedTranslations) => {
+          setFormData((prev) => ({
+            ...prev,
+            name: updatedName,
+            nameTranslations: updatedTranslations,
+          }));
+        }}
       />
     </div>
   );

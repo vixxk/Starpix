@@ -23,6 +23,7 @@ import { hapticTap } from '../../src/utils/haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
+import { getLocalizedName } from '../../src/utils/localized';
 
 const isVideoUrl = (url) => {
   if (!url || typeof url !== 'string') return false;
@@ -49,7 +50,7 @@ const TABS = [
 
 export default function TemplateEditorScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams();
   const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState('photo');
@@ -244,8 +245,8 @@ export default function TemplateEditorScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
+        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
+        allowsEditing: true,
         quality: 0.9,
       });
 
@@ -347,7 +348,7 @@ export default function TemplateEditorScreen() {
             <PressableScale onPress={() => router.back()} scaleTo={0.88} style={styles.headerBtn} contentStyle={styles.iconContent}>
               <Ionicons name="chevron-back" size={24} color={COLORS.orange} />
             </PressableScale>
-            <Text numberOfLines={1} style={styles.templateTitle}>{activeTemplate.name}</Text>
+            <Text numberOfLines={1} style={styles.templateTitle}>{getLocalizedName(activeTemplate, i18n.language)}</Text>
           </View>
           <View style={styles.headerRightGroup}>
             <PressableScale

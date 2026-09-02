@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Creation = require('../models/Creation');
 const Purchase = require('../models/Purchase');
 const Report = require('../models/Report');
+const DeletionLog = require('../models/DeletionLog');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'starpix_super_secret_jwt_key_2026_dev';
 
@@ -474,7 +475,7 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
           </ul>
         </div>
 
-        <form id="deleteForm" action="/delete${token ? `?token=${encodeURIComponent(token)}` : ''}" method="POST">
+        <form id="deleteForm" action="${req.originalUrl || '/delete'}" method="POST">
           ${token ? `<input type="hidden" name="token" value="${token}" />` : ''}
           <input type="hidden" name="action" value="${user ? 'delete_token' : (step === 'verify_otp' ? 'verify_delete' : 'send_otp')}" />
 
@@ -487,7 +488,28 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
               </div>
               <div class="verified-pill">App Session</div>
             </div>
-            <button type="button" id="triggerBtn" class="btn-delete">Permanently Delete Account</button>
+
+            <div class="form-group">
+              <label for="reason">Reason for Deletion (Optional)</label>
+              <select id="reason" name="reason">
+                <option value="No longer using the app">No longer using the app</option>
+                <option value="Privacy concerns">Privacy concerns</option>
+                <option value="Creating a new account">Creating a new account</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div id="otherReasonWrap" class="form-group" style="display: none;">
+              <label for="otherReason">Please specify reason *</label>
+              <input 
+                type="text" 
+                id="otherReason" 
+                name="otherReason" 
+                placeholder="Type your reason here..." 
+              />
+            </div>
+
+            <button type="submit" id="triggerBtn" class="btn-delete">Delete Account</button>
           ` : step === 'verify_otp' ? `
             <input type="hidden" name="phoneNumber" value="${phoneNumber}" />
             <div class="form-group">
@@ -518,7 +540,17 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
               </select>
             </div>
 
-            <button type="button" id="triggerBtn" class="btn-delete">Verify OTP & Permanently Delete Account</button>
+            <div id="otherReasonWrap" class="form-group" style="display: none;">
+              <label for="otherReason">Please specify reason *</label>
+              <input 
+                type="text" 
+                id="otherReason" 
+                name="otherReason" 
+                placeholder="Type your reason here..." 
+              />
+            </div>
+
+            <button type="submit" id="triggerBtn" class="btn-delete">Delete Account</button>
             <p style="text-align:center; margin-top:12px; font-size:13px;">
               <a href="/delete" style="color:#EA580C; text-decoration:none; font-weight:600;">Change Phone Number</a>
             </p>
@@ -563,48 +595,116 @@ const renderAccountDeletionPage = (req, res, options = {}) => {
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const deleteForm = document.getElementById('deleteForm');
-      const triggerBtn = document.getElementById('triggerBtn');
       const confirmModal = document.getElementById('confirmModal');
       const cancelModalBtn = document.getElementById('cancelModalBtn');
       const confirmModalBtn = document.getElementById('confirmModalBtn');
+      const reasonSelect = document.getElementById('reason');
+      const otherReasonWrap = document.getElementById('otherReasonWrap');
+      const otherReasonInput = document.getElementById('otherReason');
+      const triggerBtn = document.getElementById('triggerBtn');
+      let formIsConfirmed = false;
 
-      if (!deleteForm || !triggerBtn || !confirmModal) return;
+      function updateButtonState() {
+        if (!reasonSelect || !triggerBtn) return;
+        const selectedVal = reasonSelect.value;
 
-      // Show confirmation popup
-      triggerBtn.addEventListener('click', function(e) {
+        if (selectedVal === 'Other') {
+          if (otherReasonWrap) otherReasonWrap.style.display = 'block';
+          const customVal = (otherReasonInput ? otherReasonInput.value : '').trim();
+          if (!customVal) {
+            triggerBtn.disabled = true;
+            triggerBtn.style.opacity = '0.5';
+            triggerBtn.style.cursor = 'not-allowed';
+          } else {
+            triggerBtn.disabled = false;
+            triggerBtn.style.opacity = '1';
+            triggerBtn.style.cursor = 'pointer';
+          }
+        } else {
+          if (otherReasonWrap) otherReasonWrap.style.display = 'none';
+          triggerBtn.disabled = false;
+          triggerBtn.style.opacity = '1';
+          triggerBtn.style.cursor = 'pointer';
+        }
+      }
+
+      if (reasonSelect) {
+        reasonSelect.addEventListener('change', updateButtonState);
+      }
+      if (otherReasonInput) {
+        otherReasonInput.addEventListener('input', updateButtonState);
+      }
+      updateButtonState();
+
+      if (!deleteForm) return;
+
+      deleteForm.addEventListener('submit', function(e) {
+        if (formIsConfirmed) {
+          return true;
+        }
+
+        const actionInput = deleteForm.querySelector('input[name="action"]');
+        const actionVal = actionInput ? actionInput.value : '';
+
+        // Allow direct submission for OTP request step
+        if (actionVal === 'send_otp') {
+          return true;
+        }
+
+        // For deletion actions, intercept and display modal confirmation first
         e.preventDefault();
-        
+
+        if (reasonSelect && reasonSelect.value === 'Other') {
+          const customVal = (otherReasonInput ? otherReasonInput.value : '').trim();
+          if (!customVal) {
+            alert('Please specify your reason for account deletion.');
+            if (otherReasonInput) otherReasonInput.focus();
+            return false;
+          }
+        }
+
         const otpInput = document.getElementById('otp');
         if (otpInput && !otpInput.checkValidity()) {
           otpInput.reportValidity();
-          return;
+          return false;
         }
 
-        confirmModal.classList.add('active');
+        if (confirmModal) {
+          confirmModal.classList.add('active');
+        } else {
+          if (confirm('Are you sure you want to permanently delete your Starpix account? All personal profile data and creations will be erased.')) {
+            formIsConfirmed = true;
+            deleteForm.submit();
+          }
+        }
       });
 
-      // Close popup on Cancel click
-      cancelModalBtn.addEventListener('click', function() {
-        confirmModal.classList.remove('active');
-      });
-
-      // Close popup on backdrop click
-      confirmModal.addEventListener('click', function(e) {
-        if (e.target === confirmModal) {
+      if (cancelModalBtn && confirmModal) {
+        cancelModalBtn.addEventListener('click', function() {
           confirmModal.classList.remove('active');
-        }
-      });
+        });
+      }
 
-      // Submit form on Confirm click
-      confirmModalBtn.addEventListener('click', function() {
-        confirmModalBtn.disabled = true;
-        confirmModalBtn.innerText = 'Deleting Account...';
-        deleteForm.submit();
-      });
+      if (confirmModal) {
+        confirmModal.addEventListener('click', function(e) {
+          if (e.target === confirmModal) {
+            confirmModal.classList.remove('active');
+          }
+        });
+      }
 
-      // Close on Escape key
+      if (confirmModalBtn && deleteForm) {
+        confirmModalBtn.addEventListener('click', function() {
+          formIsConfirmed = true;
+          confirmModalBtn.innerText = 'Deleting Account...';
+          confirmModalBtn.style.opacity = '0.7';
+          confirmModalBtn.style.pointerEvents = 'none';
+          deleteForm.submit();
+        });
+      }
+
       document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && confirmModal.classList.contains('active')) {
+        if (e.key === 'Escape' && confirmModal && confirmModal.classList.contains('active')) {
           confirmModal.classList.remove('active');
         }
       });
@@ -715,7 +815,28 @@ router.post(['/delete', '/delete-account', '/account-deletion'], async (req, res
       // OTP Verification (Dev mode: any 6-digit code or matching OTP pattern)
       // Account deleted immediately upon verification
       const userPhone = user.phoneNumber;
+      const userName = user.name || 'Starpix User';
       const userId = user._id;
+
+      const { otherReason = '' } = req.body;
+      let finalReason = reason;
+      if (reason === 'Other' && otherReason.trim()) {
+        finalReason = otherReason.trim();
+      }
+
+      try {
+        await DeletionLog.create({
+          userId,
+          userName,
+          phoneNumber: userPhone,
+          reason: finalReason,
+          details: details || '',
+          deletedVia: 'web_otp',
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || '',
+        });
+      } catch (logErr) {
+        console.error('Failed to create DeletionLog:', logErr);
+      }
 
       await User.deleteOne({ _id: userId });
       try {
@@ -748,7 +869,28 @@ router.post(['/delete', '/delete-account', '/account-deletion'], async (req, res
     }
 
     const userPhone = user.phoneNumber;
+    const userName = user.name || 'Starpix User';
     const userId = user._id;
+
+    const { otherReason = '' } = req.body;
+    let finalReason = reason;
+    if (reason === 'Other' && otherReason.trim()) {
+      finalReason = otherReason.trim();
+    }
+
+    try {
+      await DeletionLog.create({
+        userId,
+        userName,
+        phoneNumber: userPhone,
+        reason: finalReason,
+        details: details || '',
+        deletedVia: user ? 'web_app_token' : 'web_otp',
+        ipAddress: req.ip || req.headers['x-forwarded-for'] || '',
+      });
+    } catch (logErr) {
+      console.error('Failed to create DeletionLog:', logErr);
+    }
 
     await User.deleteOne({ _id: userId });
     try {

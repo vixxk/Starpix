@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Modal, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Modal, StyleSheet, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -326,6 +326,17 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
               </tbody>
             </table>
 
+            ${amount > 0 ? `
+              <div style="margin-bottom: 20px; padding: 12px; border: 2px solid #17120C; background: #F5F1E8; display: flex; align-items: center; gap: 14px;">
+                <img src="${purchase?.finalAssetUrl || template?.thumbnail || template?.previewAsset || template?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}" style="width: 50px; height: 75px; object-fit: cover; border: 2px solid #17120C;" />
+                <div>
+                  <span style="background: #FF5500; color: #FFFFFF; font-size: 9px; font-weight: 800; padding: 2px 6px; letter-spacing: 1px; text-transform: uppercase;">GENERATED AI ASSET</span>
+                  <div style="font-size: 13px; font-weight: 700; color: #17120C; margin-top: 4px;">${templateName}</div>
+                  <div style="font-size: 10px; color: #666; font-family: monospace; margin-top: 2px;">Licensed High-Resolution Asset · Ref: ${transactionId}</div>
+                </div>
+              </div>
+            ` : ''}
+
             <table class="totals-table">
               <tr>
                 <td>Taxable Value:</td>
@@ -483,6 +494,24 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
               <Text style={[styles.cellQty, styles.itemQty]}>1</Text>
               <Text style={[styles.cellAmt, styles.itemAmt]}>{inr(taxable)}</Text>
             </View>
+
+            {/* Generated AI Content Preview Card for Non-Zero Costings */}
+            {amount > 0 && (
+              <View style={styles.aiAssetCard}>
+                <Image
+                  source={{ uri: purchase?.finalAssetUrl || template?.thumbnail || template?.previewAsset || template?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80' }}
+                  style={styles.aiAssetThumb}
+                  resizeMode="cover"
+                />
+                <View style={styles.aiAssetInfo}>
+                  <View style={styles.aiAssetBadge}>
+                    <Text style={styles.aiAssetBadgeText}>GENERATED AI ASSET</Text>
+                  </View>
+                  <Text style={styles.aiAssetTitle} numberOfLines={1}>{templateName}</Text>
+                  <Text style={styles.aiAssetSub} numberOfLines={1}>Licensed High-Resolution Asset · Ref: {transactionId}</Text>
+                </View>
+              </View>
+            )}
 
             {/* Totals */}
             <View style={styles.totalsBlock}>
@@ -979,5 +1008,54 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  aiAssetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRUTAL.paperAlt,
+    borderWidth: 1.5,
+    borderColor: BRUTAL.ink,
+    borderRadius: 4,
+    padding: 8,
+    marginTop: 10,
+    gap: 10,
+  },
+  aiAssetThumb: {
+    width: 44,
+    height: 64,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: BRUTAL.ink,
+    backgroundColor: BRUTAL.ink,
+  },
+  aiAssetInfo: {
+    flex: 1,
+  },
+  aiAssetBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: BRUTAL.flame,
+    borderWidth: 1,
+    borderColor: BRUTAL.ink,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 2,
+    marginBottom: 4,
+  },
+  aiAssetBadgeText: {
+    color: BRUTAL.ink,
+    fontSize: fontScale(7.5),
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.8,
+  },
+  aiAssetTitle: {
+    color: BRUTAL.ink,
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.bold,
+  },
+  aiAssetSub: {
+    color: BRUTAL.inkMute,
+    fontSize: fontScale(8.5),
+    fontFamily: FONTS.medium,
+    marginTop: 2,
   },
 });

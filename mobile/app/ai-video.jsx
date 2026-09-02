@@ -23,6 +23,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getLocalizedName } from '../src/utils/localized';
 
 import AppBackground from '../src/components/AppBackground';
 import PressableScale from '../src/components/PressableScale';
@@ -35,6 +36,7 @@ import { wp, hp, fontScale, SCREEN_PAD, GRID_GAP, CARD_WIDTH, CARD_HEIGHT } from
 import { hapticTap, hapticSuccess, hapticError } from '../src/utils/haptics';
 import API from '../src/utils/api';
 import { resolveMediaUrl } from '../src/utils/media';
+import { uploadUserMedia } from '../src/utils/upload';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useCreationStore } from '../src/store/useCreationStore';
 
@@ -83,10 +85,33 @@ function SkeletonLoadingCard({ sub, t }) {
   );
 }
 
+function AISkeletonFeed() {
+  return (
+    <View style={styles.skeletonFeedContainer}>
+      <View style={styles.skeletonChipsRow}>
+        <Skeleton width={85} height={34} borderRadius={17} />
+        <Skeleton width={85} height={34} borderRadius={17} />
+        <Skeleton width={85} height={34} borderRadius={17} />
+      </View>
+      {[1, 2].map((key) => (
+        <View key={key} style={styles.templateFeedCard}>
+          <View style={[styles.cardFrame, { backgroundColor: 'transparent', overflow: 'hidden' }]}>
+            <Skeleton width="100%" height="100%" borderRadius={wp(0.04)} />
+          </View>
+          <View style={styles.actionRow}>
+            <Skeleton width="48%" height={46} borderRadius={12} />
+            <Skeleton width="48%" height={46} borderRadius={12} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function AIVideoScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // State management
   const [templates, setTemplates] = useState([]);
@@ -182,7 +207,7 @@ export default function AIVideoScreen() {
       }
 
       const result = await ImagePicker.launchImagePickerAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -252,15 +277,20 @@ export default function AIVideoScreen() {
       }
 
       let finalFaceUrl = faceToUse;
-      if (faceToUse && (faceToUse.startsWith('file://') || faceToUse.startsWith('content://'))) {
+      if (
+        faceToUse &&
+        (faceToUse.startsWith('file://') ||
+          faceToUse.startsWith('content://') ||
+          faceToUse.startsWith('ph://') ||
+          faceToUse.startsWith('data:image/'))
+      ) {
         try {
-          const base64Data = await FileSystem.readAsStringAsync(faceToUse, {
-            encoding: FileSystem.EncodingType?.Base64 || 'base64',
-          });
-          const mimeType = faceToUse.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-          finalFaceUrl = `data:${mimeType};base64,${base64Data}`;
-        } catch (readErr) {
-          console.error('Error reading local face image file as base64:', readErr);
+          const uploadedUrl = await uploadUserMedia(faceToUse, 'ai-faces');
+          if (uploadedUrl) {
+            finalFaceUrl = uploadedUrl;
+          }
+        } catch (uploadErr) {
+          console.error('Error uploading face image to S3:', uploadErr);
         }
       }
 
@@ -290,7 +320,7 @@ export default function AIVideoScreen() {
         addDownloadedCreation({
           id: creationId || `ai_${Date.now()}`,
           _id: creationId || `ai_${Date.now()}`,
-          name: targetTemplate.title || 'AI Face Swap',
+          name: getLocalizedName(targetTemplate, i18n.language) || targetTemplate.title || 'AI Face Swap',
           localUri: url,
           image: url,
           createdAt: new Date().toISOString(),
@@ -449,9 +479,7 @@ export default function AIVideoScreen() {
           }
         >
           {loadingTemplates ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color={COLORS.orange} />
-            </View>
+            <AISkeletonFeed />
           ) : templates.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyText}>No AI templates available.</Text>
@@ -1195,5 +1223,15 @@ const styles = StyleSheet.create({
     color: COLORS.white || '#FFFFFF',
     fontSize: fontScale(13),
     fontFamily: FONTS.bold,
+  },
+  skeletonFeedContainer: {
+    paddingHorizontal: wp(0.01),
+    paddingTop: hp(0.005),
+  },
+  skeletonChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: hp(0.02),
   },
 });

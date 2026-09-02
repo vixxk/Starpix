@@ -23,6 +23,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
 import { useTranslation } from 'react-i18next';
+import { getLocalizedName } from '../../src/utils/localized';
 
 export default function DownloadsScreen() {
   const insets = useSafeAreaInsets();
@@ -427,7 +428,7 @@ export default function DownloadsScreen() {
 
                 <View style={styles.cardBody}>
                   <Text style={styles.cardTitle} numberOfLines={1}>
-                    {item.title}
+                    {getLocalizedName(item.activeTemplate || item.aiTemplate || item.template, i18n.language) || item.title}
                   </Text>
                   <Text style={styles.cardDate}>
                     {item.downloadedAt && formatDate(item.downloadedAt)

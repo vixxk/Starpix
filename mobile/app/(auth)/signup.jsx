@@ -35,7 +35,7 @@ export default function SignUpScreen() {
     }
 
     try {
-      await requestOtp(phone);
+      await requestOtp(phone, '+91', true);
       router.push({
         pathname: '/verify',
         params: { phone, name: name.trim(), isNewUser: 'true' },

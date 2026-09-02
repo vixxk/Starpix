@@ -236,7 +236,8 @@ const styles = StyleSheet.create({
   cardWrapper: {
     alignSelf: 'center',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: hp(0.01),
     minHeight: SINGLE_CARD_SNAP_HEIGHT,
     marginVertical: 0,
   },

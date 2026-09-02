@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const User = require('../models/User');
 const Creation = require('../models/Creation');
 const Purchase = require('../models/Purchase');
+const DeletionLog = require('../models/DeletionLog');
 const generateToken = require('../utils/generateToken');
 
 // @desc    Request OTP for phone number
@@ -147,6 +148,19 @@ const deleteAccount = asyncHandler(async (req, res) => {
   }
 
   // Delete user document and associated user data permanently & immediately
+  try {
+    await DeletionLog.create({
+      userId: user._id,
+      userName: user.name || 'Starpix User',
+      phoneNumber: user.phoneNumber,
+      reason: req.body.reason || 'Mobile App User Request',
+      deletedVia: 'mobile_app_api',
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || '',
+    });
+  } catch (e) {
+    console.error('Failed to create DeletionLog in API:', e);
+  }
+
   await User.deleteOne({ _id: userId });
   try {
     await Creation.deleteMany({ userId });

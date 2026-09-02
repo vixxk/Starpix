@@ -77,9 +77,6 @@ export default function VipScreen() {
               </View>
               <View style={styles.passTitleWrap}>
                 <Text style={[styles.passTitle, isSmall && styles.passTitleSmall]}>STARPIX VIP</Text>
-                <Text style={styles.passSubtitle} numberOfLines={1}>
-                  {user?.name || 'Member'} · {t('unlock_all')}
-                </Text>
               </View>
               {isVipActive && (
                 <View style={[styles.statusBadge, styles.statusActive]}>

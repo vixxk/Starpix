@@ -58,7 +58,7 @@ const getTemplates = asyncHandler(async (req, res) => {
 
   const total = await Template.countDocuments(query);
   const templates = await Template.find(query)
-    .populate('categoryId', 'name slug icon')
+    .populate('categoryId', 'name nameTranslations slug icon')
     .sort(sortOption)
     .skip(skip)
     .limit(limit);
@@ -81,7 +81,7 @@ const getTemplates = asyncHandler(async (req, res) => {
 const getTrendingTemplates = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const templates = await Template.find({ active: { $ne: false } })
-    .populate('categoryId', 'name slug icon')
+    .populate('categoryId', 'name nameTranslations slug icon')
     .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1, uses: -1, views: -1 })
     .limit(limit);
 
@@ -113,29 +113,29 @@ const getHomeFeed = asyncHandler(async (req, res) => {
 
   const [trending, goodMorning, motivation, festival, allRecent] = await Promise.all([
     Template.find({ active: { $ne: false } })
-      .populate('categoryId', 'name slug icon')
+      .populate('categoryId', 'name nameTranslations slug icon')
       .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1, uses: -1, views: -1 })
       .limit(8),
     gmCat
       ? Template.find({ active: { $ne: false }, categoryId: gmCat._id })
-          .populate('categoryId', 'name slug icon')
+          .populate('categoryId', 'name nameTranslations slug icon')
           .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1 })
           .limit(6)
       : [],
     motCat
       ? Template.find({ active: { $ne: false }, categoryId: motCat._id })
-          .populate('categoryId', 'name slug icon')
+          .populate('categoryId', 'name nameTranslations slug icon')
           .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1 })
           .limit(6)
       : [],
     festCat
       ? Template.find({ active: { $ne: false }, categoryId: festCat._id })
-          .populate('categoryId', 'name slug icon')
+          .populate('categoryId', 'name nameTranslations slug icon')
           .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1 })
           .limit(6)
       : [],
     Template.find({ active: { $ne: false } })
-      .populate('categoryId', 'name slug icon')
+      .populate('categoryId', 'name nameTranslations slug icon')
       .sort({ isPinned: -1, order: 1, sortOrder: 1, createdAt: -1 })
       .limit(12),
   ]);
@@ -161,7 +161,7 @@ const getHomeFeed = asyncHandler(async (req, res) => {
 // @access  Public
 const getTemplateById = asyncHandler(async (req, res) => {
   const template = await Template.findById(req.params.id)
-    .populate('categoryId', 'name slug icon');
+    .populate('categoryId', 'name nameTranslations slug icon');
 
   if (!template) {
     return res.status(404).json({ success: false, message: 'Template not found' });

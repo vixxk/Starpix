@@ -424,7 +424,7 @@ const adminGetTemplates = asyncHandler(async (req, res) => {
 // @route   POST /api/ai-video/admin/templates
 // @access  Private (Admin)
 const adminCreateTemplate = asyncHandler(async (req, res) => {
-  const { title, description, category, mediaType, videoUrl, thumbnailUrl, sampleSourceImageUrl, sampleResultVideoUrl, durationSeconds, creditsRequired, prompt, sortOrder, isActive } = req.body;
+  const { title, titleTranslations, description, category, mediaType, videoUrl, thumbnailUrl, sampleSourceImageUrl, sampleResultVideoUrl, durationSeconds, creditsRequired, prompt, sortOrder, isActive } = req.body;
 
   if (!title || !videoUrl) {
     return res.status(400).json({ success: false, message: 'Title and Media URL are required' });
@@ -432,6 +432,7 @@ const adminCreateTemplate = asyncHandler(async (req, res) => {
 
   const template = await AIVideoTemplate.create({
     title,
+    titleTranslations: titleTranslations || {},
     description: description || '',
     category: category || 'Trending',
     mediaType: mediaType || 'video',
@@ -462,7 +463,7 @@ const adminUpdateTemplate = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  const fields = ['title', 'description', 'category', 'mediaType', 'videoUrl', 'thumbnailUrl', 'sampleSourceImageUrl', 'sampleResultVideoUrl', 'durationSeconds', 'creditsRequired', 'prompt', 'sortOrder', 'isActive'];
+  const fields = ['title', 'titleTranslations', 'description', 'category', 'mediaType', 'videoUrl', 'thumbnailUrl', 'sampleSourceImageUrl', 'sampleResultVideoUrl', 'durationSeconds', 'creditsRequired', 'prompt', 'sortOrder', 'isActive'];
   fields.forEach((field) => {
     if (req.body[field] !== undefined) {
       template[field] = req.body[field];

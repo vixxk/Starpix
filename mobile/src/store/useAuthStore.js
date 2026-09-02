@@ -48,10 +48,10 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  requestOtp: async (phoneNumber, countryCode = '+91') => {
+  requestOtp: async (phoneNumber, countryCode = '+91', isNewUser = false) => {
     set({ isAuthenticating: true, error: null });
     try {
-      const res = await API.post('/auth/request-otp', { phoneNumber, countryCode });
+      const res = await API.post('/auth/request-otp', { phoneNumber, countryCode, isNewUser });
       set({ isAuthenticating: false });
       return res.data;
     } catch (err) {

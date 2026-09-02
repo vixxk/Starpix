@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { adminLogin, getAdminMe, adminLogout } = require('../controllers/adminAuthController');
-const { getUsers, toggleUserVip, getUserDetails, restoreUser, getSubscriptions } = require('../controllers/adminUsersController');
+const { getUsers, toggleUserVip, getUserDetails, restoreUser, getSubscriptions, getDeletionLogs, getAdminCreations } = require('../controllers/adminUsersController');
 const { getAllPurchases, getRevenueReport } = require('../controllers/adminPurchasesController');
 const { getAdminReports, updateReportStatus, deleteReport } = require('../controllers/adminReportsController');
 const { protectAdmin } = require('../middleware/adminMiddleware');
@@ -13,6 +13,8 @@ router.post('/auth/logout', protectAdmin, adminLogout);
 
 // Admin platform management routes
 router.get('/users', protectAdmin, getUsers);
+router.get('/deletion-logs', protectAdmin, getDeletionLogs);
+router.get('/creations', protectAdmin, getAdminCreations);
 router.get('/subscriptions', protectAdmin, getSubscriptions);
 router.get('/users/:id', protectAdmin, getUserDetails);
 router.put('/users/:id/toggle-vip', protectAdmin, toggleUserVip);

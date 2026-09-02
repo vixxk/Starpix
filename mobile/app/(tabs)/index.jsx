@@ -486,9 +486,9 @@ export default function HomeScreen() {
         {/* Top Header Bar with Brand & AI Video Button */}
         <View style={styles.topHeaderBar}>
           <View style={styles.brandTitleWrap}>
-            <Text style={styles.brandTitleText}>STARPIX</Text>
+            <Text style={styles.brandTitleText}>{t('brand_name')}</Text>
             <View style={styles.brandTag}>
-              <Text style={styles.brandTagText}>PRO</Text>
+              <Text style={styles.brandTagText}>{t('pro_tag')}</Text>
             </View>
           </View>
 
@@ -611,9 +611,6 @@ export default function HomeScreen() {
                     <Ionicons name="refresh" size={16} color={COLORS.white} />
                     <Text style={styles.retryText}>{t('try_again')}</Text>
                   </PressableScale>
-                  <Text style={styles.retryHint} numberOfLines={2}>
-                    API: {API.defaults.baseURL}
-                  </Text>
                 </View>
               </FadeInView>
             ) : feedItems && feedItems.length > 0 ? (
@@ -826,7 +823,7 @@ const styles = StyleSheet.create({
   },
   campaignFeedWrap: {
     width: '100%',
-    marginVertical: 12,
+    marginVertical: 0,
     alignItems: 'center',
   },
   campaignBadgeBar: {
@@ -850,7 +847,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SCREEN_PAD,
     gap: GRID_GAP,
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 0,
   },
   topHeaderBar: {
     flexDirection: 'row',

@@ -1,10 +1,13 @@
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { COLORS, FONTS } from '../constants/colors';
 import { fontScale } from '../utils/responsive';
 import { hapticImpact } from '../utils/haptics';
+import { getLocalizedName } from '../utils/localized';
 
 export default function CategoryPill({ category, isSelected, onPress, small = false }) {
+  const { i18n } = useTranslation();
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -44,7 +47,7 @@ export default function CategoryPill({ category, isSelected, onPress, small = fa
           <Text style={[styles.icon, small && styles.smallIcon]}>{category.icon || '✨'}</Text>
         </View>
         <Text style={[styles.text, small && styles.smallText, isSelected ? styles.selectedText : styles.unselectedText]}>
-          {category.name}
+          {getLocalizedName(category, i18n.language)}
         </Text>
       </Pressable>
     </Animated.View>

@@ -20,6 +20,8 @@ const LANGUAGE_STORAGE_KEY = 'starpix_user_language';
 const resources = {
   en: {
     translation: {
+      brand_name: 'STARPIX',
+      pro_tag: 'PRO',
       // Bottom Tabs
       nav_home: 'Home',
       nav_trending: 'Trending',
@@ -111,6 +113,10 @@ const resources = {
 
       // Edit Profile Screen
       edit_profile_title: 'Edit Profile',
+      discard_changes_title: 'Discard Changes?',
+      discard_changes_msg: 'You have unsaved changes. Are you sure you want to discard them?',
+      discard: 'Discard',
+      keep_editing: 'Keep Editing',
       full_name: 'Full Name',
       phone_number: 'Phone Number',
       save_changes: 'Save Changes',
@@ -232,6 +238,8 @@ const resources = {
   },
   hi: {
     translation: {
+      brand_name: 'स्टारपिक्स',
+      pro_tag: 'प्रो',
       nav_home: 'होम',
       nav_trending: 'ट्रेंडिंग',
       nav_explore: 'एक्सप्लोर',
@@ -430,6 +438,8 @@ const resources = {
   },
   mr: {
     translation: {
+      brand_name: 'स्टारपिक्स',
+      pro_tag: 'प्रो',
       nav_home: 'होम',
       nav_trending: 'ट्रेंडिंग',
       nav_explore: 'एक्सप्लोर',
@@ -648,6 +658,8 @@ const resources = {
   },
   gu: {
     translation: {
+      brand_name: 'સ્ટારપિક્સ',
+      pro_tag: 'પ્રો',
       nav_home: 'હોમ',
       nav_trending: 'ટ્રેન્ડિંગ',
       nav_explore: 'એક્સપ્લોર',
@@ -842,6 +854,8 @@ const resources = {
   },
   ta: {
     translation: {
+      brand_name: 'ஸ்டார்பிக்ஸ்',
+      pro_tag: 'ப்ரோ',
       nav_home: 'முகப்பு',
       nav_trending: 'பிரபலமானவை',
       nav_explore: 'ஆராய்க',
@@ -1040,6 +1054,8 @@ const resources = {
   },
   te: {
     translation: {
+      brand_name: 'స్టార్‌పిక్స్',
+      pro_tag: 'ప్రో',
       nav_home: 'హోమ్',
       nav_trending: 'ట్రెండింగ్',
       nav_explore: 'ఎక్స్‌ప్లోర్',
@@ -1238,6 +1254,8 @@ const resources = {
   },
   kn: {
     translation: {
+      brand_name: 'ಸ್ಟಾರ್‌ಪಿಕ್ಸ್',
+      pro_tag: 'ಪ್ರೊ',
       nav_home: 'ಹೋಮ್',
       nav_trending: 'ಟ್ರೆಂಡಿಂಗ್',
       nav_explore: 'ಎಕ್ಸ್‌ಪ್ಲೋರ್',
@@ -1436,6 +1454,8 @@ const resources = {
   },
   bn: {
     translation: {
+      brand_name: 'স্টারপিক্স',
+      pro_tag: 'প্রো',
       nav_home: 'হোম',
       nav_trending: 'ট্রেন্ডিং',
       nav_explore: 'এক্সপ্লোর',
@@ -1634,6 +1654,8 @@ const resources = {
   },
   pa: {
     translation: {
+      brand_name: 'ਸਟਾਰਪਿਕਸ',
+      pro_tag: 'ਪ੍ਰੋ',
       nav_home: 'ਹੋਮ',
       nav_trending: 'ਟਰੈਂਡਿੰਗ',
       nav_explore: 'ਐਕਸਪਲੋਰ',
@@ -1832,6 +1854,8 @@ const resources = {
   },
   ml: {
     translation: {
+      brand_name: 'സ്റ്റാർപിക്സ്',
+      pro_tag: 'പ്രോ',
       nav_home: 'ഹോം',
       nav_trending: 'ട്രെൻഡിംഗ്',
       nav_explore: 'എക്സ്പ്ലോർ',

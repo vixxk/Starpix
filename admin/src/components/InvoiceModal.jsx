@@ -174,6 +174,34 @@ function InvoiceDocumentContent({ purchase, isPrintArea = false }) {
           </tbody>
         </table>
 
+        {/* Generated AI Content Preview Block for Non-Zero Costings */}
+        {amount > 0 && (
+          <div className="mt-4 p-3 bg-paper-50 border-2 border-ink rounded-[2px] flex items-center gap-3.5">
+            <div className="w-14 aspect-[9/14] bg-ink border-2 border-ink overflow-hidden shrink-0 flex items-center justify-center">
+              <img
+                src={purchase?.finalAssetUrl || purchase?.templateId?.thumbnail || purchase?.templateId?.previewAsset || purchase?.templateId?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
+                alt="Generated AI Content"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
+                }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="inline-block px-1.5 py-0.5 bg-flame-500 text-ink font-mono text-[9px] font-bold uppercase tracking-wider border border-ink">
+                Generated AI Content Asset
+              </span>
+              <p className="font-bold text-ink text-xs truncate mt-1">
+                {templateName}
+              </p>
+              <p className="text-[10px] text-ink-mute font-mono truncate mt-0.5">
+                Licensed High-Resolution Asset · Ref: {purchase?.transactionId || '—'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Totals */}
         <div className="flex justify-end mt-5">
           <div className="w-72 space-y-2 text-sm break-inside-avoid totals-box">

@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const User = require('../models/User');
 const Purchase = require('../models/Purchase');
 const Analytics = require('../models/Analytics');
+const DeletionLog = require('../models/DeletionLog');
 
 // @desc    Get all registered users with metrics and deletion status
 // @route   GET /api/admin/users
@@ -221,10 +222,92 @@ const getSubscriptions = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get account deletion audit logs
+// @route   GET /api/admin/deletion-logs
+// @access  Private (Admin)
+const getDeletionLogs = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+  const { search } = req.query;
+
+  let query = {};
+  if (search) {
+    query.$or = [
+      { userName: { $regex: search, $options: 'i' } },
+      { phoneNumber: { $regex: search, $options: 'i' } },
+      { reason: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  const total = await DeletionLog.countDocuments(query);
+  const logs = await DeletionLog.find(query)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  res.status(200).json({
+    success: true,
+    data: logs,
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      limit,
+    },
+  });
+});
+
+// @desc    Get all user generated AI content & creations for Admin Panel
+// @route   GET /api/admin/creations
+// @access  Private (Admin)
+const getAdminCreations = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+  const { search, mediaType } = req.query;
+
+  let query = {};
+  if (mediaType && mediaType !== 'all') {
+    query.mediaType = mediaType;
+  }
+
+  if (search && search.trim() !== '') {
+    const term = search.trim();
+    query.$or = [
+      { templateTitle: { $regex: term, $options: 'i' } },
+      { format: { $regex: term, $options: 'i' } },
+    ];
+  }
+
+  const Creation = require('../models/Creation');
+  const total = await Creation.countDocuments(query);
+  const creations = await Creation.find(query)
+    .populate('userId', 'name phoneNumber profilePhoto')
+    .populate('templateId', 'name thumbnail price accessType')
+    .populate('aiTemplateId', 'title thumbnailUrl sampleResultVideoUrl')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  res.status(200).json({
+    success: true,
+    data: creations,
+    pagination: {
+      total,
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      limit,
+    },
+  });
+});
+
 module.exports = {
   getUsers,
   toggleUserVip,
   restoreUser,
   getUserDetails,
   getSubscriptions,
+  getDeletionLogs,
+  getAdminCreations,
 };

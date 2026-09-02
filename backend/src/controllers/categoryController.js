@@ -64,6 +64,7 @@ const createCategory = asyncHandler(async (req, res) => {
 
   const category = await Category.create({
     name,
+    nameTranslations: req.body.nameTranslations || {},
     slug,
     icon: icon || '✨',
     thumbnail: thumbnail || '',

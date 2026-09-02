@@ -7,6 +7,11 @@ const templateSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    nameTranslations: {
+      type: Map,
+      of: String,
+      default: {},
+    },
     description: {
       type: String,
       default: '',

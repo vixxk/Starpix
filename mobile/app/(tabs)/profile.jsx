@@ -10,6 +10,7 @@ import { fontScale, wp, hp, SCREEN_PAD, SPACING, CARD_SHADOW } from '../../src/u
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import { resolveMediaUrl } from '../../src/utils/media';
+import { uploadUserMedia } from '../../src/utils/upload';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
 import Toast from '../../src/components/Toast';
@@ -102,7 +103,7 @@ export default function ProfileScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.9,
@@ -110,9 +111,10 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
         const uri = result.assets[0].uri;
-        setDefaultUserPhotoUri(uri);
+        const uploadedUrl = await uploadUserMedia(uri, 'user-profiles');
+        setDefaultUserPhotoUri(uploadedUrl);
         if (updateUserProfile) {
-          await updateUserProfile({ profilePhoto: uri });
+          await updateUserProfile({ profilePhoto: uploadedUrl });
         }
         showToast(t('default_photo_updated'));
       }

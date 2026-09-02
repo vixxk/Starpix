@@ -21,10 +21,13 @@ import {
   FloppyDisk,
   PushPin,
   CrownSimple,
+  Globe,
 } from '@phosphor-icons/react';
+import MultilingualNameModal from '../components/MultilingualNameModal';
 
 const initialForm = (firstCategoryId) => ({
   name: '',
+  nameTranslations: {},
   description: '',
   categoryId: firstCategoryId || '',
   type: 'image',
@@ -60,6 +63,7 @@ export default function Templates() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalItems: 0, limit: 10 });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -115,6 +119,7 @@ export default function Templates() {
     setEditingTemplate(t);
     setFormData({
       name: t.name,
+      nameTranslations: t.nameTranslations || {},
       description: t.description || '',
       categoryId: t.categoryId?._id || t.categoryId,
       type: t.type || 'image',
@@ -401,15 +406,36 @@ export default function Templates() {
             <form onSubmit={handleSave} className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="field-label">Template Name</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="field-label mb-0">Template Name</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsLangModalOpen(true)}
+                      className="text-[11px] font-bold text-flame-700 hover:text-flame-800 flex items-center gap-1 bg-flame-500/15 hover:bg-flame-500/25 px-2 py-0.5 rounded-[2px] transition-colors border border-flame-500/30 cursor-pointer"
+                      title="Set localized texts for supported languages"
+                    >
+                      <Globe className="w-3.5 h-3.5" weight="bold" />
+                      Languages / Translation 🌐
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="input"
-                    placeholder="e.g. Royal Golden Status"
+                    onClick={() => setIsLangModalOpen(true)}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        name: newName,
+                      }));
+                    }}
+                    className="input cursor-pointer hover:border-flame-500"
+                    placeholder="e.g. Royal Golden Status (Click to open language popup)"
                   />
+                  <p className="text-[10px] text-ink-mute mt-1">
+                    💡 Click on the input or button above to configure localized names for English, Hindi, Marathi, etc.
+                  </p>
                 </div>
 
                 <div>
@@ -733,6 +759,21 @@ export default function Templates() {
         loading={togglingStatus}
         onConfirm={handleConfirmToggleStatus}
         onClose={() => setStatusTarget(null)}
+      />
+      {/* Multilingual Name Modal */}
+      <MultilingualNameModal
+        isOpen={isLangModalOpen}
+        onClose={() => setIsLangModalOpen(false)}
+        initialName={formData.name}
+        initialTranslations={formData.nameTranslations}
+        title="Template Name - Multilingual Settings"
+        onSave={(updatedName, updatedTranslations) => {
+          setFormData((prev) => ({
+            ...prev,
+            name: updatedName,
+            nameTranslations: updatedTranslations,
+          }));
+        }}
       />
     </div>
   );

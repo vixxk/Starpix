@@ -25,8 +25,8 @@ export default function LoginScreen() {
       return;
     }
     try {
-      await requestOtp(phone);
-      router.push({ pathname: '/verify', params: { phone } });
+      await requestOtp(phone, '+91', false);
+      router.push({ pathname: '/verify', params: { phone, isNewUser: 'false' } });
     } catch (e) {
       // Error handled in store
     }

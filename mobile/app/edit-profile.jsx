@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Image, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Image, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,11 +10,13 @@ import { useTranslation } from 'react-i18next';
 import AppBackground from '../src/components/AppBackground';
 import PressableScale from '../src/components/PressableScale';
 import Toast from '../src/components/Toast';
+import ConfirmModal from '../src/components/ConfirmModal';
 import { COLORS, FONTS, BRUTAL } from '../src/constants/colors';
 import { SCREEN_PAD, CARD_SHADOW, hp, wp } from '../src/utils/responsive';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useCreationStore } from '../src/store/useCreationStore';
 import { resolveMediaUrl } from '../src/utils/media';
+import { uploadUserMedia } from '../src/utils/upload';
 import { hapticTap } from '../src/utils/haptics';
 
 export default function EditProfileScreen() {
@@ -28,12 +30,52 @@ export default function EditProfileScreen() {
   const setDefaultUserPhotoUri = useCreationStore((s) => s.setDefaultUserPhotoUri);
   const setDefaultUserNameText = useCreationStore((s) => s.setDefaultUserNameText);
 
+  const [initialPhotoUri] = useState(defaultUserPhotoUri || user?.profilePhoto || null);
+  const [initialNameText] = useState(defaultUserNameText || user?.name || '');
+
   const [photoUri, setPhotoUri] = useState(defaultUserPhotoUri || user?.profilePhoto || null);
   const [nameText, setNameText] = useState(defaultUserNameText || user?.name || '');
   const [saving, setSaving] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
+
+  const hasUnsavedChanges = photoUri !== initialPhotoUri || nameText.trim() !== initialNameText.trim();
+
+  const handleBackPress = () => {
+    hapticTap();
+    if (hasUnsavedChanges) {
+      setShowDiscardModal(true);
+    } else {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/profile');
+      }
+    }
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardModal(false);
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/profile');
+    }
+  };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (hasUnsavedChanges) {
+        setShowDiscardModal(true);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [hasUnsavedChanges]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -50,7 +92,7 @@ export default function EditProfileScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.9,
@@ -77,16 +119,27 @@ export default function EditProfileScreen() {
     setSaving(true);
     try {
       const trimmedName = nameText.trim();
+      let uploadedPhotoUrl = photoUri;
+
+      if (
+        photoUri &&
+        (photoUri.startsWith('file://') ||
+          photoUri.startsWith('content://') ||
+          photoUri.startsWith('ph://') ||
+          photoUri.startsWith('data:image/'))
+      ) {
+        uploadedPhotoUrl = await uploadUserMedia(photoUri, 'user-profiles');
+      }
 
       // Update global creation store
-      setDefaultUserPhotoUri(photoUri);
+      setDefaultUserPhotoUri(uploadedPhotoUrl);
       setDefaultUserNameText(trimmedName);
 
       // Sync with user auth profile if logged in
       if (updateUserProfile && user) {
         await updateUserProfile({
           name: trimmedName,
-          profilePhoto: photoUri || '',
+          profilePhoto: uploadedPhotoUrl || '',
         });
       }
 
@@ -113,10 +166,7 @@ export default function EditProfileScreen() {
         {/* Header Bar */}
         <View style={styles.headerBar}>
           <PressableScale
-            onPress={() => {
-              hapticTap();
-              router.canGoBack() ? router.back() : router.replace('/(tabs)/profile');
-            }}
+            onPress={handleBackPress}
             scaleTo={0.9}
             style={styles.backBtn}
             contentStyle={styles.centerContent}
@@ -220,6 +270,18 @@ export default function EditProfileScreen() {
           </PressableScale>
         </ScrollView>
       </KeyboardAvoidingView>
+
+        <ConfirmModal
+          visible={showDiscardModal}
+          title={t('discard_changes_title')}
+          message={t('discard_changes_msg')}
+          confirmText={t('discard')}
+          cancelText={t('keep_editing')}
+          icon="alert-circle-outline"
+          iconColor={COLORS.orange}
+          onCancel={() => setShowDiscardModal(false)}
+          onConfirm={handleConfirmDiscard}
+        />
 
         <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
       </View>

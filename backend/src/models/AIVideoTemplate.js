@@ -7,6 +7,11 @@ const aiVideoTemplateSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    titleTranslations: {
+      type: Map,
+      of: String,
+      default: {},
+    },
     description: {
       type: String,
       trim: true,
