@@ -23,6 +23,9 @@ const webRoutes = require('./routes/webRoutes');
 
 const app = express();
 
+// Trust reverse proxy headers (Nginx on EC2, ALB, CloudFront)
+app.set('trust proxy', 1);
+
 // Security and middleware
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors());
@@ -33,11 +36,12 @@ app.use(morgan('dev'));
 // Serve local upload fallback
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Rate limiting
+// Rate limiting - safe behind reverse proxies
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300, // limit each IP to 300 requests per window
   message: { success: false, message: 'Too many requests, please try again later.' },
+  validate: { xForwardedForHeader: false, trustProxy: false },
 });
 app.use('/api', apiLimiter);
 
