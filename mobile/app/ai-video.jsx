@@ -16,10 +16,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo, { ResizeMode } from '../src/components/AppVideo';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -520,7 +520,7 @@ export default function AIVideoScreen() {
                         />
                       )}
                       {!isImage ? (
-                        <Video
+                        <AppVideo
                           source={{ uri: resolveMediaUrl(tmpl.videoUrl) }}
                           style={styles.cardMedia}
                           resizeMode={ResizeMode.COVER}
@@ -599,7 +599,7 @@ export default function AIVideoScreen() {
                         <Text style={styles.resultTitle}>{t('video_ready_title')}</Text>
 
                         {isResultVideo ? (
-                          <Video
+                          <AppVideo
                             source={{ uri: generatedResult.resultUrl }}
                             style={styles.videoPlayer}
                             useNativeControls

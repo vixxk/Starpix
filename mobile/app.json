@@ -29,7 +29,11 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-video",
+      "expo-audio"
     ],
     "extra": {
       "router": {},

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, Image, StyleSheet, ScrollView, Modal, Pressable } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo, { ResizeMode } from '../../src/components/AppVideo';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
@@ -545,7 +545,7 @@ export default function DownloadsScreen() {
             {/* Main Full Screen Media Area */}
             <Pressable style={styles.fullscreenContentArea} onPress={() => setPreviewItem(null)}>
               {previewItem && isVideoMedia(previewItem.image || previewItem.localUri) ? (
-                <Video
+                <AppVideo
                   source={{ uri: resolveMediaUrl(previewItem.image || previewItem.localUri) }}
                   style={styles.fullscreenMedia}
                   useNativeControls

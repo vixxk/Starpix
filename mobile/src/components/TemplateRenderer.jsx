@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo, { ResizeMode } from './AppVideo';
 import { COLORS, FONTS } from '../constants/colors';
 import { resolveMediaUrl } from '../utils/media';
 import { useCreationStore } from '../store/useCreationStore';
@@ -215,7 +215,7 @@ export default function TemplateRenderer({
               }}
             />
           ) : (
-            <Video
+            <AppVideo
               source={{ uri: bgImage }}
               style={StyleSheet.absoluteFillObject}
               resizeMode={ResizeMode.COVER}
@@ -364,7 +364,7 @@ export default function TemplateRenderer({
             }
             return (
               <View style={[overlayStyle, { overflow: 'hidden' }]} pointerEvents="none">
-                <Video
+                <AppVideo
                   source={{ uri: footerUri }}
                   style={StyleSheet.absoluteFillObject}
                   resizeMode={fit === 'cover' ? ResizeMode.COVER : ResizeMode.CONTAIN}

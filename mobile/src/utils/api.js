@@ -2,36 +2,47 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
+const formatApiUrl = (url) => {
+  if (!url) return '';
+  const cleanUrl = url.trim();
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl.replace(/\/+$/, '')}/api`;
+};
+
 const getBaseUrl = () => {
+  // Read exclusively from environment variable
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return formatApiUrl(process.env.EXPO_PUBLIC_API_URL);
+  }
+
   const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
-  if (!isDev) {
-    const envUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-      return envUrl;
+  // In development, support dynamic Expo Go host or dev URL
+  if (isDev) {
+    const hostUri =
+      (Constants.expoConfig && Constants.expoConfig.hostUri) ||
+      (Constants.expoGoConfig && Constants.expoGoConfig.debuggerHost) ||
+      (Constants.manifest && Constants.manifest.debuggerHost) ||
+      (Constants.manifest2 && Constants.manifest2.extra && Constants.manifest2.extra.expoGo && Constants.manifest2.extra.expoGo.debuggerHost);
+
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+        return `http://${ip}:5000/api`;
+      }
     }
-    return 'https://56.228.25.105.sslip.io/api';
-  }
 
-  // Local development mode: detect Expo Go host IP dynamically if available
-  const hostUri =
-    (Constants.expoConfig && Constants.expoConfig.hostUri) ||
-    (Constants.expoGoConfig && Constants.expoGoConfig.debuggerHost) ||
-    (Constants.manifest && Constants.manifest.debuggerHost) ||
-    (Constants.manifest2 && Constants.manifest2.extra && Constants.manifest2.extra.expoGo && Constants.manifest2.extra.expoGo.debuggerHost);
-
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:5000/api`;
+    if (process.env.EXPO_PUBLIC_DEV_API_URL) {
+      return formatApiUrl(process.env.EXPO_PUBLIC_DEV_API_URL);
     }
   }
 
-  return process.env.EXPO_PUBLIC_DEV_API_URL || 'http://localhost:5000/api';
+  return '';
 };
 
 const API_BASE_URL = getBaseUrl();
-console.log(`[Starpix Mobile API] Connecting to backend at: ${API_BASE_URL}`);
+if (__DEV__) {
+  console.log(`[Starpix Mobile API] Connecting to backend at: ${API_BASE_URL}`);
+}
 
 const API = axios.create({
   baseURL: API_BASE_URL,

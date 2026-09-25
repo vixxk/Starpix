@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, BackHandler } from 'react-native';
-import { useLocalSearchParams, useRouter, usePathname } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter, usePathname, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +15,7 @@ import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { resolveMediaUrl } from '../../src/utils/media';
 import { useCreationStore } from '../../src/store/useCreationStore';
-import { Audio } from 'expo-av';
+import { startAudioPlayback, stopAudioPlayback } from '../../src/utils/audioPlayer';
 
 export default function CampaignScreen() {
   const insets = useSafeAreaInsets();
@@ -87,9 +86,9 @@ export default function CampaignScreen() {
     fetchCampaign();
   }, [id]);
 
-  // Background Audio playback with 1.5s Fade-In effect when campaign opens
+  // Background Audio playback with expo-audio when campaign opens
   useEffect(() => {
-    let soundObj = null;
+    let playerInstance = null;
     let isCancelled = false;
 
     const playCampaignAudio = async () => {
@@ -100,54 +99,21 @@ export default function CampaignScreen() {
       if (!audioUri) return;
 
       try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-        });
+        if (soundRef.current) {
+          stopAudioPlayback(soundRef.current);
+          soundRef.current = null;
+        }
 
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUri },
-          { shouldPlay: true, isLooping: true, volume: 0.0 }
-        );
-
-        await sound.setIsLoopingAsync(true);
-
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.didJustFinish && !isCancelled) {
-            sound.replayAsync().catch(() => {});
-          }
-        });
-
+        const player = await startAudioPlayback(audioUri, { loop: true, volume: 1.0 });
         if (isCancelled) {
-          await sound.unloadAsync();
+          stopAudioPlayback(player);
           return;
         }
 
-        soundObj = sound;
-        soundRef.current = sound;
-
-        // Smooth volume fade-in from 0.0 to 1.0 over 1.5 seconds (1500ms)
-        let currentVol = 0.0;
-        const targetVol = 1.0;
-        const step = 0.05;
-        const intervalMs = 75;
-
-        fadeIntervalRef.current = setInterval(async () => {
-          currentVol += step;
-          if (currentVol >= targetVol) {
-            currentVol = targetVol;
-            if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-          }
-          if (soundObj) {
-            try {
-              await soundObj.setVolumeAsync(currentVol);
-            } catch (e) {
-              // Ignore teardown race conditions
-            }
-          }
-        }, intervalMs);
+        playerInstance = player;
+        soundRef.current = player;
       } catch (err) {
-        console.error('Error playing campaign background audio:', err);
+        console.warn('Error playing campaign background audio:', err);
       }
     };
 
@@ -161,8 +127,8 @@ export default function CampaignScreen() {
         clearInterval(fadeIntervalRef.current);
         fadeIntervalRef.current = null;
       }
-      if (soundObj) {
-        soundObj.unloadAsync().catch(() => {});
+      if (playerInstance) {
+        stopAudioPlayback(playerInstance);
         soundRef.current = null;
       }
     };

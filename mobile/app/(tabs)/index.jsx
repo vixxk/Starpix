@@ -15,8 +15,8 @@ import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, SCREEN_DIMENSIONS } f
 import { hapticTap } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { useCreationStore } from '../../src/store/useCreationStore';
-import { Audio } from 'expo-av';
-import { useIsFocused } from '@react-navigation/native';
+import { startAudioPlayback, stopAudioPlayback } from '../../src/utils/audioPlayer';
+import { useIsFocused } from 'expo-router';
 import { resolveMediaUrl } from '../../src/utils/media';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -337,17 +337,15 @@ export default function HomeScreen() {
   }, [feedItems, selectedCategory]);
 
   // Audio playback lifecycle effect for Home Screen campaign cards
+  // Audio playback lifecycle effect for Home Screen campaign cards
   useEffect(() => {
-    let soundObj = null;
+    let playerInstance = null;
     let isCancelled = false;
 
     const playHomeCampaignAudio = async () => {
       if (!activeCampaignMusic || !isFocused) {
         if (soundRef.current) {
-          try {
-            await soundRef.current.stopAsync();
-            await soundRef.current.unloadAsync();
-          } catch (e) {}
+          stopAudioPlayback(soundRef.current);
           soundRef.current = null;
         }
         return;
@@ -358,58 +356,20 @@ export default function HomeScreen() {
 
       try {
         if (soundRef.current) {
-          try {
-            await soundRef.current.stopAsync();
-            await soundRef.current.unloadAsync();
-          } catch (e) {}
+          stopAudioPlayback(soundRef.current);
           soundRef.current = null;
         }
 
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-        });
-
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUri },
-          { shouldPlay: true, isLooping: true, volume: 0.0 }
-        );
-
-        await sound.setIsLoopingAsync(true);
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.didJustFinish && !isCancelled) {
-            sound.replayAsync().catch(() => {});
-          }
-        });
-
+        const player = await startAudioPlayback(audioUri, { loop: true, volume: 1.0 });
         if (isCancelled) {
-          await sound.unloadAsync();
+          stopAudioPlayback(player);
           return;
         }
 
-        soundObj = sound;
-        soundRef.current = sound;
-
-        // Fade in volume smoothly over 1.5s
-        let currentVol = 0.0;
-        const targetVol = 1.0;
-        const step = 0.05;
-        const intervalMs = 75;
-
-        const fadeInterval = setInterval(async () => {
-          currentVol += step;
-          if (currentVol >= targetVol) {
-            currentVol = targetVol;
-            clearInterval(fadeInterval);
-          }
-          if (soundObj && !isCancelled) {
-            try {
-              await soundObj.setVolumeAsync(currentVol);
-            } catch (e) {}
-          }
-        }, intervalMs);
+        playerInstance = player;
+        soundRef.current = player;
       } catch (err) {
-        console.error('[HomeScreen] Error playing campaign audio:', err);
+        console.warn('[HomeScreen] Error playing campaign audio:', err);
       }
     };
 
@@ -417,9 +377,8 @@ export default function HomeScreen() {
 
     return () => {
       isCancelled = true;
-      if (soundObj) {
-        soundObj.stopAsync().catch(() => {});
-        soundObj.unloadAsync().catch(() => {});
+      if (playerInstance) {
+        stopAudioPlayback(playerInstance);
         soundRef.current = null;
       }
     };
