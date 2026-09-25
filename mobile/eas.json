@@ -12,10 +12,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://16.192.94.86.sslip.io/api",
+        "EXPO_PUBLIC_APP_SCHEME": "starpix://"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://16.192.94.86.sslip.io/api",
+        "EXPO_PUBLIC_APP_SCHEME": "starpix://"
+      }
     }
   },
   "submit": {

@@ -36,7 +36,8 @@ const getBaseUrl = () => {
     }
   }
 
-  return '';
+  // Production fallback backend URL
+  return 'https://16.192.94.86.sslip.io/api';
 };
 
 const API_BASE_URL = getBaseUrl();
