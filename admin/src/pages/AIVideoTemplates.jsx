@@ -33,10 +33,13 @@ const DEFAULT_PROMPT = 'High-quality ultra-realistic 8k AI face swap. Swap ONLY 
 const initialForm = {
   title: '',
   titleTranslations: {},
+  category: "Retro 80's",
   mediaType: 'video',
+  requiredPhotos: 1,
   videoUrl: '',
   thumbnailUrl: '',
   sampleSourceImageUrl: '',
+  sampleSourceImageUrls: [],
   sampleResultVideoUrl: '',
   durationSeconds: 10,
   creditsRequired: 0,
@@ -147,10 +150,13 @@ export default function AIVideoTemplates() {
     setFormData({
       title: t.title,
       titleTranslations: t.titleTranslations || {},
+      category: t.category || "Retro 80's",
       mediaType: t.mediaType || 'video',
+      requiredPhotos: t.requiredPhotos || 1,
       videoUrl: t.videoUrl,
       thumbnailUrl: t.thumbnailUrl || '',
       sampleSourceImageUrl: t.sampleSourceImageUrl || '',
+      sampleSourceImageUrls: t.sampleSourceImageUrls && t.sampleSourceImageUrls.length > 0 ? t.sampleSourceImageUrls : (t.sampleSourceImageUrl ? [t.sampleSourceImageUrl] : []),
       sampleResultVideoUrl: t.sampleResultVideoUrl || '',
       durationSeconds: t.durationSeconds !== undefined ? t.durationSeconds : 10,
       creditsRequired: t.creditsRequired || 0,
@@ -174,11 +180,15 @@ export default function AIVideoTemplates() {
     }
 
     try {
+      const payload = {
+        ...formData,
+        sampleSourceImageUrl: (formData.sampleSourceImageUrls && formData.sampleSourceImageUrls[0]) || formData.sampleSourceImageUrl || '',
+      };
       if (editingTemplate) {
-        await API.put(`/ai-video/admin/templates/${editingTemplate._id}`, formData);
+        await API.put(`/ai-video/admin/templates/${editingTemplate._id}`, payload);
         toast.success('AI Template updated successfully');
       } else {
-        await API.post('/ai-video/admin/templates', formData);
+        await API.post('/ai-video/admin/templates', payload);
         toast.success('New AI Template created');
       }
       setIsModalOpen(false);
@@ -365,9 +375,14 @@ export default function AIVideoTemplates() {
                         </div>
                       </td>
                       <td>
-                        <span className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase tracking-wider ${t.mediaType === 'image' ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-orange-100 text-orange-700 border border-orange-300'}`}>
-                          {t.mediaType || 'video'}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase tracking-wider inline-block w-fit ${t.mediaType === 'image' ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-orange-100 text-orange-700 border border-orange-300'}`}>
+                            {t.mediaType || 'video'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-[2px] text-[9.5px] font-semibold bg-paper-100 text-ink-soft border border-ink/15 inline-flex items-center gap-1 w-fit">
+                            {t.requiredPhotos > 1 ? `👥 ${t.requiredPhotos} Faces` : '👤 1 Face'}
+                          </span>
+                        </div>
                       </td>
                       <td className="font-mono text-xs font-bold text-flame-600">
                         {t.creditsRequired || 0} Credits
@@ -662,9 +677,55 @@ export default function AIVideoTemplates() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label mb-1">Category</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="select w-full"
+                    >
+                      <option value="Retro 80's">Retro 80's</option>
+                      <option value="Today's Special">Today's Special</option>
+                      <option value="Dance Video">Dance Video</option>
+                      <option value="Bappa in 80's">Bappa in 80's</option>
+                      <option value="Ganesh Chaturthi">Ganesh Chaturthi</option>
+                      <option value="Devotional">Devotional</option>
+                      <option value="Photography Video">Photography Video</option>
+                      <option value="Motivation">Motivation</option>
+                      <option value="Love">Love</option>
+                      <option value="Birthday">Birthday</option>
+                      <option value="Trending">Trending</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label mb-1">Required Faces / People *</label>
+                    <select
+                      value={formData.requiredPhotos}
+                      onChange={(e) => {
+                        const count = parseInt(e.target.value, 10) || 1;
+                        const curr = [...(formData.sampleSourceImageUrls || [])];
+                        while (curr.length < count) curr.push('');
+                        setFormData({
+                          ...formData,
+                          requiredPhotos: count,
+                          sampleSourceImageUrls: curr.slice(0, count),
+                        });
+                      }}
+                      className="select w-full font-semibold"
+                    >
+                      <option value={1}>👤 1 Person (Single Face)</option>
+                      <option value={2}>👥 2 People (Couple / Duo Faces)</option>
+                      <option value={3}>👥 3 People (Trio)</option>
+                      <option value={4}>👥 4 People (Group)</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <MediaUploadZone
-                    label="Main Template Video / Target Image (S3 URL) *"
+                    label={`Main Template ${formData.mediaType === 'image' ? 'Image' : 'Video'} (After Result Asset) *`}
                     value={formData.videoUrl}
                     onChange={(url) => setFormData({ ...formData, videoUrl: url })}
                     folder="ai-templates"
@@ -672,23 +733,68 @@ export default function AIVideoTemplates() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label mb-1">Sort Order</label>
-                    <input
-                      type="number"
-                      value={formData.sortOrder}
-                      onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value, 10) || 0 })}
-                      className="input w-full font-mono"
-                    />
+                {/* Multi-Person Sample Before Faces Uploads */}
+                <div className="p-3 bg-paper-100 rounded border border-ink/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
+                      {formData.requiredPhotos > 1 ? '👥 Sample Before Face Photos' : '👤 Sample Before Face Photo'}
+                    </span>
+                    <span className="text-[11px] text-ink-mute">
+                      {formData.requiredPhotos > 1 ? `Upload ${formData.requiredPhotos} sample faces` : 'Upload 1 sample face'}
+                    </span>
                   </div>
 
+                  {Array.from({ length: formData.requiredPhotos || 1 }).map((_, idx) => {
+                    const currentUrl = (formData.sampleSourceImageUrls && formData.sampleSourceImageUrls[idx]) || (idx === 0 ? formData.sampleSourceImageUrl : '');
+                    return (
+                      <MediaUploadZone
+                        key={idx}
+                        label={`Sample Before Face #${idx + 1} ${formData.requiredPhotos === 2 ? (idx === 0 ? '(e.g. Man)' : '(e.g. Woman)') : ''}`}
+                        value={currentUrl}
+                        onChange={(url) => {
+                          const updated = [...(formData.sampleSourceImageUrls || [])];
+                          while (updated.length < (formData.requiredPhotos || 1)) updated.push('');
+                          updated[idx] = url;
+                          setFormData({
+                            ...formData,
+                            sampleSourceImageUrls: updated,
+                            sampleSourceImageUrl: updated[0] || '',
+                          });
+                        }}
+                        folder="ai-sample-faces"
+                        accept="image/*"
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="label mb-1">Credits Required</label>
                     <input
                       type="number"
                       value={formData.creditsRequired}
                       onChange={(e) => setFormData({ ...formData, creditsRequired: parseInt(e.target.value, 10) || 0 })}
+                      className="input w-full font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label mb-1">Duration (Secs)</label>
+                    <input
+                      type="number"
+                      value={formData.durationSeconds}
+                      onChange={(e) => setFormData({ ...formData, durationSeconds: parseInt(e.target.value, 10) || 0 })}
+                      className="input w-full font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label mb-1">Sort Order</label>
+                    <input
+                      type="number"
+                      value={formData.sortOrder}
+                      onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value, 10) || 0 })}
                       className="input w-full font-mono"
                     />
                   </div>

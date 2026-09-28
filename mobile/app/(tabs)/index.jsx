@@ -1,866 +1,935 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Image,
+  Modal,
+  TouchableOpacity,
+  Platform,
+  Share,
+  Dimensions,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AppBackground from '../../src/components/AppBackground';
-import PressableScale from '../../src/components/PressableScale';
-import FadeInView from '../../src/components/FadeInView';
-import AppRefreshControl from '../../src/components/AppRefreshControl';
-import Toast from '../../src/components/Toast';
-import CategoryPill from '../../src/components/CategoryPill';
-import TemplateCard from '../../src/components/TemplateCard';
-import Skeleton from '../../src/components/Skeleton';
-import { COLORS, FONTS } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD, GRID_GAP, SPACING, SCREEN_DIMENSIONS } from '../../src/utils/responsive';
-import { hapticTap } from '../../src/utils/haptics';
-import API from '../../src/utils/api';
-import { useCreationStore } from '../../src/store/useCreationStore';
-import { startAudioPlayback, stopAudioPlayback } from '../../src/utils/audioPlayer';
-import { useIsFocused } from 'expo-router';
-import { resolveMediaUrl } from '../../src/utils/media';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
 
-// Module-level flag to track auto-opening per app session across component remounts
-let hasAutoOpenedCampaignSession = false;
+import PressableScale from '../../src/components/PressableScale';
+import Toast from '../../src/components/Toast';
+import ReelPersonalizationOverlay from '../../src/components/ReelPersonalizationOverlay';
+import LanguageModal from '../../src/components/LanguageModal';
+import AppVideo, { ResizeMode } from '../../src/components/AppVideo';
+import { COLORS, FONTS } from '../../src/constants/colors';
+import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
+import { hapticTap, hapticImpact } from '../../src/utils/haptics';
+import API from '../../src/utils/api';
+import { useAuthStore } from '../../src/store/useAuthStore';
+import { useCreationStore } from '../../src/store/useCreationStore';
+import { SUPPORTED_LANGUAGES } from '../../src/i18n';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const S3_BASE = 'https://starpix-media-production.s3.ap-south-1.amazonaws.com';
+
+const DEFAULT_REELS = [
+  {
+    id: 'durga_puja_1',
+    title: 'Happy Durga Puja',
+    category: 'durga_puja',
+    mediaType: 'image',
+    mediaUrl: `${S3_BASE}/reels/durga_puja_reel_bg.jpg`,
+    defaultFrame: 'durga_puja',
+  },
+  {
+    id: 'retro_80s_1',
+    title: "Retro 80's Bollywood",
+    category: 'retro_80s',
+    mediaType: 'image',
+    mediaUrl: `${S3_BASE}/reels/retro_80s.jpg`,
+    defaultFrame: 'mandala',
+  },
+  {
+    id: 'vintage_couple_1',
+    title: 'Vintage Couple Ride',
+    category: 'dance_video',
+    mediaType: 'image',
+    mediaUrl: `${S3_BASE}/reels/vintage_couple.jpg`,
+    defaultFrame: 'durga_puja',
+  },
+  {
+    id: 'good_morning_1',
+    title: 'Good Morning Sunrise',
+    category: 'good_morning',
+    mediaType: 'image',
+    mediaUrl: `${S3_BASE}/frames/sunrise_thumb.jpg`,
+    defaultFrame: 'durga_puja',
+  },
+  {
+    id: 'diwali_festive_1',
+    title: 'Diwali Festive Lights',
+    category: 'festivals',
+    mediaType: 'image',
+    mediaUrl: `${S3_BASE}/frames/diya_mandala_thumb.jpg`,
+    defaultFrame: 'durga_puja',
+  },
+];
+
+const FRAME_OPTIONS = [
+  { id: 'none', isNone: true, thumb: null },
+  { id: 'durga_puja', isNone: false, thumb: `${S3_BASE}/frames/durga_puja_thumb.jpg` },
+  { id: 'moon_lake', isNone: false, thumb: `${S3_BASE}/frames/frame_moon_lake.jpg` },
+  { id: 'moon_clouds', isNone: false, thumb: `${S3_BASE}/frames/moon_clouds_thumb.jpg` },
+  { id: 'mandala', isNone: false, thumb: `${S3_BASE}/frames/diya_mandala_thumb.jpg` },
+  { id: 'diya_temple', isNone: false, thumb: `${S3_BASE}/frames/sunrise_thumb.jpg` },
+  { id: 'couple', isNone: false, thumb: `${S3_BASE}/frames/couple_thumb.jpg` },
+];
+
+const CATEGORY_CHIPS = [
+  // Row 1
+  [
+    { id: 'special', icon: '⭐', labelKey: 'todays_special', isSpecial: true },
+    { id: 'trending', icon: '🔥', labelKey: 'trending' },
+    { id: 'durga_puja', icon: '🪷', labelKey: 'durga_puja' },
+  ],
+  // Row 2
+  [
+    { id: 'good_morning', icon: '☀️', labelKey: 'good_morning' },
+    { id: 'bhakti', icon: '🕉', labelKey: 'bhakti' },
+    { id: 'dance_video', icon: '🎵', labelKey: 'dance_video' },
+    { id: 'all', icon: '⊞', labelKey: 'all' },
+  ],
+  // Row 3
+  [
+    { id: 'retro_80s', icon: '📻', labelKey: 'retro_80s' },
+    { id: 'tomorrow', icon: '📅', labelKey: 'tomorrow' },
+    { id: 'festivals', icon: '🎉', labelKey: 'festivals' },
+    { id: 'more', icon: null, chevron: true, labelKey: 'more' },
+  ],
+];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
 
-  // Dynamic responsive viewport & template card sizing calculations
-  const topInset = Math.max(insets.top, 12);
-  const bottomInset = Math.max(insets.bottom, 12);
-  const totalChromeHeight = topInset + 38 + 93 + (64 + bottomInset);
-  const availableViewportHeight = Math.max(380, SCREEN_DIMENSIONS.height - totalChromeHeight);
-  const maxCardHeight = Math.min(wp(0.70) * (16 / 9), availableViewportHeight - 86);
-  const cardHeight = Math.max(250, maxCardHeight);
-  const cardWidth = cardHeight * (9 / 16);
-  const singleCardSnapHeight = availableViewportHeight;
+  const user = useAuthStore((s) => s.user);
+  const storeUserPhotoUri = useCreationStore((s) => s.userPhotoUri || s.defaultUserPhotoUri);
+  const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
 
-  const activeIndexRef = useRef(0);
-  const railActiveIndexRef = useRef({});
+  const displayName = user?.name || user?.fullName || storeUserNameText || 'Uika';
+  const displayPhoto = user?.profilePhoto || storeUserPhotoUri || null;
 
-  const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
-  const dragStartY = useRef(0);
-
-  const handleVerticalScrollBeginDrag = (e) => {
-    dragStartY.current = e.nativeEvent.contentOffset.y;
-  };
-
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [openingCampaign, setOpeningCampaign] = useState(null);
-  const [homeFeed, setHomeFeed] = useState({ trending: [], goodMorning: [], motivation: [], festival: [] });
-  const [search, setSearch] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [categoryTemplates, setCategoryTemplates] = useState([]);
-  const [categoryFetching, setCategoryFetching] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('special');
+  const [reels, setReels] = useState(DEFAULT_REELS);
+  const [currentReelIndex, setCurrentReelIndex] = useState(0);
+  const [selectedFrame, setSelectedFrame] = useState('durga_puja');
+  const [isPlaying, setIsPlaying] = useState(true);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
-  const setActiveTemplate = useCreationStore((state) => state.setActiveTemplate);
+
+  // Modals
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+
   const scrollRef = useRef(null);
-  const logoScale = useRef(new Animated.Value(1)).current;
-  const prevRefreshing = useRef(false);
+  const cardWidth = wp(0.92);
+  const cardHeight = hp(0.50);
 
-  const displayCategories = categories || [];
+  const activeReel = reels[currentReelIndex] || reels[0];
 
-  // Bounce the logo when a pull-to-refresh finishes (not on initial load)
+  // Fetch backend templates if available
   useEffect(() => {
-    if (prevRefreshing.current && !refreshing) {
-      logoScale.setValue(1);
-      Animated.sequence([
-        Animated.timing(logoScale, { toValue: 1.28, duration: 110, useNativeDriver: true }),
-        Animated.spring(logoScale, { toValue: 1, friction: 3.5, tension: 150, useNativeDriver: true }),
-      ]).start();
-    }
-    prevRefreshing.current = refreshing;
-  }, [refreshing, logoScale]);
-
-  const [activeCampaigns, setActiveCampaigns] = useState([]);
-  const [currentCoverBg, setCurrentCoverBg] = useState(null);
-
-  const fetchHomeData = async () => {
-    setLoadFailed(false);
-    console.log('[HomeScreen] Fetching home data from:', API.defaults.baseURL);
-    try {
-      const results = await Promise.allSettled([
-        API.get('/categories'),
-        API.get('/templates/home-feed'),
-        API.get('/campaigns/active-opening'),
-        API.get('/templates', { params: { limit: 24, sort: 'trending' } }),
-        API.get('/campaigns/active'),
-      ]);
-
-      let catData = [];
-      let feedData = { trending: [], goodMorning: [], motivation: [], festival: [] };
-      let campaignData = null;
-      let templateData = [];
-      let activeCamps = [];
-
-      if (results[0].status === 'fulfilled' && results[0].value?.data?.success) {
-        catData = results[0].value.data.data || [];
-      }
-      if (results[1].status === 'fulfilled' && results[1].value?.data?.success) {
-        feedData = results[1].value.data.data || feedData;
-      }
-      if (results[2].status === 'fulfilled' && results[2].value?.data?.success) {
-        campaignData = results[2].value.data.data || null;
-      }
-      if (results[3].status === 'fulfilled' && results[3].value?.data?.success) {
-        templateData = results[3].value.data.data || [];
-      }
-      if (results[4].status === 'fulfilled' && results[4].value?.data?.success) {
-        activeCamps = results[4].value.data.data || [];
-      }
-
-      setCategories(catData);
-      setOpeningCampaign(campaignData);
-      setAllTemplates(templateData);
-      setActiveCampaigns(activeCamps);
-
-      // Guarantee that if section rails are empty, trending gets auto-filled from templateData
-      if (
-        (!feedData.trending || feedData.trending.length === 0) &&
-        templateData.length > 0
-      ) {
-        feedData.trending = templateData.slice(0, 10);
-      }
-      setHomeFeed(feedData);
-
-      const anySuccess = results.some(
-        (r) => r.status === 'fulfilled' && r.value?.data?.success
-      );
-      setLoadFailed(!anySuccess);
-    } catch (err) {
-      console.error('[HomeScreen] Error loading home feed:', err);
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      setInitialCampaignCheck(false);
-    }
-  };
-
-  const [initialCampaignCheck, setInitialCampaignCheck] = useState(true);
-
-  useEffect(() => {
-    fetchHomeData();
-  }, []);
-
-  const [allTemplates, setAllTemplates] = useState([]);
-
-  // Automatically open single designated active campaign screen on app opening directly
-  useEffect(() => {
-    if (openingCampaign && openingCampaign._id && !hasAutoOpenedCampaignSession) {
-      hasAutoOpenedCampaignSession = true;
-      router.replace(`/campaign/${openingCampaign._id}`);
-    }
-  }, [openingCampaign]);
-
-  // Search templates when user types
-  useEffect(() => {
-    if (!search || search.trim() === '') {
-      setSearchResults([]);
-      setSearching(false);
-      return;
-    }
-
-    let cancelled = false;
-    setSearching(true);
-    API.get('/templates', { params: { search: search.trim(), sort: 'trending' } })
+    API.get('/templates', { params: { limit: 12, sort: 'trending' } })
       .then((res) => {
-        if (!cancelled && res.data && res.data.success) {
-          setSearchResults(res.data.data || []);
-        }
-      })
-      .catch((err) => console.error(err))
-      .finally(() => {
-        if (!cancelled) setSearching(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [search]);
-
-  // Filter the feed instantly when a category is selected, then complete with backend query
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!selectedCategory) {
-      setCategoryTemplates([]);
-      setCategoryFetching(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const catId = String(selectedCategory._id);
-    const catNameLower = (selectedCategory.name || '').toLowerCase();
-
-    const rawList = [
-      ...(homeFeed.trending || []),
-      ...(homeFeed.goodMorning || []),
-      ...(homeFeed.festival || []),
-      ...(homeFeed.motivation || []),
-      ...allTemplates,
-    ].filter((item, index, arr) => item && arr.findIndex((x) => x && x._id === item._id) === index);
-
-    const instant = rawList
-      .filter((t) => {
-        if (!t) return false;
-        const rawId = t.categoryId?._id || t.categoryId || t.category?._id || t.category;
-        if (rawId && String(rawId) === catId) return true;
-
-        const tName = (t.name || '').toLowerCase();
-        const tTags = Array.isArray(t.tags) ? t.tags.join(' ').toLowerCase() : '';
-        if (catNameLower && catNameLower !== 'all' && (tName.includes(catNameLower) || tTags.includes(catNameLower))) {
-          return true;
-        }
-
-        return false;
-      })
-      .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || ((a.order !== undefined ? a.order : (a.sortOrder || 0)) - (b.order !== undefined ? b.order : (b.sortOrder || 0))) || (b.trendingScore || 0) - (a.trendingScore || 0));
-
-    setCategoryTemplates(instant);
-    setCategoryFetching(true);
-
-    API.get('/templates', { params: { categoryId: selectedCategory._id, limit: 24, sort: 'trending' } })
-      .then((res) => {
-        if (!cancelled && res.data && res.data.success) {
-          const fetched = res.data.data || [];
-          if (fetched.length > 0) {
-            setCategoryTemplates(fetched);
-          }
+        if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          const apiReels = res.data.data.map((t, idx) => ({
+            id: t._id || `tmpl_${idx}`,
+            title: t.name,
+            category: t.categoryId?.name?.toLowerCase() || 'trending',
+            mediaType: t.type === 'video' ? 'video' : 'image',
+            mediaUrl: t.previewAsset || t.mainMedia || t.thumbnail || DEFAULT_REELS[0].mediaUrl,
+            defaultFrame: 'durga_puja',
+          }));
+          // Put our reference Durga Puja template at index 0 for 100% screenshot fidelity
+          setReels([DEFAULT_REELS[0], ...apiReels, ...DEFAULT_REELS.slice(1)]);
         }
       })
       .catch((err) => {
-        console.log('Category fetch notice:', err?.message);
-      })
-      .finally(() => {
-        if (!cancelled) setCategoryFetching(false);
+        console.log('Using default reels:', err?.message);
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCategory, homeFeed, allTemplates]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchHomeData();
-  };
-
-  const handleSelectCategory = (cat) => {
-    if (!cat || (selectedCategory && selectedCategory._id === cat._id)) {
-      setSelectedCategory(null);
-    } else {
-      setSelectedCategory(cat);
-    }
-    if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: true });
-  };
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setToastKey((k) => k + 1);
   };
 
-  const handleToastDone = useCallback(() => setToastMessage(null), []);
-
-  const handleTemplatePress = (template) => {
-    setActiveTemplate(template);
-    router.push({ pathname: `/template/${template._id}` });
+  const handleNextReel = () => {
+    hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+    setCurrentReelIndex((prev) => (prev + 1) % reels.length);
   };
 
-  const displayTemplates = React.useMemo(() => {
-    if (selectedCategory) return categoryTemplates;
-    const combined = [
-      ...(homeFeed.trending || []),
-      ...(homeFeed.goodMorning || []),
-      ...(homeFeed.festival || []),
-      ...(homeFeed.motivation || []),
-      ...(allTemplates || []),
-    ];
-    const seen = new Set();
-    return combined.filter((t) => {
-      if (!t || !t._id || seen.has(t._id)) return false;
-      seen.add(t._id);
-      return true;
-    });
-  }, [selectedCategory, categoryTemplates, homeFeed, allTemplates]);
-
-  // Construct interleaved feed items: After every 2 simple template cards, insert 1 campaign card section (swiped left/right).
-  const feedItems = React.useMemo(() => {
-    const templates = displayTemplates || [];
-    const campaigns = activeCampaigns || [];
-
-    const items = [];
-    let campaignIdx = 0;
-    let templateIdx = 0;
-
-    while (templateIdx < templates.length) {
-      // Insert up to 2 simple template cards (swiped down/vertical)
-      for (let i = 0; i < 2 && templateIdx < templates.length; i++) {
-        const tmpl = templates[templateIdx++];
-        items.push({ type: 'template', data: tmpl, key: `t_${tmpl._id}_${templateIdx}` });
-      }
-
-      // After 2 template cards, if active campaigns remain, insert campaign cards section (swiped left/right)
-      if (campaignIdx < campaigns.length) {
-        const c = campaigns[campaignIdx++];
-        items.push({ type: 'campaign', data: c, key: `c_${c._id}_${campaignIdx}` });
-      }
+  const handleCategoryPress = (catId) => {
+    hapticTap();
+    if (catId === 'more') {
+      router.push('/explore');
+      return;
     }
-
-    return items;
-  }, [displayTemplates, activeCampaigns]);
-
-  const isFocused = useIsFocused();
-  const [activeCampaignMusic, setActiveCampaignMusic] = useState(null);
-  const soundRef = useRef(null);
-
-  // Auto-set audio for the initial campaign card on home screen load
-  useEffect(() => {
-    if (!selectedCategory && feedItems && feedItems.length > 0 && activeIndexRef.current === 0) {
-      const firstItem = feedItems[0];
-      if (firstItem && firstItem.type === 'campaign' && firstItem.data?.music) {
-        setActiveCampaignMusic(firstItem.data.music);
-      }
-    }
-  }, [feedItems, selectedCategory]);
-
-  // Audio playback lifecycle effect for Home Screen campaign cards
-  // Audio playback lifecycle effect for Home Screen campaign cards
-  useEffect(() => {
-    let playerInstance = null;
-    let isCancelled = false;
-
-    const playHomeCampaignAudio = async () => {
-      if (!activeCampaignMusic || !isFocused) {
-        if (soundRef.current) {
-          stopAudioPlayback(soundRef.current);
-          soundRef.current = null;
-        }
-        return;
-      }
-
-      const audioUri = resolveMediaUrl(activeCampaignMusic);
-      if (!audioUri) return;
-
-      try {
-        if (soundRef.current) {
-          stopAudioPlayback(soundRef.current);
-          soundRef.current = null;
-        }
-
-        const player = await startAudioPlayback(audioUri, { loop: true, volume: 1.0 });
-        if (isCancelled) {
-          stopAudioPlayback(player);
-          return;
-        }
-
-        playerInstance = player;
-        soundRef.current = player;
-      } catch (err) {
-        console.warn('[HomeScreen] Error playing campaign audio:', err);
-      }
-    };
-
-    playHomeCampaignAudio();
-
-    return () => {
-      isCancelled = true;
-      if (playerInstance) {
-        stopAudioPlayback(playerInstance);
-        soundRef.current = null;
-      }
-    };
-  }, [activeCampaignMusic, isFocused]);
-
-  const handleVerticalScroll = (e) => {
-    const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / singleCardSnapHeight);
-    if (index !== activeIndexRef.current && index >= 0) {
-      activeIndexRef.current = index;
-      hapticTap();
-    }
-
-    // Update full screen background cover image and audio track when campaign card is visible
-    const currentItem = selectedCategory ? null : feedItems[index];
-    if (currentItem && currentItem.type === 'campaign') {
-      const bg = currentItem.data?.heroBackground || currentItem.data?.heroImage;
-      if (bg && bg !== currentCoverBg) {
-        setCurrentCoverBg(bg);
-      }
-      const music = currentItem.data?.music || null;
-      if (music !== activeCampaignMusic) {
-        setActiveCampaignMusic(music);
-      }
+    setActiveCategory(catId);
+    if (catId === 'all') {
+      // Show all
+      setCurrentReelIndex(0);
     } else {
-      if (currentCoverBg !== null) {
-        setCurrentCoverBg(null);
+      const matchIndex = reels.findIndex((r) => r.category === catId);
+      if (matchIndex >= 0) {
+        setCurrentReelIndex(matchIndex);
       }
-      if (activeCampaignMusic !== null) {
-        setActiveCampaignMusic(null);
-      }
-    }
-
-    if (offsetY > dragStartY.current + 4) {
-      if (!disableVerticalInterval) setDisableVerticalInterval(true);
-    } else if (offsetY < dragStartY.current - 4) {
-      if (disableVerticalInterval) setDisableVerticalInterval(false);
     }
   };
 
-  const renderGrid = (items) => (
-    <View style={styles.grid}>
-      {items.map((item) => (
-        <TemplateCard
-          key={item._id}
-          template={item}
-          width={cardWidth}
-          height={cardHeight}
-          wrapperMinHeight={singleCardSnapHeight}
-          onPress={() => handleTemplatePress(item)}
-        />
-      ))}
-    </View>
-  );
+  const handleTogglePlay = () => {
+    hapticTap();
+    setIsPlaying((prev) => !prev);
+  };
 
-  if (initialCampaignCheck && !hasAutoOpenedCampaignSession) {
-    return <AppBackground variant="bone" />;
-  }
+  const handleDownload = () => {
+    hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+    showToast(t('download_saved_msg') || 'Status saved successfully!');
+    // If backend template, can push or save
+    if (activeReel?.id && !activeReel.id.startsWith('durga_')) {
+      useCreationStore.getState().setSelectedFooter(selectedFrame !== 'none' ? { name: selectedFrame } : null);
+    }
+  };
+
+  const handleShare = async () => {
+    hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        message: `${activeReel?.title || 'Happy Durga Puja'} - Created on StarPix! Check out trending AI statuses.`,
+      });
+    } catch (e) {
+      console.warn('Share cancelled or failed', e);
+    }
+  };
+
+  const handleEdit = () => {
+    hapticTap();
+    router.push('/edit-profile');
+  };
+
+  const handleChangeLanguage = async (code) => {
+    hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+    await i18n.changeLanguage(code);
+    await AsyncStorage.setItem('starpix_user_language', code);
+    setShowLanguageModal(false);
+    showToast(t('language_updated'));
+  };
 
   return (
-    <AppBackground bgImage={currentCoverBg}>
+    <View style={styles.screen}>
       <StatusBar style="dark" />
-      <View style={[styles.safeArea, { paddingTop: topInset }]}>
-        {/* Top Header Bar with Brand & AI Video Button */}
-        <View style={styles.topHeaderBar}>
-          <View style={styles.brandTitleWrap}>
-            <Text style={styles.brandTitleText}>{t('brand_name')}</Text>
-            <View style={styles.brandTag}>
-              <Text style={styles.brandTagText}>{t('pro_tag')}</Text>
-            </View>
-          </View>
 
+      {/* Top Header Bar */}
+      <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 10) }]}>
+        {/* Left: Welcome & User Name */}
+        <View style={styles.userGreetingWrap}>
+          <Text style={styles.welcomeText}>{t('welcome')}</Text>
+          <Text style={styles.userNameText} numberOfLines={1}>
+            {displayName}
+          </Text>
+        </View>
+
+        {/* Right Action Icons & Buttons */}
+        <View style={styles.headerActionsWrap}>
+          {/* AI Trends Pill Button */}
           <PressableScale
             onPress={() => {
               hapticTap();
               router.push('/ai-video');
             }}
-            scaleTo={0.94}
-            haptic="impact"
-            style={styles.aiHeaderBtn}
-            contentStyle={styles.aiHeaderBtnContent}
+            scaleTo={0.93}
+            style={styles.aiTrendsBtn}
+            contentStyle={styles.aiTrendsContent}
           >
-            <Ionicons name="sparkles" size={fontScale(14)} color={COLORS.white} />
-            <Text style={styles.aiHeaderBtnText}>{t('ai_video_badge')}</Text>
+            <Ionicons name="sparkles" size={fontScale(13)} color="#E11D48" />
+            <Text style={styles.aiTrendsText}>{t('ai_trends')}</Text>
+          </PressableScale>
+
+          {/* Language Switcher Icon */}
+          <PressableScale
+            onPress={() => {
+              hapticTap();
+              setShowLanguageModal(true);
+            }}
+            scaleTo={0.9}
+            style={styles.langBtn}
+            contentStyle={styles.iconCenter}
+          >
+            <Text style={styles.langIconText}>文A</Text>
+          </PressableScale>
+
+          {/* PRO Pill Button */}
+          <PressableScale
+            onPress={() => {
+              hapticTap();
+              router.push('/vip');
+            }}
+            scaleTo={0.93}
+            style={styles.proBtn}
+            contentStyle={styles.proContent}
+          >
+            <Text style={styles.crownIcon}>👑</Text>
+            <Text style={styles.proText}>{t('pro_badge')}</Text>
+          </PressableScale>
+
+          {/* Options Menu 3 dots */}
+          <PressableScale
+            onPress={() => {
+              hapticTap();
+              setShowOptionsMenu(true);
+            }}
+            scaleTo={0.9}
+            style={styles.optionsBtn}
+            contentStyle={styles.iconCenter}
+          >
+            <Ionicons name="ellipsis-vertical" size={fontScale(18)} color="#374151" />
+          </PressableScale>
+        </View>
+      </View>
+
+      {/* Main Scrollable Content */}
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: hp(0.04) }]}
+      >
+        {/* Category / Filter Chips (3 Rows) */}
+        <View style={styles.categoryContainer}>
+          {CATEGORY_CHIPS.map((row, rowIdx) => (
+            <View key={`row_${rowIdx}`} style={styles.categoryRow}>
+              {row.map((chip) => {
+                const isSelected = activeCategory === chip.id;
+                return (
+                  <TouchableOpacity
+                    key={chip.id}
+                    activeOpacity={0.75}
+                    onPress={() => handleCategoryPress(chip.id)}
+                    style={[
+                      styles.chip,
+                      isSelected && styles.chipActive,
+                      chip.isSpecial && !isSelected && styles.chipSpecialInactive,
+                    ]}
+                  >
+                    {chip.icon ? (
+                      <Text style={styles.chipIcon}>{chip.icon}</Text>
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.chipText,
+                        isSelected && styles.chipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {t(chip.labelKey)}
+                    </Text>
+                    {chip.chevron ? (
+                      <Ionicons
+                        name="chevron-down"
+                        size={fontScale(11)}
+                        color={isSelected ? '#FFFFFF' : '#E11D48'}
+                        style={{ marginLeft: 2 }}
+                      />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+
+        {/* Main Reel Card */}
+        <View style={[styles.reelCard, { width: cardWidth, height: cardHeight }]}>
+          {/* Background Media */}
+          {activeReel.mediaType === 'video' ? (
+            <AppVideo
+              source={{ uri: activeReel.mediaUrl }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={isPlaying}
+              isLooping
+              isMuted
+            />
+          ) : (
+            <Image
+              source={{ uri: activeReel.mediaUrl }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+          )}
+
+          {/* Personalized Golden Ring + Name Ribbon + Calligraphy Title */}
+          {selectedFrame !== 'none' ? (
+            <ReelPersonalizationOverlay
+              frameId={selectedFrame}
+              userName={displayName}
+              userPhotoUri={displayPhoto}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+            />
+          ) : null}
+
+          {/* Right Circular Play/Pause Button */}
+          <PressableScale
+            onPress={handleTogglePlay}
+            scaleTo={0.92}
+            style={styles.playPauseBtn}
+            contentStyle={styles.iconCenter}
+          >
+            <Ionicons
+              name={isPlaying ? 'pause' : 'play'}
+              size={fontScale(18)}
+              color="#FFFFFF"
+            />
+          </PressableScale>
+
+          {/* Floating Next Pill Button (Bottom-Right) */}
+          <PressableScale
+            onPress={handleNextReel}
+            scaleTo={0.94}
+            style={styles.nextPillBtn}
+            contentStyle={styles.nextPillContent}
+          >
+            <Text style={styles.nextPillText}>{t('next')}</Text>
+            <Ionicons name="chevron-forward" size={fontScale(14)} color="#111827" />
           </PressableScale>
         </View>
 
-        {/* Sticky Top Categories Bar - Displaying 2 & 1/2 rows before scrolling */}
-        <View style={styles.stickyCategoriesHeader}>
-          <ScrollView
-            nestedScrollEnabled={true}
-            showsVerticalScrollIndicator={true}
-            style={styles.categoriesScrollView}
-            contentContainerStyle={styles.categoriesWrap}
+        {/* 3 Action Buttons Row: Download, Share, Edit */}
+        <View style={[styles.actionRow, { width: cardWidth }]}>
+          {/* Download Button */}
+          <PressableScale
+            onPress={handleDownload}
+            scaleTo={0.95}
+            style={styles.downloadActionBtn}
+            contentStyle={styles.actionBtnContent}
           >
-            <CategoryPill
-              small
-              category={{ _id: 'all', name: t('all_categories'), icon: '✨' }}
-              isSelected={!selectedCategory}
-              onPress={() => handleSelectCategory(null)}
-            />
-            {displayCategories.map((cat) => (
-              <CategoryPill
-                small
-                key={cat._id}
-                category={cat}
-                isSelected={Boolean(selectedCategory && selectedCategory._id === cat._id)}
-                onPress={() => handleSelectCategory(cat)}
-              />
-            ))}
+            <Ionicons name="download-outline" size={fontScale(16)} color="#FFFFFF" />
+            <Text style={styles.downloadActionText}>{t('download')}</Text>
+          </PressableScale>
+
+          {/* Share Button */}
+          <PressableScale
+            onPress={handleShare}
+            scaleTo={0.95}
+            style={styles.shareActionBtn}
+            contentStyle={styles.actionBtnContent}
+          >
+            <Ionicons name="share-outline" size={fontScale(16)} color="#FFFFFF" />
+            <Text style={styles.shareActionText}>{t('share')}</Text>
+          </PressableScale>
+
+          {/* Edit Button */}
+          <PressableScale
+            onPress={handleEdit}
+            scaleTo={0.95}
+            style={styles.editActionBtn}
+            contentStyle={styles.actionBtnContent}
+          >
+            <Ionicons name="pencil-outline" size={fontScale(15)} color="#E11D48" />
+            <Text style={styles.editActionText}>{t('edit')}</Text>
+          </PressableScale>
+        </View>
+
+        {/* Frame Selector Thumbnails Row */}
+        <View style={[styles.frameSelectorWrap, { width: cardWidth }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.frameScrollContent}
+          >
+            {FRAME_OPTIONS.map((frame) => {
+              const isSelected = selectedFrame === frame.id;
+              return (
+                <TouchableOpacity
+                  key={frame.id}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    hapticTap();
+                    setSelectedFrame(frame.id);
+                  }}
+                  style={[
+                    styles.frameBox,
+                    frame.isNone && styles.frameBoxNone,
+                    isSelected && styles.frameBoxActive,
+                  ]}
+                >
+                  {frame.isNone ? (
+                    <Ionicons name="ban-outline" size={fontScale(20)} color="#78350F" />
+                  ) : (
+                    <Image
+                      source={{ uri: frame.thumb }}
+                      style={styles.frameThumbImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          ref={scrollRef}
-          showsVerticalScrollIndicator={false}
-          snapToInterval={singleCardSnapHeight}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          disableIntervalMomentum={disableVerticalInterval}
-          onScrollBeginDrag={handleVerticalScrollBeginDrag}
-          onScroll={handleVerticalScroll}
-          scrollEventThrottle={16}
-          refreshControl={
-            <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+        {/* Bottom Scroll Indicator */}
+        <View style={styles.scrollIndicatorWrap}>
+          <Ionicons name="chevron-down" size={fontScale(15)} color="#E11D48" />
+          <Ionicons
+            name="chevron-down"
+            size={fontScale(15)}
+            color="#E11D48"
+            style={{ marginTop: -8 }}
+          />
+          <Text style={styles.scrollIndicatorText}>
+            {t('scroll_to_view_next_reel')}
+          </Text>
+        </View>
+      </ScrollView>
+
+      {/* Language Switcher Modal */}
+      <LanguageModal
+        visible={showLanguageModal}
+        onClose={() => setShowLanguageModal(false)}
+        onSelectLanguage={handleChangeLanguage}
+      />
+
+      {/* Options Menu Modal (3 dots) */}
+      <Modal
+        visible={showOptionsMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOptionsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowOptionsMenu(false)}
         >
-          <View style={{ marginTop: 0 }}>
-            {loading ? (
-              <View style={{ alignSelf: 'center', alignItems: 'center', minHeight: singleCardSnapHeight, justifyContent: 'center' }}>
-                <Skeleton height={cardHeight} width={cardWidth} borderRadius={0} />
-                <View style={{ flexDirection: 'row', width: cardWidth, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
-                  <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
-                  <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', width: cardWidth, marginTop: hp(0.008), gap: 6 }}>
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
-                  ))}
-                </View>
-              </View>
-            ) : selectedCategory ? (
-              <FadeInView delay={0} key={selectedCategory._id}>
-                {categoryTemplates.length > 0 ? (
-                  renderGrid(categoryTemplates)
-                ) : categoryFetching ? (
-                  <View style={{ alignSelf: 'center', alignItems: 'center', minHeight: singleCardSnapHeight, justifyContent: 'center' }}>
-                    <Skeleton height={cardHeight} width={cardWidth} borderRadius={0} />
-                    <View style={{ flexDirection: 'row', width: cardWidth, justifyContent: 'space-between', marginTop: hp(0.008), gap: wp(0.025) }}>
-                      <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
-                      <Skeleton height={hp(0.044)} width="48%" borderRadius={hp(0.012)} />
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', width: cardWidth, marginTop: hp(0.008), gap: 6 }}>
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <Skeleton key={i} width={hp(0.046)} height={hp(0.046)} borderRadius={6} />
-                      ))}
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.emptyFilter}>
-                    <Ionicons name="file-tray-outline" size={40} color={COLORS.borderStrong} />
-                    <Text style={styles.emptyFilterTitle}>{t('no_templates_found')}</Text>
-                    <Text style={styles.emptyFilterText}>{t('fresh_statuses_msg')}</Text>
-                  </View>
-                )}
-              </FadeInView>
-            ) : loadFailed ? (
-              <FadeInView delay={0}>
-                <View style={styles.emptyFeed}>
-                  <View style={styles.emptyFeedIcon}>
-                    <Ionicons name="cloud-offline-outline" size={34} color={COLORS.orange} />
-                  </View>
-                  <Text style={styles.emptyFeedTitle}>{t('couldnt_load_statuses')}</Text>
-                  <Text style={styles.emptyFeedText}>
-                    {t('load_failed_msg')}
-                  </Text>
-                  <PressableScale
-                    onPress={() => {
-                      setLoading(true);
-                      fetchHomeData();
-                    }}
-                    scaleTo={0.95}
-                    haptic="impact"
-                    style={styles.retryBtn}
-                    contentStyle={styles.retryContent}
-                  >
-                    <Ionicons name="refresh" size={16} color={COLORS.white} />
-                    <Text style={styles.retryText}>{t('try_again')}</Text>
-                  </PressableScale>
-                </View>
-              </FadeInView>
-            ) : feedItems && feedItems.length > 0 ? (
-              <FadeInView delay={0}>
-                <View style={styles.grid}>
-                  {feedItems.map((item) => {
-                    if (item.type === 'template') {
-                      return (
-                        <TemplateCard
-                          key={item.key}
-                          template={item.data}
-                          width={cardWidth}
-                          height={cardHeight}
-                          wrapperMinHeight={singleCardSnapHeight}
-                          onPress={() => handleTemplatePress(item.data)}
-                        />
-                      );
-                    } else if (item.type === 'campaign') {
-                      const campaign = item.data;
-                      const templates = campaign.featuredTemplates || [];
-                      if (templates.length === 0) return null;
+          <View style={styles.optionsSheet} onStartShouldSetResponder={() => true}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/settings');
+              }}
+            >
+              <Ionicons name="settings-outline" size={20} color="#374151" />
+              <Text style={styles.menuItemText}>{t('settings') || 'Settings'}</Text>
+            </TouchableOpacity>
 
-                      return (
-                        <View key={item.key} style={styles.campaignFeedWrap}>
-                          {/* Horizontal Swiping Carousel for Campaign Cards */}
-                          <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            nestedScrollEnabled={true}
-                            contentContainerStyle={[styles.campaignHorizontalContent, { paddingHorizontal: SCREEN_PAD }]}
-                            snapToInterval={cardWidth + GRID_GAP}
-                            snapToAlignment="start"
-                            decelerationRate="fast"
-                          >
-                            {templates.map((tItem) => (
-                              <TemplateCard
-                                key={`c_t_${tItem._id}`}
-                                template={tItem}
-                                width={cardWidth}
-                                height={cardHeight}
-                                wrapperMinHeight={singleCardSnapHeight}
-                                onPress={() => handleTemplatePress(tItem)}
-                              />
-                            ))}
-                          </ScrollView>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })}
-                </View>
-              </FadeInView>
-            ) : (
-              <FadeInView delay={0}>
-                <View style={styles.emptyFeed}>
-                  <View style={styles.emptyFeedIcon}>
-                    <Ionicons name="sparkles-outline" size={34} color={COLORS.orange} />
-                  </View>
-                  <Text style={styles.emptyFeedTitle}>{t('no_statuses_yet')}</Text>
-                  <Text style={styles.emptyFeedText}>{t('fresh_statuses_msg')}</Text>
-                </View>
-              </FadeInView>
-            )}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/vip');
+              }}
+            >
+              <Ionicons name="diamond-outline" size={20} color="#F59E0B" />
+              <Text style={styles.menuItemText}>{t('vip_pass_subscription') || 'VIP Pass'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/buy-credits');
+              }}
+            >
+              <Ionicons name="flash-outline" size={20} color="#E11D48" />
+              <Text style={styles.menuItemText}>{t('buy_ai_credits') || 'Buy AI Credits'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/downloads');
+              }}
+            >
+              <Ionicons name="download-outline" size={20} color="#374151" />
+              <Text style={styles.menuItemText}>{t('nav_downloads')}</Text>
+            </TouchableOpacity>
           </View>
-        </ScrollView>
+        </TouchableOpacity>
+      </Modal>
 
-        <Toast message={toastMessage} toastKey={toastKey} onDone={handleToastDone} />
-      </View>
-    </AppBackground>
+      <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  stickyCategoriesHeader: {
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingHorizontal: SCREEN_PAD,
-    zIndex: 100,
+  screen: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  categoriesScrollView: {
-    maxHeight: 81,
-  },
-  categoriesWrap: {
+  headerContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 8,
-    columnGap: 8,
-    paddingRight: 4,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SCREEN_PAD,
+    paddingBottom: hp(0.012),
+    backgroundColor: '#FFFFFF',
+  },
+  userGreetingWrap: {
+    justifyContent: 'center',
+  },
+  welcomeText: {
+    fontSize: fontScale(12),
+    fontFamily: FONTS.medium,
+    color: '#6B7280',
+    marginBottom: 1,
+  },
+  userNameText: {
+    fontSize: fontScale(21),
+    fontFamily: FONTS.bold,
+    color: '#111827',
+    letterSpacing: -0.3,
+  },
+  headerActionsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(0.02),
+  },
+  aiTrendsBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#FDA4AF',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  aiTrendsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  aiTrendsText: {
+    fontSize: fontScale(12),
+    fontFamily: FONTS.bold,
+    color: '#E11D48',
+  },
+  langBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconCenter: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  langIconText: {
+    fontSize: fontScale(15),
+    fontFamily: FONTS.bold,
+    color: '#E11D48',
+  },
+  proBtn: {
+    backgroundColor: '#FBBF24',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  proContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  crownIcon: {
+    fontSize: fontScale(12),
+  },
+  proText: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.black,
+    color: '#1F2937',
+    letterSpacing: 0.5,
+  },
+  optionsBtn: {
+    width: 28,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
-    paddingBottom: hp(0.08),
+    alignItems: 'center',
   },
-  sectionWrap: {
-    marginVertical: 0,
-  },
-  loadingWrap: {
+  categoryContainer: {
+    width: '100%',
     paddingHorizontal: SCREEN_PAD,
-    marginTop: SPACING.xxl,
+    marginVertical: hp(0.008),
+    gap: hp(0.008),
   },
-  skeletonCard: {
-    marginBottom: SPACING.lg,
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(0.018),
   },
-  horizontalList: {
-    paddingHorizontal: SCREEN_PAD,
-    gap: GRID_GAP,
-    paddingBottom: 0,
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    paddingHorizontal: wp(0.026),
+    paddingVertical: hp(0.007),
+    gap: 4,
   },
-  grid: {
-    flexDirection: 'column',
-    paddingHorizontal: SCREEN_PAD,
-    rowGap: 0,
-    marginVertical: 0,
+  chipActive: {
+    backgroundColor: '#9F1239',
+    borderColor: '#9F1239',
   },
-  emptyFilter: {
+  chipSpecialInactive: {
+    borderColor: '#FECDD3',
+  },
+  chipIcon: {
+    fontSize: fontScale(11.5),
+  },
+  chipText: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+    color: '#1F2937',
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+  },
+  reelCard: {
+    borderRadius: wp(0.045),
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#1C1917',
+    marginTop: hp(0.006),
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  playPauseBtn: {
+    position: 'absolute',
+    right: wp(0.035),
+    top: '48%',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    zIndex: 30,
+  },
+  nextPillBtn: {
+    position: 'absolute',
+    right: wp(0.035),
+    bottom: hp(0.02),
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    zIndex: 30,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  nextPillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  nextPillText: {
+    fontSize: fontScale(12),
+    fontFamily: FONTS.bold,
+    color: '#111827',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: wp(0.02),
+    marginTop: hp(0.012),
+  },
+  downloadActionBtn: {
+    flex: 1.15,
+    height: hp(0.048),
+    backgroundColor: '#EF4444',
+    borderRadius: 24,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  shareActionBtn: {
+    flex: 1.15,
+    height: hp(0.048),
+    backgroundColor: '#22C55E',
+    borderRadius: 24,
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  editActionBtn: {
+    flex: 0.95,
+    height: hp(0.048),
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 24,
+  },
+  actionBtnContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: SCREEN_PAD,
+    height: '100%',
+    gap: 6,
   },
-  emptyFilterTitle: {
-    color: COLORS.ink,
-    fontSize: fontScale(16),
+  downloadActionText: {
+    fontSize: fontScale(12.5),
     fontFamily: FONTS.bold,
-    marginTop: 14,
+    color: '#FFFFFF',
   },
-  homeSkeletonWrap: {
-    paddingHorizontal: SCREEN_PAD,
-    marginTop: 8,
+  shareActionText: {
+    fontSize: fontScale(12.5),
+    fontFamily: FONTS.bold,
+    color: '#FFFFFF',
   },
-  sectionHeaderSkeleton: {
-    marginBottom: 12,
+  editActionText: {
+    fontSize: fontScale(12.5),
+    fontFamily: FONTS.bold,
+    color: '#E11D48',
   },
-  railSkeletonRow: {
+  frameSelectorWrap: {
+    marginTop: hp(0.012),
+  },
+  frameScrollContent: {
     flexDirection: 'row',
-    gap: 12,
-    overflow: 'hidden',
+    alignItems: 'center',
+    gap: wp(0.02),
   },
-  gridSkeletonRow: {
+  frameBox: {
+    width: wp(0.125),
+    height: wp(0.125),
+    borderRadius: wp(0.025),
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  frameBoxNone: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+  frameBoxActive: {
+    borderColor: '#E11D48',
+    borderWidth: 2.2,
+  },
+  frameThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  scrollIndicatorWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: hp(0.014),
+  },
+  scrollIndicatorText: {
+    fontSize: fontScale(11),
+    fontFamily: FONTS.medium,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 36,
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  emptyFilterText: {
-    color: COLORS.inkMuted,
-    fontSize: fontScale(12.5),
-    fontFamily: FONTS.medium,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  emptyFeed: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: hp(0.09),
-    paddingHorizontal: SCREEN_PAD,
-  },
-  emptyFeedIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    backgroundColor: COLORS.orangeTint,
-    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  emptyFeedTitle: {
-    color: COLORS.ink,
-    fontSize: fontScale(17),
+  modalTitle: {
+    fontSize: fontScale(16),
     fontFamily: FONTS.bold,
-    textAlign: 'center',
+    color: '#111827',
   },
-  emptyFeedText: {
-    color: COLORS.inkMuted,
-    fontSize: fontScale(13),
-    fontFamily: FONTS.medium,
-    marginTop: 6,
-    textAlign: 'center',
-    lineHeight: fontScale(19),
-    paddingHorizontal: 20,
-  },
-  retryBtn: {
-    marginTop: 18,
-    backgroundColor: COLORS.orange,
-    borderRadius: 14,
-    paddingHorizontal: 26,
+  langOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
-    elevation: 3,
-    shadowColor: COLORS.orangeDeep,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 12,
   },
-  retryContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  langOptionItemActive: {
+    backgroundColor: '#FFF1F2',
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    borderRadius: 10,
   },
-  retryText: {
-    color: COLORS.white,
-    fontSize: fontScale(13.5),
-    fontFamily: FONTS.bold,
-  },
-  retryHint: {
-    color: COLORS.inkFaint,
-    fontSize: fontScale(9.5),
-    fontFamily: FONTS.medium,
-    textAlign: 'center',
-    marginTop: 14,
-    paddingHorizontal: 30,
-  },
-  campaignFeedWrap: {
-    width: '100%',
-    marginVertical: 0,
-    alignItems: 'center',
-  },
-  campaignBadgeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.orange,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 6,
-    marginBottom: 8,
-    alignSelf: 'center',
-  },
-  campaignBadgeText: {
-    color: COLORS.white,
-    fontSize: fontScale(10.5),
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-  },
-  campaignHorizontalContent: {
-    paddingHorizontal: SCREEN_PAD,
-    gap: GRID_GAP,
-    alignItems: 'center',
-    paddingVertical: 0,
-  },
-  topHeaderBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SCREEN_PAD,
-    paddingVertical: 6,
-  },
-  brandTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  brandTitleText: {
+  langFlag: {
     fontSize: fontScale(20),
-    fontFamily: FONTS.black,
-    color: COLORS.ink,
-    letterSpacing: 0.8,
   },
-  brandTag: {
-    backgroundColor: COLORS.orangeTint,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.orange,
+  langName: {
+    fontSize: fontScale(14),
+    fontFamily: FONTS.medium,
+    color: '#1F2937',
   },
-  brandTagText: {
-    fontSize: fontScale(9),
+  langNameActive: {
     fontFamily: FONTS.bold,
-    color: COLORS.orangeDeep,
+    color: '#E11D48',
   },
-  aiHeaderBtn: {
-    backgroundColor: COLORS.orange,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    shadowColor: COLORS.orangeDeep,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.white,
+  langNative: {
+    fontSize: fontScale(12),
+    fontFamily: FONTS.regular,
+    color: '#6B7280',
   },
-  aiHeaderBtnContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  optionsSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 36,
     gap: 6,
   },
-  aiHeaderBtnText: {
-    color: COLORS.white,
-    fontSize: fontScale(12),
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.3,
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  menuItemText: {
+    fontSize: fontScale(14.5),
+    fontFamily: FONTS.medium,
+    color: '#1F2937',
   },
 });

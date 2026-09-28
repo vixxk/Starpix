@@ -21,9 +21,19 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    email: {
+      type: String,
+      default: '',
+      trim: true,
+      lowercase: true,
+    },
     isPremium: {
       type: Boolean,
       default: false,
+    },
+    credits: {
+      type: Number,
+      default: 240,
     },
     subscriptionStatus: {
       type: String,

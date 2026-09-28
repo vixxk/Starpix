@@ -32,16 +32,21 @@ export default function EditProfileScreen() {
 
   const [initialPhotoUri] = useState(defaultUserPhotoUri || user?.profilePhoto || null);
   const [initialNameText] = useState(defaultUserNameText || user?.name || '');
+  const [initialEmailText] = useState(user?.email || '');
 
   const [photoUri, setPhotoUri] = useState(defaultUserPhotoUri || user?.profilePhoto || null);
   const [nameText, setNameText] = useState(defaultUserNameText || user?.name || '');
+  const [emailText, setEmailText] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
 
-  const hasUnsavedChanges = photoUri !== initialPhotoUri || nameText.trim() !== initialNameText.trim();
+  const hasUnsavedChanges =
+    photoUri !== initialPhotoUri ||
+    nameText.trim() !== initialNameText.trim() ||
+    emailText.trim() !== initialEmailText.trim();
 
   const handleBackPress = () => {
     hapticTap();
@@ -139,6 +144,7 @@ export default function EditProfileScreen() {
       if (updateUserProfile && user) {
         await updateUserProfile({
           name: trimmedName,
+          email: emailText.trim(),
           profilePhoto: uploadedPhotoUrl || '',
         });
       }
@@ -254,6 +260,37 @@ export default function EditProfileScreen() {
               )}
             </View>
             <Text style={styles.charCountText}>{nameText.length}/36</Text>
+          </View>
+
+          {/* Email (Optional) Input Section */}
+          <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 16 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.iconChip}>
+                <Ionicons name="mail-outline" size={18} color={COLORS.orange} />
+              </View>
+              <View>
+                <Text style={styles.sectionTitle}>{t('auth_email_optional')}</Text>
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail" size={18} color={COLORS.orange} style={{ marginRight: 10 }} />
+              <TextInput
+                value={emailText}
+                onChangeText={setEmailText}
+                placeholder={t('auth_email_placeholder')}
+                placeholderTextColor={COLORS.inkMuted}
+                style={styles.textInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {emailText.length > 0 && (
+                <PressableScale onPress={() => setEmailText('')} scaleTo={0.88}>
+                  <Ionicons name="close-circle" size={18} color={COLORS.inkMuted} />
+                </PressableScale>
+              )}
+            </View>
           </View>
 
           {/* Floating Save Button */}

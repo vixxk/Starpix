@@ -62,6 +62,11 @@ export default function ProfileScreen() {
       route: '/my-reports',
     },
     {
+      icon: 'settings-outline',
+      label: t('settings_title') || 'Settings',
+      route: '/settings',
+    },
+    {
       icon: 'language-outline',
       label: t('app_language'),
       sublabel: `${currentLangObj.flag} ${currentLangObj.nativeName}`,
@@ -179,6 +184,18 @@ export default function ProfileScreen() {
             <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          {/* Top Bar with Settings Icon */}
+          <View style={styles.topHeaderRow}>
+            <Text style={styles.screenTitle}>{t('nav_profile')}</Text>
+            <PressableScale
+              onPress={() => router.push('/settings')}
+              scaleTo={0.9}
+              style={styles.settingsHeaderBtn}
+            >
+              <Ionicons name="settings-outline" size={20} color={COLORS.ink} />
+            </PressableScale>
+          </View>
+
           {/* Profile header */}
           <PressableScale onPress={() => router.push('/edit-profile')} scaleTo={0.98} style={styles.profileCard}>
             <View style={styles.profileTop}>
@@ -311,6 +328,27 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SCREEN_PAD,
     paddingBottom: hp(0.05),
+  },
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: hp(0.012),
+  },
+  screenTitle: {
+    fontSize: fontScale(22),
+    fontFamily: FONTS.bold,
+    color: COLORS.ink,
+  },
+  settingsHeaderBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileCard: {
     backgroundColor: COLORS.surface,

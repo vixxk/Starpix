@@ -25,6 +25,7 @@ export default function ExploreScreen() {
   const { t } = useTranslation();
   const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
   const dragStartY = useRef(0);
+  const activeIndexRef = useRef(0);
 
   const handleScrollBeginDrag = (e) => {
     dragStartY.current = e.nativeEvent.contentOffset.y;

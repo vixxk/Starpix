@@ -13,9 +13,9 @@ import { useTranslation } from 'react-i18next';
 
 const TAB_KEYS = {
   index: { translationKey: 'nav_home', active: 'home', inactive: 'home-outline' },
-  downloads: { translationKey: 'nav_downloads', active: 'download', inactive: 'download-outline' },
-  trending: { translationKey: 'nav_trending', active: 'flame', inactive: 'flame-outline' },
-  profile: { translationKey: 'nav_profile', active: 'person', inactive: 'person-outline' },
+  explore: { translationKey: 'nav_search_status', active: 'search', inactive: 'search-outline' },
+  downloads: { translationKey: 'nav_downloads', active: 'time', inactive: 'time-outline' },
+  profile: { translationKey: 'nav_profile', active: 'person-circle', inactive: 'person-circle-outline' },
 };
 
 function useFocusPop(focused) {
@@ -47,42 +47,32 @@ function TabIcon({ route, focused, color }) {
   );
 }
 
-function CreateButton({ focused }) {
-  const pop = useFocusPop(focused);
-
-  return (
-    <Animated.View style={[styles.createBtn, { transform: [{ scale: pop }] }]}>
-      <Ionicons name="add" size={28} color={COLORS.white} />
-    </Animated.View>
-  );
-}
-
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
-  const bottomInset = Math.max(insets.bottom, 12);
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarActiveTintColor: COLORS.orange,
-        tabBarInactiveTintColor: COLORS.inkFaint,
+        tabBarActiveTintColor: '#E11D48',
+        tabBarInactiveTintColor: '#6B7280',
         animation: 'shift',
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#F1F5F9',
           borderTopWidth: 1,
-          height: 64 + bottomInset,
+          height: 60 + bottomInset,
           paddingTop: 6,
           paddingBottom: bottomInset,
-          elevation: 8,
-          shadowColor: '#3A2210',
-          shadowOffset: { width: 0, height: -6 },
-          shadowOpacity: 0.08,
-          shadowRadius: 14,
+          elevation: 6,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
         },
         tabBarItemStyle: styles.tabItem,
         screenListeners: {
@@ -93,11 +83,7 @@ export default function TabLayout() {
               router.push('/login');
               return;
             }
-            if (e.target && e.target.startsWith('create')) {
-              hapticImpact(Haptics.ImpactFeedbackStyle.Heavy);
-            } else {
-              hapticTap();
-            }
+            hapticTap();
           },
         },
       }}
@@ -107,24 +93,24 @@ export default function TabLayout() {
         options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="index" focused={focused} color={color} /> }}
       />
       <Tabs.Screen
+        name="explore"
+        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="explore" focused={focused} color={color} /> }}
+      />
+      <Tabs.Screen
         name="downloads"
         options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="downloads" focused={focused} color={color} /> }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{ href: null }}
+        name="profile"
+        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="profile" focused={focused} color={color} /> }}
       />
       <Tabs.Screen
         name="create"
-        options={{ tabBarIcon: ({ focused }) => <CreateButton focused={focused} /> }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="trending"
-        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="trending" focused={focused} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="profile" focused={focused} color={color} /> }}
+        options={{ href: null }}
       />
     </Tabs>
   );

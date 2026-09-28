@@ -34,12 +34,23 @@ function AuthGate({ children }) {
   useEffect(() => {
     if (isLoading) return;
 
+    const isNewUserNeedingProfile = user && (!user.name || user.name.startsWith('Starpix User') || user.isNewUser);
+    const isSignupScreen = pathname.includes('signup');
+
     if (!user && !isAuthRoute) {
       router.replace('/(auth)/login');
     } else if (user && isAuthRoute) {
+      if (isNewUserNeedingProfile && isSignupScreen) {
+        // Allow user to finish "Create Your Profile"
+        return;
+      }
+      if (isNewUserNeedingProfile) {
+        router.replace('/(auth)/signup');
+        return;
+      }
       router.replace('/(tabs)');
     }
-  }, [isLoading, isAuthRoute, user, router]);
+  }, [isLoading, isAuthRoute, user, pathname, router]);
 
   if (isLoading || (!user && !isAuthRoute)) {
     // Auth state restoring or redirecting — render blank background to avoid UI flashes
@@ -88,6 +99,9 @@ export default function RootLayout() {
           <Stack.Screen name="template/[id]" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
           <Stack.Screen name="preview/[id]" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
           <Stack.Screen name="campaign/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="buy-credits" options={{ headerShown: false }} />
+          <Stack.Screen name="vip" options={{ headerShown: false }} />
         </Stack>
       </React.Fragment>
     </AuthGate>

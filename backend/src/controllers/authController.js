@@ -18,17 +18,7 @@ const requestOtp = asyncHandler(async (req, res) => {
   const fullPhone = `${countryCode}${phoneNumber}`.replace(/\s+/g, '');
   const existingUser = await User.findOne({ phoneNumber: fullPhone });
 
-  // If user is explicitly attempting to Log In (isNewUser is false/string 'false') but no user account exists
-  if (isNewUser === false || isNewUser === 'false') {
-    if (!existingUser) {
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with this mobile number. Please sign up to create a new account.',
-      });
-    }
-  }
-
-  console.log(`[OTP] Sent OTP request to ${countryCode} ${phoneNumber}`);
+  console.log(`[OTP] Sent OTP request to ${countryCode} ${phoneNumber} (exists: ${Boolean(existingUser)})`);
 
   res.status(200).json({
     success: true,
@@ -46,7 +36,7 @@ const requestOtp = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/verify-otp
 // @access  Public
 const verifyOtp = asyncHandler(async (req, res) => {
-  const { phoneNumber, countryCode = '+91', otp, name, isNewUser } = req.body;
+  const { phoneNumber, countryCode = '+91', otp, name, email, isNewUser } = req.body;
 
   if (!phoneNumber) {
     return res.status(400).json({ success: false, message: 'Phone number is required' });
@@ -57,30 +47,26 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
   const isSigningUp = isNewUser === true || isNewUser === 'true' || Boolean(name && name.trim());
 
+  let isBrandNew = false;
   if (!user || user.isDeleted) {
-    if (!isSigningUp) {
-      // User does not exist or was deleted. Block login and instruct user to sign up.
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with this mobile number. Please sign up to create a new account.',
-      });
-    }
-
     // If user record existed as soft-deleted, remove old document before fresh creation
     if (user && user.isDeleted) {
       await User.deleteOne({ _id: user._id });
     }
 
-    // Create a brand-new user account for Sign Up
+    // Create a brand-new user account
     user = await User.create({
       phoneNumber: fullPhone,
       countryCode,
-      name: name || `Starpix User ${fullPhone.slice(-4)}`,
+      name: name && name.trim() ? name.trim() : `Starpix User ${fullPhone.slice(-4)}`,
+      email: email && email.trim() ? email.trim().toLowerCase() : '',
       lastLoginAt: new Date(),
     });
+    isBrandNew = true;
   } else {
     user.lastLoginAt = new Date();
-    if (name) user.name = name;
+    if (name && name.trim()) user.name = name.trim();
+    if (email !== undefined) user.email = email.trim().toLowerCase();
     await user.save();
   }
 
@@ -94,10 +80,12 @@ const verifyOtp = asyncHandler(async (req, res) => {
         id: user._id,
         phoneNumber: user.phoneNumber,
         name: user.name,
+        email: user.email || '',
         profilePhoto: user.profilePhoto,
         isPremium: user.isPremium,
         subscriptionStatus: user.subscriptionStatus,
         favorites: user.favorites,
+        isNewUser: isBrandNew || !user.name || user.name.startsWith('Starpix User'),
       },
       token,
     },
@@ -125,8 +113,9 @@ const updateProfile = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
 
-  if (req.body.name) user.name = req.body.name;
-  if (req.body.profilePhoto) user.profilePhoto = req.body.profilePhoto;
+  if (req.body.name !== undefined) user.name = req.body.name.trim();
+  if (req.body.email !== undefined) user.email = req.body.email.trim().toLowerCase();
+  if (req.body.profilePhoto !== undefined) user.profilePhoto = req.body.profilePhoto;
 
   await user.save();
 

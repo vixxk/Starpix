@@ -19,7 +19,6 @@ const aiVideoTemplateSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['Trending', 'Festival', 'Dance', 'Motivation', 'Funny', 'Other'],
       default: 'Trending',
       index: true,
     },
@@ -28,6 +27,12 @@ const aiVideoTemplateSchema = new mongoose.Schema(
       enum: ['video', 'image'],
       default: 'video',
       index: true,
+    },
+    requiredPhotos: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 5,
     },
     videoUrl: {
       type: String,
@@ -43,6 +48,10 @@ const aiVideoTemplateSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: '',
+    },
+    sampleSourceImageUrls: {
+      type: [String],
+      default: [],
     },
     sampleResultVideoUrl: {
       type: String,

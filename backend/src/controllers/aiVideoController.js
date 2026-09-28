@@ -9,33 +9,80 @@ const DEFAULT_AI_PROMPT = 'High-quality ultra-realistic 8k AI face swap. Swap ON
 // Seed default sample templates if database is empty (supporting both Video and Image AI templates)
 const DEFAULT_AI_TEMPLATES = [
   {
-    title: 'Festival Video Greeting',
-    description: 'Celebrate Indian festivals with personalized AI video status',
-    category: 'Festival',
+    title: 'Vintage Indian Couple Ride',
+    description: 'Swap faces into a romantic vintage Indian couple motorcycle ride in historic market',
+    category: "Retro 80's",
     mediaType: 'video',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-traditional-indian-dancer-performing-in-a-stage-41484-large.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sampleSourceImageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    sampleResultVideoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-traditional-indian-dancer-performing-in-a-stage-41484-large.mp4',
-    durationSeconds: 10,
-    creditsRequired: 0,
+    requiredPhotos: 2,
+    videoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/c4902ddb-bfbf-4801-91b8-b0e0ba17af7c.jpg',
+    thumbnailUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/c4902ddb-bfbf-4801-91b8-b0e0ba17af7c.jpg',
+    sampleSourceImageUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/1f8259ce-bdf1-4094-aa69-3b35db4b3aac.jpg',
+    sampleSourceImageUrls: [
+      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/1f8259ce-bdf1-4094-aa69-3b35db4b3aac.jpg',
+      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/8a02f588-c7e8-4e48-8fe4-9d878d881783.jpg',
+    ],
+    sampleResultVideoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/c4902ddb-bfbf-4801-91b8-b0e0ba17af7c.jpg',
+    durationSeconds: 15,
+    creditsRequired: 100,
     prompt: DEFAULT_AI_PROMPT,
     sortOrder: 1,
     isActive: true,
   },
   {
-    title: 'Royal King AI Portrait',
-    description: 'Swap your face into a high-definition Royal Maharaja photo portrait',
-    category: 'Trending',
+    title: 'Retro Six Frames',
+    description: 'Transform into a 6-frame retro 80s vintage photo grid',
+    category: "Retro 80's",
     mediaType: 'image',
-    videoUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=1000&auto=format&fit=crop&q=80',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600&auto=format&fit=crop&q=80',
-    sampleSourceImageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    sampleResultVideoUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=1000&auto=format&fit=crop&q=80',
+    requiredPhotos: 1,
+    videoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/4c03b402-0f4b-46a6-8241-c3ddc6288dbf.jpg',
+    thumbnailUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/4c03b402-0f4b-46a6-8241-c3ddc6288dbf.jpg',
+    sampleSourceImageUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
+    sampleSourceImageUrls: [
+      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
+    ],
+    sampleResultVideoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/4c03b402-0f4b-46a6-8241-c3ddc6288dbf.jpg',
     durationSeconds: 0,
-    creditsRequired: 0,
+    creditsRequired: 25,
     prompt: DEFAULT_AI_PROMPT,
     sortOrder: 2,
+    isActive: true,
+  },
+  {
+    title: '1980s Bollywood Portrait',
+    description: 'Golden hour vintage 80s Bollywood cinematic saree portrait',
+    category: "Retro 80's",
+    mediaType: 'image',
+    requiredPhotos: 1,
+    videoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/d0b84582-8bc9-428b-bef6-1ba72f1cc506.jpg',
+    thumbnailUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/d0b84582-8bc9-428b-bef6-1ba72f1cc506.jpg',
+    sampleSourceImageUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
+    sampleSourceImageUrls: [
+      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
+    ],
+    sampleResultVideoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/d0b84582-8bc9-428b-bef6-1ba72f1cc506.jpg',
+    durationSeconds: 0,
+    creditsRequired: 30,
+    prompt: DEFAULT_AI_PROMPT,
+    sortOrder: 3,
+    isActive: true,
+  },
+  {
+    title: 'Festival Video Greeting',
+    description: 'Celebrate Indian festivals with personalized AI video status',
+    category: 'Festival',
+    mediaType: 'video',
+    requiredPhotos: 1,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-traditional-indian-dancer-performing-in-a-stage-41484-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    sampleSourceImageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    sampleSourceImageUrls: [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    ],
+    sampleResultVideoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-traditional-indian-dancer-performing-in-a-stage-41484-large.mp4',
+    durationSeconds: 10,
+    creditsRequired: 20,
+    prompt: DEFAULT_AI_PROMPT,
+    sortOrder: 4,
     isActive: true,
   },
 ];
@@ -424,7 +471,7 @@ const adminGetTemplates = asyncHandler(async (req, res) => {
 // @route   POST /api/ai-video/admin/templates
 // @access  Private (Admin)
 const adminCreateTemplate = asyncHandler(async (req, res) => {
-  const { title, titleTranslations, description, category, mediaType, videoUrl, thumbnailUrl, sampleSourceImageUrl, sampleResultVideoUrl, durationSeconds, creditsRequired, prompt, sortOrder, isActive } = req.body;
+  const { title, titleTranslations, description, category, mediaType, requiredPhotos, videoUrl, thumbnailUrl, sampleSourceImageUrl, sampleSourceImageUrls, sampleResultVideoUrl, durationSeconds, creditsRequired, prompt, sortOrder, isActive } = req.body;
 
   if (!title || !videoUrl) {
     return res.status(400).json({ success: false, message: 'Title and Media URL are required' });
@@ -436,9 +483,11 @@ const adminCreateTemplate = asyncHandler(async (req, res) => {
     description: description || '',
     category: category || 'Trending',
     mediaType: mediaType || 'video',
+    requiredPhotos: Number(requiredPhotos) || 1,
     videoUrl,
     thumbnailUrl: thumbnailUrl || '',
-    sampleSourceImageUrl: sampleSourceImageUrl || '',
+    sampleSourceImageUrl: sampleSourceImageUrl || (sampleSourceImageUrls && sampleSourceImageUrls[0]) || '',
+    sampleSourceImageUrls: sampleSourceImageUrls || (sampleSourceImageUrl ? [sampleSourceImageUrl] : []),
     sampleResultVideoUrl: sampleResultVideoUrl || '',
     durationSeconds: durationSeconds !== undefined ? durationSeconds : 10,
     creditsRequired: creditsRequired !== undefined ? creditsRequired : 0,
@@ -463,7 +512,7 @@ const adminUpdateTemplate = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  const fields = ['title', 'titleTranslations', 'description', 'category', 'mediaType', 'videoUrl', 'thumbnailUrl', 'sampleSourceImageUrl', 'sampleResultVideoUrl', 'durationSeconds', 'creditsRequired', 'prompt', 'sortOrder', 'isActive'];
+  const fields = ['title', 'titleTranslations', 'description', 'category', 'mediaType', 'requiredPhotos', 'videoUrl', 'thumbnailUrl', 'sampleSourceImageUrl', 'sampleSourceImageUrls', 'sampleResultVideoUrl', 'durationSeconds', 'creditsRequired', 'prompt', 'sortOrder', 'isActive'];
   fields.forEach((field) => {
     if (req.body[field] !== undefined) {
       template[field] = req.body[field];

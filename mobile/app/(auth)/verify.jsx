@@ -1,275 +1,462 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  ScrollView,
+  Linking,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AppBackground from '../../src/components/AppBackground';
-import AppButton from '../../src/components/AppButton';
-import BrutalCard from '../../src/components/BrutalCard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+
+import AuthHeader from '../../src/components/AuthHeader';
 import ConfirmModal from '../../src/components/ConfirmModal';
-import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
+import { COLORS, FONTS } from '../../src/constants/colors';
+import { fontScale, wp, hp } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { useTranslation } from 'react-i18next';
+import { hapticTap } from '../../src/utils/haptics';
 
 export default function VerifyScreen() {
-  const { phone, name, isNewUser } = useLocalSearchParams();
-  const [otp, setOtp] = useState('123456');
-  const [alertMessage, setAlertMessage] = useState(null);
-  const { verifyOtp, isAuthenticating, error } = useAuthStore();
+  const { phone = '9876543210', countryCode = '+91', name = '', isNewUser = 'false' } = useLocalSearchParams();
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const handleVerify = async () => {
-    if (otp.length < 6) {
-      setAlertMessage('Please enter the 6-digit OTP code');
+  // 6 separate digits
+  const [digits, setDigits] = useState(['', '', '', '', '', '']);
+  const inputRefs = useRef([]);
+
+  const [alertMessage, setAlertMessage] = useState(null);
+  const [resendTimer, setResendTimer] = useState(24);
+  const [canResend, setCanResend] = useState(false);
+
+  const { verifyOtp, requestOtp, isAuthenticating, error } = useAuthStore();
+
+  // Timer countdown
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    } else {
+      setCanResend(true);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [resendTimer]);
+
+  // Mask phone number: e.g. +91 98XXXXXX21
+  const maskedPhone = React.useMemo(() => {
+    const raw = String(phone || '').replace(/[^0-9]/g, '');
+    if (raw.length >= 10) {
+      const start = raw.slice(0, 2);
+      const end = raw.slice(-2);
+      return `${countryCode} ${start}XXXXXX${end}`;
+    }
+    return `${countryCode} ${raw}`;
+  }, [phone, countryCode]);
+
+  const handleDigitChange = (val, index) => {
+    // If user pasted a multi-digit string
+    const cleaned = val.replace(/[^0-9]/g, '');
+    if (cleaned.length > 1) {
+      const newDigits = [...digits];
+      for (let i = 0; i < 6; i++) {
+        newDigits[i] = cleaned[i] || '';
+      }
+      setDigits(newDigits);
+      const nextFocus = Math.min(cleaned.length, 5);
+      inputRefs.current[nextFocus]?.focus();
       return;
     }
+
+    const newDigits = [...digits];
+    newDigits[index] = cleaned;
+    setDigits(newDigits);
+
+    if (cleaned && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyPress = (e, index) => {
+    if (e.nativeEvent.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleResend = async () => {
+    if (!canResend) return;
+    hapticTap();
     try {
-      await verifyOtp(phone, '+91', otp, name, isNewUser);
-      router.replace('/(tabs)');
+      await requestOtp(phone, countryCode);
+      setResendTimer(24);
+      setCanResend(false);
+    } catch (err) {
+      // Handled in store
+    }
+  };
+
+  const handleVerify = async () => {
+    hapticTap();
+    const otpCode = digits.join('');
+    if (otpCode.length < 6) {
+      setAlertMessage(t('auth_invalid_otp'));
+      return;
+    }
+
+    try {
+      const user = await verifyOtp(phone, countryCode, otpCode, name, isNewUser);
+      // If user has not completed profile setup yet, navigate to Create Profile
+      const needsProfile = !user?.name || user?.name.startsWith('Starpix User') || user?.isNewUser;
+      if (needsProfile) {
+        router.replace({
+          pathname: '/signup',
+          params: { phone, countryCode },
+        });
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (e) {
       // Error handled in store
     }
   };
 
+  const openLink = (url) => {
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const formattedTimer = `00:${resendTimer < 10 ? `0${resendTimer}` : resendTimer}`;
+
   return (
-    <AppBackground variant="bone">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        {/* Watermark */}
-        <Text style={styles.watermark} numberOfLines={1}>
-          STARPIX
-        </Text>
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-        <BrutalCard offset={wp(0.018)}>
-          {/* Ink slab header strip */}
-          <View style={styles.cardHeader}>
-            <View style={styles.flameCorner} pointerEvents="none" />
-            <View style={styles.iconBadge}>
-              <Ionicons name="phone-portrait-outline" size={22} color={BRUTAL.ink} />
-            </View>
-            <Text style={styles.cardHeaderText} numberOfLines={1}>
-              Verify Phone
-            </Text>
-            <View style={styles.phoneStamp}>
-              <Text style={styles.phoneStampText} numberOfLines={1}>
-                +91 {phone}
-              </Text>
-            </View>
-          </View>
+      {/* Top Red Fluid Gradient Header with Back Arrow */}
+      <AuthHeader showBack={true} onBack={() => router.back()} />
 
-          <View style={styles.cardBody}>
-            <Text style={styles.cardTitle}>ENTER THE CODE</Text>
-            <Text style={styles.cardSubtitle}>
-              We sent a 6-digit code to your number. Type it below to unlock your account.
-            </Text>
+      {/* White Bottom Sheet Card */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, hp(0.025)) + hp(0.02) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.card}>
+            {/* Title & Subtitle */}
+            <Text style={styles.title}>{t('auth_verify_title')}</Text>
+            <Text style={styles.subtitle}>{t('auth_verify_subtitle')}</Text>
+            <Text style={styles.phoneText}>{maskedPhone}</Text>
 
+            {/* Error Banner */}
             {error && (
               <View style={styles.errorBox}>
-                <Ionicons name="alert-circle-outline" size={16} color={BRUTAL.error} />
+                <Ionicons name="alert-circle" size={fontScale(16)} color="#EF4444" />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>6-Digit OTP</Text>
-              <TextInput
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-                maxLength={6}
-                placeholder="••••••"
-                placeholderTextColor={BRUTAL.inkFaint}
-                style={styles.otpInput}
-              />
+            {/* 6 OTP Digit Boxes */}
+            <View style={styles.otpBoxesRow}>
+              {digits.map((digit, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.digitBox,
+                    digit ? styles.digitBoxFilled : null,
+                  ]}
+                >
+                  <TextInput
+                    ref={(el) => (inputRefs.current[idx] = el)}
+                    value={digit}
+                    onChangeText={(val) => handleDigitChange(val, idx)}
+                    onKeyPress={(e) => handleKeyPress(e, idx)}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    selectTextOnFocus
+                    style={styles.digitInput}
+                  />
+                </View>
+              ))}
             </View>
 
-            <View style={styles.devNote}>
-              <Ionicons name="flash" size={12} color={BRUTAL.flame} />
-              <Text style={styles.devNoteText}>DEV MODE · ANY 6-DIGIT CODE WORKS (E.G. 123456)</Text>
+            {/* Resend OTP Row */}
+            <View style={styles.resendRow}>
+              <Text style={styles.resendPromptText}>{t('auth_didnt_receive')}</Text>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResend} activeOpacity={0.7}>
+                  <Text style={styles.resendActiveLink}>{t('auth_resend_otp')}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.resendCooldownText}>
+                  <Text style={styles.resendUnderline}>{t('auth_resend_otp')}</Text>
+                  <Text style={styles.timerColor}> in {formattedTimer}</Text>
+                </Text>
+              )}
             </View>
 
-            <AppButton
-              title={isAuthenticating ? 'Verifying…' : 'Verify & Continue'}
+            {/* Change Mobile Number Link */}
+            <TouchableOpacity
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+              style={styles.changePhoneWrap}
+            >
+              <Text style={styles.changePhoneText}>{t('auth_change_mobile')}</Text>
+            </TouchableOpacity>
+
+            {/* Verify & Continue Button */}
+            <TouchableOpacity
               onPress={handleVerify}
-              loading={isAuthenticating}
-              variant="brutal"
-              style={{ marginTop: hp(0.02) }}
-            />
-          </View>
-        </BrutalCard>
+              activeOpacity={0.88}
+              disabled={isAuthenticating}
+              style={[styles.primaryButton, isAuthenticating && styles.buttonDisabled]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {isAuthenticating ? '...' : t('auth_verify_continue')}
+              </Text>
+            </TouchableOpacity>
 
-        <Text style={styles.footerStamp}>© STARPIX · SECURE OTP VERIFICATION</Text>
+            {/* Security Note */}
+            <View style={styles.securityRow}>
+              <Ionicons name="lock-closed" size={fontScale(14)} color="#6B7280" />
+              <Text style={styles.securityText}>{t('auth_verify_secure_note')}</Text>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Terms of Service & Privacy Policy Footer */}
+            <View style={styles.termsFooter}>
+              <Text style={styles.termsText}>
+                {t('auth_terms_prefix')}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => openLink('https://starpix.co/terms')}
+                >
+                  {t('auth_terms_of_service')}
+                </Text>
+                {t('auth_and')}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => openLink('https://starpix.co/privacy')}
+                >
+                  {t('auth_privacy_policy')}
+                </Text>
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Themed Validation Alert */}
+      {/* Validation Alert Modal */}
       <ConfirmModal
         visible={alertMessage !== null}
-        title="Invalid Input"
+        title={t('invalid_input')}
         message={alertMessage}
-        confirmText="OK"
+        confirmText={t('got_it')}
         icon="alert-circle-outline"
         iconColor={COLORS.orange}
         hideCancel
         onCancel={() => setAlertMessage(null)}
         onConfirm={() => setAlertMessage(null)}
       />
-    </AppBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: SCREEN_PAD,
-    paddingVertical: hp(0.02),
+    backgroundColor: '#EE1D24',
   },
-  watermark: {
-    position: 'absolute',
-    bottom: -hp(0.01),
-    left: -wp(0.02),
-    fontSize: fontScale(110),
-    fontFamily: FONTS.display,
-    color: 'rgba(23, 18, 12, 0.05)',
-    letterSpacing: -2,
-    zIndex: 0,
-  },
-  cardHeader: {
-    backgroundColor: BRUTAL.ink,
-    paddingHorizontal: wp(0.05),
-    paddingVertical: hp(0.016),
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  flameCorner: {
-    position: 'absolute',
-    right: -22,
-    top: -22,
-    width: 64,
-    height: 64,
-    backgroundColor: BRUTAL.flame,
-  },
-  iconBadge: {
-    width: 40,
-    height: 40,
-    backgroundColor: BRUTAL.flame,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    borderRadius: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    zIndex: 1,
-  },
-  cardHeaderText: {
-    color: BRUTAL.paper,
-    fontSize: fontScale(17),
-    fontFamily: FONTS.display,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+  keyboardAvoid: {
     flex: 1,
   },
-  phoneStamp: {
-    backgroundColor: BRUTAL.paper,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    borderRadius: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    zIndex: 1,
-    flexShrink: 0,
-    maxWidth: '42%',
+  scrollContent: {
+    flexGrow: 1,
   },
-  phoneStampText: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(10.5),
+  card: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: wp(0.08),
+    borderTopRightRadius: wp(0.08),
+    marginTop: -hp(0.04),
+    paddingHorizontal: wp(0.065),
+    paddingTop: hp(0.038),
+  },
+  title: {
+    fontSize: fontScale(24),
     fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
+    color: '#111827',
+    letterSpacing: -0.4,
   },
-  cardBody: {
-    padding: wp(0.05),
-  },
-  cardTitle: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(20),
-    fontFamily: FONTS.display,
-    letterSpacing: 0.5,
-  },
-  cardSubtitle: {
-    color: BRUTAL.inkMute,
-    fontSize: fontScale(12),
+  subtitle: {
+    fontSize: fontScale(13.5),
     fontFamily: FONTS.medium,
-    lineHeight: 19,
-    marginTop: 4,
-    marginBottom: hp(0.024),
+    color: '#9CA3AF',
+    marginTop: hp(0.006),
+  },
+  phoneText: {
+    fontSize: fontScale(14),
+    fontFamily: FONTS.bold,
+    color: '#374151',
+    marginTop: hp(0.004),
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FDECEC',
-    borderWidth: 2,
-    borderColor: BRUTAL.error,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: hp(0.016),
+    gap: wp(0.02),
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    paddingHorizontal: wp(0.035),
+    paddingVertical: hp(0.012),
+    marginTop: hp(0.018),
   },
   errorText: {
-    color: BRUTAL.error,
+    color: '#DC2626',
     fontSize: fontScale(12),
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.medium,
     flex: 1,
   },
-  inputGroup: {
-    marginBottom: 10,
+  otpBoxesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: hp(0.032),
   },
-  inputLabel: {
-    color: BRUTAL.inkSoft,
-    fontSize: fontScale(10.5),
-    fontFamily: FONTS.semibold,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1.6,
+  digitBox: {
+    width: wp(0.122),
+    height: wp(0.138),
+    borderRadius: 12,
+    borderWidth: 1.2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  otpInput: {
-    backgroundColor: BRUTAL.bone,
-    borderWidth: 2,
-    borderColor: BRUTAL.flame,
-    borderRadius: 2,
-    height: 58,
-    color: BRUTAL.ink,
-    fontSize: fontScale(22),
-    fontFamily: FONTS.bold,
+  digitBoxFilled: {
+    borderColor: '#D1D5DB',
+  },
+  digitInput: {
+    width: '100%',
+    height: '100%',
     textAlign: 'center',
-    letterSpacing: 10,
+    fontSize: fontScale(20),
+    fontFamily: FONTS.bold,
+    color: '#111827',
   },
-  devNote: {
+  resendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: BRUTAL.paperAlt,
-    borderWidth: 2,
-    borderColor: 'rgba(23, 18, 12, 0.25)',
-    borderRadius: 2,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    marginVertical: hp(0.014),
+    marginTop: hp(0.028),
   },
-  devNoteText: {
-    color: BRUTAL.inkMute,
-    fontSize: fontScale(9),
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
+  resendPromptText: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+    color: '#6B7280',
   },
-  footerStamp: {
-    color: 'rgba(23, 18, 12, 0.35)',
-    fontSize: fontScale(8.5),
+  resendActiveLink: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.semibold,
+    color: '#EE1D24',
+    textDecorationLine: 'underline',
+  },
+  resendCooldownText: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+  },
+  resendUnderline: {
+    color: '#EE1D24',
+    fontFamily: FONTS.semibold,
+    textDecorationLine: 'underline',
+  },
+  timerColor: {
+    color: '#6B7280',
+    fontFamily: FONTS.medium,
+  },
+  changePhoneWrap: {
+    alignSelf: 'center',
+    marginTop: hp(0.012),
+  },
+  changePhoneText: {
+    fontSize: fontScale(12),
+    fontFamily: FONTS.semibold,
+    color: '#EE1D24',
+    textDecorationLine: 'underline',
+  },
+  primaryButton: {
+    backgroundColor: '#EE1D24',
+    height: hp(0.062),
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: hp(0.03),
+    shadowColor: '#EE1D24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: fontScale(15),
     fontFamily: FONTS.bold,
-    letterSpacing: 2,
+    letterSpacing: 0.2,
+  },
+  securityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: wp(0.02),
+    marginTop: hp(0.02),
+  },
+  securityText: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+    color: '#6B7280',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginTop: hp(0.035),
+    marginBottom: hp(0.015),
+  },
+  termsFooter: {
+    alignItems: 'center',
+    paddingHorizontal: wp(0.04),
+  },
+  termsText: {
+    fontSize: fontScale(10.5),
+    fontFamily: FONTS.medium,
+    color: '#6B7280',
     textAlign: 'center',
-    marginTop: hp(0.024),
-    zIndex: 1,
+    lineHeight: fontScale(16),
+  },
+  termsLink: {
+    color: '#EE1D24',
+    fontFamily: FONTS.semibold,
+    textDecorationLine: 'underline',
   },
 });

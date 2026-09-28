@@ -1,416 +1,286 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AppBackground from '../../src/components/AppBackground';
-import AppButton from '../../src/components/AppButton';
-import BrutalCard from '../../src/components/BrutalCard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+
+import AuthHeader from '../../src/components/AuthHeader';
 import ConfirmModal from '../../src/components/ConfirmModal';
-import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
-import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
+import { COLORS, FONTS } from '../../src/constants/colors';
+import { fontScale, wp, hp } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { useCreationStore } from '../../src/store/useCreationStore';
+import { useTranslation } from 'react-i18next';
+import { hapticTap } from '../../src/utils/haptics';
 
-export default function SignUpScreen() {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-
-  const [agreedToTerms, setAgreedToTerms] = useState(true);
-  const [focusedInput, setFocusedInput] = useState(null);
-  const [alertMessage, setAlertMessage] = useState(null);
-  const { requestOtp, isAuthenticating, error } = useAuthStore();
+export default function CreateProfileScreen() {
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const handleSignUp = async () => {
-    if (!name.trim()) {
-      setAlertMessage('Please enter your full name');
-      return;
-    }
-    if (phone.length < 10) {
-      setAlertMessage('Please enter a valid 10-digit mobile number');
-      return;
-    }
-    if (!agreedToTerms) {
-      setAlertMessage('Please agree to the Terms & Privacy Policy to continue');
+  const user = useAuthStore((state) => state.user);
+  const updateUserProfile = useAuthStore((state) => state.updateUserProfile);
+  const setDefaultUserNameText = useCreationStore((state) => state.setDefaultUserNameText);
+
+  const initialName = user?.name && !user.name.startsWith('Starpix User') ? user.name : '';
+  const initialEmail = user?.email || '';
+
+  const [name, setName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
+  const [focusedInput, setFocusedInput] = useState(null);
+  const [alertMessage, setAlertMessage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleContinue = async () => {
+    hapticTap();
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName) {
+      setAlertMessage(t('auth_invalid_name'));
       return;
     }
 
+    // Optional email validation: only validate format if user entered an email
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        setAlertMessage(t('auth_invalid_email'));
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
     try {
-      await requestOtp(phone, '+91', true);
-      router.push({
-        pathname: '/verify',
-        params: { phone, name: name.trim(), isNewUser: 'true' },
-      });
+      if (updateUserProfile) {
+        await updateUserProfile({
+          name: trimmedName,
+          email: trimmedEmail,
+        });
+      }
+      if (setDefaultUserNameText) {
+        setDefaultUserNameText(trimmedName);
+      }
+      router.replace('/(tabs)');
     } catch (e) {
-      // Error handled in store
+      console.error('Error saving profile:', e);
+      router.replace('/(tabs)');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const inputStyle = (key) => [
-    styles.textInput,
-    focusedInput === key && { borderColor: BRUTAL.flame, borderLeftWidth: 3 },
-  ];
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/login');
+    }
+  };
 
   return (
-    <AppBackground variant="bone">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        {/* Watermark background */}
-        <Text style={styles.watermark} numberOfLines={1}>
-          STARPIX
-        </Text>
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-        <View style={styles.header}>
-          <View style={styles.logoWrap}>
-            <View style={styles.logoPlate} pointerEvents="none" />
-            <View style={styles.logoBadge}>
-              <Image source={require('../../assets/icon.png')} style={styles.logoImage} resizeMode="cover" />
-            </View>
-          </View>
-          <Text style={styles.brandTitle}>STARPIX</Text>
-        </View>
+      {/* Top Red Fluid Gradient Header with Back Arrow */}
+      <AuthHeader showBack={true} onBack={handleBack} />
 
-        <BrutalCard offset={wp(0.018)}>
-          {/* Ink slab header strip */}
-          <View style={styles.cardHeader}>
-            <View style={styles.flameCorner} pointerEvents="none" />
-            <Text style={styles.cardHeaderText}>Create Account</Text>
-            <View style={styles.badgeWrap}>
-              <Text style={styles.badgeText}>SIGN UP</Text>
-            </View>
-          </View>
+      {/* White Bottom Sheet Card */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoid}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, hp(0.025)) + hp(0.02) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.card}>
+            {/* Title & Subtitle */}
+            <Text style={styles.title}>{t('auth_create_profile_title')}</Text>
+            <Text style={styles.subtitle}>{t('auth_create_profile_subtitle')}</Text>
 
-          <View style={styles.cardBody}>
-            <Text style={styles.cardSubtitle}>
-              Join Starpix to build custom status cards and video reels with your photo.
-            </Text>
+            {/* Full Name Input */}
+            <Text style={styles.inputLabel}>{t('full_name')}</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              onFocus={() => setFocusedInput('name')}
+              onBlur={() => setFocusedInput(null)}
+              placeholder={t('enter_name_placeholder')}
+              placeholderTextColor="#9CA3AF"
+              style={[styles.textInput, focusedInput === 'name' && styles.textInputFocused]}
+            />
 
-            {error && (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle-outline" size={16} color={BRUTAL.error} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
+            {/* Email (Optional) Input */}
+            <Text style={styles.inputLabel}>{t('auth_email_optional')}</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              onFocus={() => setFocusedInput('email')}
+              onBlur={() => setFocusedInput(null)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={t('auth_email_placeholder')}
+              placeholderTextColor="#9CA3AF"
+              style={[styles.textInput, focusedInput === 'email' && styles.textInputFocused]}
+            />
 
-            {/* Full Name Field */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Full Name *</Text>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                onFocus={() => setFocusedInput('name')}
-                onBlur={() => setFocusedInput(null)}
-                placeholder="e.g. Rajesh Kumar"
-                placeholderTextColor={BRUTAL.inkFaint}
-                style={inputStyle('name')}
-              />
-            </View>
-
-            {/* Mobile Number Field */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Mobile Number *</Text>
-              <View style={styles.phoneInputContainer}>
-                <View style={styles.countryCode}>
-                  <Text style={styles.countryCodeText}>+91</Text>
-                </View>
-                <TextInput
-                  value={phone}
-                  onChangeText={setPhone}
-                  onFocus={() => setFocusedInput('phone')}
-                  onBlur={() => setFocusedInput(null)}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  placeholder="9876543210"
-                  placeholderTextColor={BRUTAL.inkFaint}
-                  style={[styles.textInput, styles.phoneInput, inputStyle('phone')]}
-                />
-              </View>
+            {/* Personalisation Note */}
+            <View style={styles.personaliseRow}>
+              <Ionicons name="person" size={fontScale(14)} color="#6B7280" />
+              <Text style={styles.personaliseText}>{t('auth_personalise_note')}</Text>
             </View>
 
-
-
-            {/* Terms Agreement */}
+            {/* Continue Button */}
             <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setAgreedToTerms(!agreedToTerms)}
-              style={styles.termsRow}
+              onPress={handleContinue}
+              activeOpacity={0.88}
+              disabled={isSubmitting}
+              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
             >
-              <View style={[styles.checkbox, agreedToTerms && styles.checkboxActive]}>
-                {agreedToTerms && <Ionicons name="checkmark-sharp" size={14} color={BRUTAL.ink} />}
-              </View>
-              <Text style={styles.termsText}>
-                I agree to the <Text style={styles.termsHighlight}>Terms of Service</Text> &{' '}
-                <Text style={styles.termsHighlight}>Privacy Policy</Text>
+              <Text style={styles.primaryButtonText}>
+                {isSubmitting ? '...' : t('auth_continue')}
               </Text>
             </TouchableOpacity>
 
-            <AppButton
-              title={isAuthenticating ? 'Sending OTP…' : 'Create Account & Get OTP'}
-              onPress={handleSignUp}
-              loading={isAuthenticating}
-              variant="brutal"
-              style={{ marginTop: hp(0.016) }}
-            />
+            {/* Divider */}
+            <View style={styles.divider} />
 
-            {/* Toggle to Login */}
-            <View style={styles.switchRow}>
-              <Text style={styles.switchText}>Already have an account?</Text>
-              <TouchableOpacity onPress={() => router.push('/login')}>
-                <Text style={styles.switchLink}>Log In</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Profile Settings Notice */}
+            <Text style={styles.noticeText}>{t('auth_edit_later_note')}</Text>
           </View>
-        </BrutalCard>
-
-        <Text style={styles.footerStamp}>© STARPIX · MOBILE STATUS PLATFORM</Text>
+        </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Validation Modal */}
+      {/* Validation Alert Modal */}
       <ConfirmModal
         visible={alertMessage !== null}
-        title="Input Required"
+        title={t('invalid_input')}
         message={alertMessage}
-        confirmText="OK"
+        confirmText={t('got_it')}
         icon="alert-circle-outline"
         iconColor={COLORS.orange}
         hideCancel
         onCancel={() => setAlertMessage(null)}
         onConfirm={() => setAlertMessage(null)}
       />
-    </AppBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: SCREEN_PAD,
-    paddingVertical: hp(0.02),
+    backgroundColor: '#EE1D24',
   },
-  watermark: {
-    position: 'absolute',
-    bottom: -hp(0.01),
-    left: -wp(0.02),
-    fontSize: fontScale(110),
-    fontFamily: FONTS.display,
-    color: 'rgba(23, 18, 12, 0.05)',
-    letterSpacing: -2,
-    zIndex: 0,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: hp(0.025),
-    zIndex: 1,
-  },
-  logoWrap: {
-    position: 'relative',
-    marginBottom: 12,
-  },
-  logoPlate: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    right: 0,
-    bottom: 0,
-    backgroundColor: BRUTAL.ink,
-  },
-  logoBadge: {
-    width: 62,
-    height: 62,
-    borderRadius: 2,
-    backgroundColor: BRUTAL.flame,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 2,
-  },
-  brandTitle: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(28),
-    fontFamily: FONTS.display,
-    letterSpacing: 1,
-  },
-  brandSubtitle: {
-    color: BRUTAL.flame,
-    fontSize: fontScale(9),
-    fontFamily: FONTS.semibold,
-    letterSpacing: 2.2,
-    marginTop: 4,
-    textTransform: 'uppercase',
-  },
-  cardHeader: {
-    backgroundColor: BRUTAL.ink,
-    paddingHorizontal: wp(0.05),
-    paddingVertical: hp(0.015),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  flameCorner: {
-    position: 'absolute',
-    right: -22,
-    top: -22,
-    width: 64,
-    height: 64,
-    backgroundColor: BRUTAL.flame,
-  },
-  cardHeaderText: {
-    color: BRUTAL.paper,
-    fontSize: fontScale(17),
-    fontFamily: FONTS.display,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  badgeWrap: {
-    backgroundColor: BRUTAL.flame,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    zIndex: 1,
-  },
-  badgeText: {
-    color: BRUTAL.ink,
-    fontSize: fontScale(9.5),
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.5,
-  },
-  cardBody: {
-    padding: wp(0.045),
-  },
-  cardSubtitle: {
-    color: BRUTAL.inkMute,
-    fontSize: fontScale(11.5),
-    fontFamily: FONTS.medium,
-    lineHeight: 18,
-    marginBottom: hp(0.016),
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FDECEC',
-    borderWidth: 2,
-    borderColor: BRUTAL.error,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: hp(0.016),
-  },
-  errorText: {
-    color: BRUTAL.error,
-    fontSize: fontScale(11.5),
-    fontFamily: FONTS.semibold,
+  keyboardAvoid: {
     flex: 1,
   },
-  inputGroup: {
-    marginBottom: hp(0.014),
+  scrollContent: {
+    flexGrow: 1,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: wp(0.08),
+    borderTopRightRadius: wp(0.08),
+    marginTop: -hp(0.04),
+    paddingHorizontal: wp(0.065),
+    paddingTop: hp(0.038),
+  },
+  title: {
+    fontSize: fontScale(24),
+    fontFamily: FONTS.bold,
+    color: '#111827',
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: fontScale(13.5),
+    fontFamily: FONTS.medium,
+    color: '#9CA3AF',
+    marginTop: hp(0.006),
   },
   inputLabel: {
-    color: BRUTAL.inkSoft,
-    fontSize: fontScale(10),
+    fontSize: fontScale(13),
     fontFamily: FONTS.semibold,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 1.4,
+    color: '#374151',
+    marginTop: hp(0.028),
+    marginBottom: hp(0.008),
   },
   textInput: {
-    backgroundColor: BRUTAL.bone,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    borderRadius: 2,
-    paddingHorizontal: 14,
-    height: 48,
-    color: BRUTAL.ink,
-    fontSize: fontScale(13.5),
+    height: hp(0.065),
+    borderWidth: 1.2,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: wp(0.04),
+    fontSize: fontScale(14),
     fontFamily: FONTS.medium,
+    color: '#111827',
   },
-  phoneInputContainer: {
+  textInputFocused: {
+    borderColor: '#EE1D24',
+  },
+  personaliseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  countryCode: {
-    backgroundColor: BRUTAL.ink,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    borderRightWidth: 0,
-    borderRadius: 2,
-    paddingHorizontal: 13,
-    height: 48,
-    justifyContent: 'center',
-  },
-  countryCodeText: {
-    color: BRUTAL.flame,
-    fontSize: fontScale(13.5),
-    fontFamily: FONTS.bold,
-  },
-  phoneInput: {
-    flex: 1,
-    borderLeftWidth: 0,
-    borderTopLeftRadius: 0,
-    borderBottomLeftRadius: 0,
-  },
-  termsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginVertical: hp(0.01),
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: BRUTAL.ink,
-    backgroundColor: BRUTAL.bone,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 2,
-  },
-  checkboxActive: {
-    backgroundColor: BRUTAL.flame,
-  },
-  termsText: {
-    color: BRUTAL.inkSoft,
-    fontSize: fontScale(11),
-    fontFamily: FONTS.medium,
-    flex: 1,
-  },
-  termsHighlight: {
-    color: BRUTAL.ink,
-    fontFamily: FONTS.bold,
-    textDecorationLine: 'underline',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: wp(0.02),
     marginTop: hp(0.016),
   },
-  switchText: {
-    color: BRUTAL.inkMute,
+  personaliseText: {
     fontSize: fontScale(11.5),
     fontFamily: FONTS.medium,
+    color: '#6B7280',
   },
-  switchLink: {
-    color: BRUTAL.flame,
-    fontSize: fontScale(12),
-    fontFamily: FONTS.bold,
-    textDecorationLine: 'underline',
+  primaryButton: {
+    backgroundColor: '#EE1D24',
+    height: hp(0.062),
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: hp(0.032),
+    shadowColor: '#EE1D24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  footerStamp: {
-    color: 'rgba(23, 18, 12, 0.35)',
-    fontSize: fontScale(8.5),
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: fontScale(15),
     fontFamily: FONTS.bold,
-    letterSpacing: 2,
+    letterSpacing: 0.2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginTop: hp(0.04),
+    marginBottom: hp(0.02),
+  },
+  noticeText: {
+    fontSize: fontScale(11),
+    fontFamily: FONTS.medium,
+    color: '#9CA3AF',
     textAlign: 'center',
-    marginTop: hp(0.02),
-    zIndex: 1,
+    lineHeight: fontScale(16),
   },
 });
