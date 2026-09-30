@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Purchase = require('../models/Purchase');
 const Analytics = require('../models/Analytics');
 const DeletionLog = require('../models/DeletionLog');
+const PricingSetting = require('../models/PricingSetting');
 
 // @desc    Get all registered users with metrics and deletion status
 // @route   GET /api/admin/users
@@ -68,7 +69,7 @@ const getUsers = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Toggle user VIP / Premium membership
+// @desc    Toggle or grant user VIP / Premium membership
 // @route   PUT /api/admin/users/:id/toggle-vip
 // @access  Private (Admin)
 const toggleUserVip = asyncHandler(async (req, res) => {
@@ -77,13 +78,70 @@ const toggleUserVip = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
 
-  user.isPremium = !user.isPremium;
-  user.subscriptionStatus = user.isPremium ? 'active' : 'none';
+  const { action, planId, durationDays } = req.body || {};
+
+  // If explicitly revoking or toggling an already premium user without a new grant plan
+  const shouldRevoke = action === 'revoke' || (!action && user.isPremium && !planId);
+
+  if (shouldRevoke) {
+    user.isPremium = false;
+    user.subscriptionStatus = 'none';
+    user.subscriptionPlan = '';
+    user.subscriptionExpiresAt = null;
+    user.subscriptionDurationDays = 0;
+    user.vipGrantedBy = 'none';
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `VIP Membership revoked for ${user.name || user.phoneNumber}`,
+      data: user,
+    });
+  }
+
+  // Granting VIP
+  user.isPremium = true;
+  user.subscriptionStatus = 'active';
+  user.vipGrantedBy = 'admin';
+
+  let selectedPlanId = planId || '30days';
+  let days = Number(durationDays);
+
+  if (isNaN(days)) {
+    if (selectedPlanId === '7days') days = 7;
+    else if (selectedPlanId === '30days') days = 30;
+    else if (selectedPlanId === '1year') days = 365;
+    else if (selectedPlanId === 'lifetime') days = 0;
+    else {
+      const pricing = await PricingSetting.findOne();
+      const p = pricing?.plans?.find((item) => item.id === selectedPlanId);
+      days = p ? Number(p.durationDays) || 30 : 30;
+    }
+  }
+
+  user.subscriptionPlan = selectedPlanId;
+  user.subscriptionDurationDays = days;
+
+  if (days > 0) {
+    const exp = new Date();
+    exp.setDate(exp.getDate() + days);
+    user.subscriptionExpiresAt = exp;
+  } else {
+    // 0 means permanent / lifetime
+    user.subscriptionExpiresAt = null;
+  }
+
   await user.save();
+
+  const planLabel = selectedPlanId === 'lifetime'
+    ? 'Lifetime VIP'
+    : days > 0
+    ? `${days} Days VIP Pass`
+    : 'Active VIP';
 
   res.status(200).json({
     success: true,
-    message: `User VIP status updated to ${user.isPremium ? 'Active VIP' : 'Free Member'}`,
+    message: `${planLabel} granted successfully to ${user.name || user.phoneNumber}`,
     data: user,
   });
 });
@@ -188,20 +246,29 @@ const getSubscriptions = asyncHandler(async (req, res) => {
     users.map(async (u) => {
       const userPurchases = await Purchase.find({ userId: u._id, status: 'successful' }).sort({ createdAt: -1 });
       const totalSpent = userPurchases.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-      const vipPurchase = userPurchases.find((p) => p.productId === 'starpix_vip_unlock');
+      const vipPurchase = userPurchases.find((p) => p.purchaseType === 'vip_subscription' || p.productId?.startsWith('vip') || p.productId === 'starpix_vip_unlock');
 
       const userObj = u.toObject();
       userObj.totalSpent = totalSpent;
       userObj.totalPurchases = userPurchases.length;
       userObj.subscribedAt = vipPurchase ? vipPurchase.createdAt : u.updatedAt;
       userObj.latestTransaction = userPurchases[0] || null;
+      userObj.subscriptionPlan = u.subscriptionPlan || (u.isPremium ? 'active_vip' : '');
+      userObj.subscriptionExpiresAt = u.subscriptionExpiresAt;
+      userObj.subscriptionDurationDays = u.subscriptionDurationDays;
+      userObj.vipGrantedBy = u.vipGrantedBy;
+      userObj.profilePhoto = u.profilePhoto;
       return userObj;
     })
   );
 
   const allVipPurchases = await Purchase.find({
     status: 'successful',
-    $or: [{ productId: 'starpix_vip_unlock' }, { amount: 199 }, { amount: 299 }],
+    $or: [
+      { purchaseType: 'vip_subscription' },
+      { productId: { $regex: /vip/i } },
+      { productId: 'starpix_vip_unlock' },
+    ],
   });
   const totalSubRevenue = allVipPurchases.reduce((acc, p) => acc + (p.amount || 0), 0);
 

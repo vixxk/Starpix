@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { View, Text, Modal, StyleSheet, Animated, Pressable, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '../constants/colors';
 import { fontScale, wp } from '../utils/responsive';
 import { hapticImpact } from '../utils/haptics';
@@ -77,7 +77,11 @@ export default function ConfirmModal({
               { backgroundColor: `${iconColor}1A`, borderColor: `${iconColor}3D` },
             ]}
           >
-            <Ionicons name={icon} size={26} color={iconColor} />
+            {icon === 'crown' ? (
+              <MaterialCommunityIcons name="crown" size={26} color={iconColor} />
+            ) : (
+              <Ionicons name={icon || 'document-text-outline'} size={26} color={iconColor} />
+            )}
           </View>
 
           <Text style={styles.title}>{title}</Text>

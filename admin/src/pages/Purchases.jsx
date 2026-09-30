@@ -13,6 +13,7 @@ import {
   MagnifyingGlass,
   FunnelSimple,
   Calendar,
+  Crown,
 } from '@phosphor-icons/react';
 
 export default function Purchases() {
@@ -175,33 +176,45 @@ export default function Purchases() {
                       <p className="text-[11px] text-ink-mute font-mono">{p.userId?.phoneNumber || 'N/A'}</p>
                     </td>
                     <td>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={p.templateId?.thumbnail || p.finalAssetUrl || p.templateId?.previewAsset || p.templateId?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
-                          alt={p.templateId?.name || 'Template'}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
-                          }}
-                          className="w-7 h-9 rounded object-cover border border-paper-200 shrink-0"
-                        />
-                        <div>
-                          <p className="font-medium text-ink-soft line-clamp-1">{p.templateId?.name || 'Template'}</p>
-                          <span className="text-[10px] text-ink-mute uppercase">
-                            {{
-                              free: 'Free',
-                              premium: 'Premium',
-                              paid: 'Paid',
-                              vip: 'VIP',
-                            }[p.templateId?.accessType] || 'Premium'}
-                          </span>
+                      {p.templateId ? (
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={p.templateId?.thumbnail || p.finalAssetUrl || p.templateId?.previewAsset || p.templateId?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
+                            alt={p.templateId?.name || 'Template'}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
+                            }}
+                            className="w-7 h-9 rounded object-cover border border-paper-200 shrink-0"
+                          />
+                          <div>
+                            <p className="font-medium text-ink-soft line-clamp-1">{p.templateId?.name || 'Template'}</p>
+                            <span className="text-[10px] text-ink-mute uppercase">
+                              {{
+                                free: 'Free',
+                                premium: 'Premium',
+                                paid: 'Paid',
+                                vip: 'VIP',
+                              }[p.templateId?.accessType] || 'Premium'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-9 rounded bg-ink flex items-center justify-center text-amber-400 border border-ink shrink-0 shadow-sm">
+                            <Crown className="w-4 h-4" weight="fill" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-ink line-clamp-1">{p.planName || 'VIP Subscription Pass'}</p>
+                            <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-1 py-0.2 border border-amber-500/30">
+                              {p.planId ? `${p.planId} Pack` : 'VIP Pass'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </td>
                     <td className="font-bold text-glow-700 tabular-nums">
-                      {p.templateId?.accessType === 'free' ? (
-                        <span className="text-ink-mute font-medium">—</span>
-                      ) : (p.userId?.isPremium || p.productId === 'starpix_vip_unlock') ? (
+                      {p.amount === 0 ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30 uppercase">PASS</span>
                       ) : (
                         <>

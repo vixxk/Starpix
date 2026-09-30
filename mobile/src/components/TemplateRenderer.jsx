@@ -84,7 +84,7 @@ function DraggablePhotoLayer({
           borderWidth: userPhotoUri ? 0 : 2,
           borderColor: COLORS.orange,
           borderStyle: userPhotoUri ? 'solid' : 'dashed',
-          backgroundColor: userPhotoUri ? 'transparent' : 'rgba(249, 115, 22, 0.18)',
+          backgroundColor: userPhotoUri ? 'transparent' : 'rgba(225, 29, 72, 0.12)',
           ...shapeStyle,
         },
       ]}

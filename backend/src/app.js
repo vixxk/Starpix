@@ -61,6 +61,10 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/ai-video', aiVideoRoutes);
 app.use('/api/admin/ai-video', aiVideoRoutes);
 
+// AI Credits public endpoint
+const { getAICredits } = require('./controllers/aiCreditController');
+app.get('/api/ai-credits', getAICredits);
+
 // Web routes for Google Play compliance (Account Deletion web request)
 app.use('/', webRoutes);
 

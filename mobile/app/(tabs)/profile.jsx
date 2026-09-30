@@ -184,16 +184,9 @@ export default function ProfileScreen() {
             <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Top Bar with Settings Icon */}
+          {/* Top Bar Header */}
           <View style={styles.topHeaderRow}>
             <Text style={styles.screenTitle}>{t('nav_profile')}</Text>
-            <PressableScale
-              onPress={() => router.push('/settings')}
-              scaleTo={0.9}
-              style={styles.settingsHeaderBtn}
-            >
-              <Ionicons name="settings-outline" size={20} color={COLORS.ink} />
-            </PressableScale>
           </View>
 
           {/* Profile header */}
@@ -580,12 +573,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
   },
   sublabelPill: {
-    backgroundColor: '#FFF0E0',
+    backgroundColor: '#FFF1F2',
     paddingHorizontal: wp(0.022),
     paddingVertical: hp(0.004),
     borderRadius: wp(0.03),
     borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.25)',
+    borderColor: 'rgba(225, 29, 72, 0.20)',
     marginRight: wp(0.01),
     justifyContent: 'center',
     alignItems: 'center',

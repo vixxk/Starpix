@@ -14,6 +14,8 @@ import UserReports from './pages/UserReports';
 import UsersPage from './pages/Users';
 import SubscriptionsPage from './pages/Subscriptions';
 import Pricing from './pages/Pricing';
+import AICredits from './pages/AICredits';
+import Footers from './pages/Footers';
 import { useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 
@@ -77,6 +79,8 @@ export default function App() {
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/ai-credits" element={<AICredits />} />
+          <Route path="/footers" element={<Footers />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import PageHead from '../components/PageHead';
-import ModalPortal from '../components/ModalPortal';
 import ConfirmModal from '../components/ConfirmModal';
 import API from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -17,18 +15,19 @@ import {
   Gear,
   ChatText,
   Trash,
-  X,
-  PaperPlaneRight,
   Image as ImageIcon,
   Sparkle,
   ArrowSquareOut,
-  Crown,
-  Eye,
-  Copy,
 } from '@phosphor-icons/react';
+import { resolveMediaUrl } from '../utils/media';
+import {
+  ReportStatusBadge,
+  ReplyModal,
+  TemplatePreviewModal,
+  UserProfilePhotoModal,
+} from '../modules/userReports';
 
 export default function UserReports() {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [reports, setReports] = useState([]);
   const [summary, setSummary] = useState({ totalAll: 0, pending: 0, in_progress: 0, resolved: 0, rejected: 0 });
@@ -51,6 +50,8 @@ export default function UserReports() {
 
   const [selectedTemplateForModal, setSelectedTemplateForModal] = useState(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+
+  const [selectedPhotoUser, setSelectedPhotoUser] = useState(null);
 
   const fetchReports = useCallback(async (page = 1) => {
     setLoading(true);
@@ -98,13 +99,12 @@ export default function UserReports() {
       });
 
       if (res.data && res.data.success) {
-        toast.success('Report status updated successfully');
+        toast.success('Report updated successfully');
         setReplyModalOpen(false);
         fetchReports(pagination.page);
       }
     } catch (err) {
-      console.error('Error updating report status:', err);
-      toast.error(err.response?.data?.message || 'Failed to update report status');
+      toast.error(err.response?.data?.message || 'Failed to update report');
     } finally {
       setSaving(false);
     }
@@ -127,7 +127,6 @@ export default function UserReports() {
         fetchReports(pagination.page);
       }
     } catch (err) {
-      console.error('Error deleting report:', err);
       toast.error(err.response?.data?.message || 'Failed to delete report');
     } finally {
       setDeleting(false);
@@ -135,12 +134,12 @@ export default function UserReports() {
   };
 
   return (
-    <div className="space-y-3.5 sm:space-y-5">
-      {/* Page Header */}
+    <div className="space-y-4">
+      {/* Top Header */}
       <PageHead
         icon={<Flag className="w-6 h-6" weight="duotone" />}
-        title="User Issues & Reports"
-        subtitle="Manage reported templates, user-submitted app bugs, and support ticket responses."
+        title="User Reports & Issues"
+        subtitle={`Tracking ${summary.totalAll} user submitted issues, offensive reports & inquiries`}
         actions={
           <button
             onClick={() => fetchReports(pagination.page)}
@@ -197,7 +196,6 @@ export default function UserReports() {
 
       {/* Filter Toolbar */}
       <div className="panel p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
-        {/* Search */}
         <div className="flex-1 relative">
           <MagnifyingGlass className="w-4 h-4 text-ink-mute absolute left-3.5 top-3" />
           <input
@@ -209,7 +207,6 @@ export default function UserReports() {
           />
         </div>
 
-        {/* Filters */}
         <div className="relative">
           <FunnelSimple className="w-4 h-4 text-ink-mute absolute left-3.5 top-3 pointer-events-none" />
           <select
@@ -271,8 +268,34 @@ export default function UserReports() {
                       {/* User details */}
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-ink text-flame-400 border border-ink flex items-center justify-center font-display font-bold shrink-0 shadow-sm">
-                            {(u?.name || 'U').substring(0, 1).toUpperCase()}
+                          <div className="relative shrink-0">
+                            {u?.profilePhoto ? (
+                              <img
+                                src={resolveMediaUrl(u.profilePhoto)}
+                                alt={u?.name || 'User'}
+                                className="w-10 h-10 rounded-full object-cover border border-paper-300 shadow-sm shrink-0 bg-ink cursor-pointer hover:ring-2 hover:ring-flame-500 hover:scale-105 transition-all"
+                                title="Click to view full photo"
+                                onClick={() =>
+                                  setSelectedPhotoUser({
+                                    name: u?.name || 'User',
+                                    photo: resolveMediaUrl(u.profilePhoto),
+                                    phone: u?.phoneNumber,
+                                  })
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextElementSibling) {
+                                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              style={{ display: u?.profilePhoto ? 'none' : 'flex' }}
+                              className="w-10 h-10 rounded-full bg-ink text-flame-400 border border-ink flex items-center justify-center font-display font-bold shrink-0 shadow-sm"
+                            >
+                              {(u?.name || 'U').substring(0, 1).toUpperCase()}
+                            </div>
                           </div>
                           <div>
                             <p className="font-semibold text-ink leading-snug">{u?.name || 'Unknown User'}</p>
@@ -296,7 +319,7 @@ export default function UserReports() {
                               }
                             }}
                             disabled={!tObj}
-                            title={tObj ? "Click to open template preview modal" : "Template no longer exists"}
+                            title={tObj ? 'Click to open template preview modal' : 'Template no longer exists'}
                             className={`flex items-center gap-2.5 text-left p-1.5 rounded-[3px] border transition-all ${
                               tObj
                                 ? 'cursor-pointer hover:bg-paper-100/80 hover:border-flame-400 group shadow-sm active:translate-y-[1px]'
@@ -346,26 +369,7 @@ export default function UserReports() {
 
                       {/* Status */}
                       <td>
-                        {report.status === 'pending' && (
-                          <span className="badge-amber flex items-center gap-1 w-max">
-                            <Clock className="w-3 h-3" /> Pending Review
-                          </span>
-                        )}
-                        {report.status === 'in_progress' && (
-                          <span className="badge bg-sky-100 text-sky-900 border-sky-600 flex items-center gap-1 w-max">
-                            <Gear className="w-3 h-3 animate-spin" /> Working On It
-                          </span>
-                        )}
-                        {report.status === 'resolved' && (
-                          <span className="badge-success flex items-center gap-1 w-max">
-                            <CheckCircle className="w-3 h-3" /> Resolved
-                          </span>
-                        )}
-                        {report.status === 'rejected' && (
-                          <span className="badge-red flex items-center gap-1 w-max">
-                            <XCircle className="w-3 h-3" /> Rejected
-                          </span>
-                        )}
+                        <ReportStatusBadge status={report.status} />
                       </td>
 
                       {/* Admin Response */}
@@ -419,14 +423,14 @@ export default function UserReports() {
                   onClick={() => fetchReports(pagination.page - 1)}
                   className="btn-secondary text-xs py-1 px-3"
                 >
-                  PREV
+                  Previous
                 </button>
                 <button
                   disabled={pagination.page >= pagination.pages}
                   onClick={() => fetchReports(pagination.page + 1)}
                   className="btn-secondary text-xs py-1 px-3"
                 >
-                  NEXT
+                  Next
                 </button>
               </div>
             </div>
@@ -434,140 +438,23 @@ export default function UserReports() {
         </div>
       )}
 
-      {/* Review & Reply Modal */}
-      {replyModalOpen && selectedReport && (
-        <ModalPortal>
-          <div className="modal-backdrop">
-            <div className="modal-card max-w-lg p-5 sm:p-6 space-y-5">
-              {/* Top Header */}
-              <div className="flex items-center justify-between border-b-2 border-ink pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-flame-500 border-2 border-ink flex items-center justify-center shadow-hard-sm">
-                    <Flag className="w-5 h-5 text-white" weight="fill" />
-                  </div>
-                  <div>
-                    <h2 className="display text-base text-ink">REVIEW & REPLY REPORT</h2>
-                    <p className="font-mono text-[10px] text-ink-mute font-bold uppercase tracking-wider">
-                      ID: {selectedReport._id}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setReplyModalOpen(false)}
-                  className="btn-ghost p-1 text-ink"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Report Info summary panel */}
-              <div className="panel p-3.5 bg-paper-100 space-y-2.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="label">Reporter</span>
-                  <span className="font-bold text-ink">
-                    {selectedReport.userId?.name || 'Unknown'} ({selectedReport.userId?.phoneNumber || 'N/A'})
-                  </span>
-                </div>
-                {selectedReport.type === 'template' && selectedReport.templateId && (
-                  <div className="flex items-center justify-between pt-1 border-t border-ink/10">
-                    <span className="label">Target Template</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedTemplateForModal(selectedReport.templateId);
-                        setTemplateModalOpen(true);
-                      }}
-                      className="font-bold text-flame-600 hover:underline flex items-center gap-1"
-                    >
-                      <Sparkle className="w-3 h-3 text-flame-600" />
-                      <span>{selectedReport.templateId.name || 'View Template'}</span>
-                      <ArrowSquareOut className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-1 border-t border-ink/10">
-                  <span className="label">Reason</span>
-                  <span className="font-bold text-flame-600">{selectedReport.reason}</span>
-                </div>
-                {selectedReport.description && (
-                  <div>
-                    <span className="label block mb-1">User Note</span>
-                    <p className="text-ink bg-white p-2.5 border border-ink/20 font-medium">
-                      {selectedReport.description}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Status Selector */}
-              <div>
-                <label className="field-label uppercase font-mono text-[10px] tracking-wider text-ink-mute mb-1.5">
-                  Update Status
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { key: 'pending', label: 'Pending Review' },
-                    { key: 'in_progress', label: 'Working On It' },
-                    { key: 'resolved', label: 'Resolved' },
-                    { key: 'rejected', label: 'Rejected' },
-                  ].map((st) => (
-                    <button
-                      key={st.key}
-                      type="button"
-                      onClick={() => setReplyStatus(st.key)}
-                      className={`btn py-2 text-xs transition-all ${
-                        replyStatus === st.key
-                          ? 'btn-primary'
-                          : 'btn-secondary'
-                      }`}
-                    >
-                      {st.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Admin Reply Input */}
-              <div>
-                <label className="field-label uppercase font-mono text-[10px] tracking-wider text-ink-mute mb-1.5">
-                  Admin Response Message (Optional)
-                </label>
-                <textarea
-                  value={replyMessage}
-                  onChange={(e) => setReplyMessage(e.target.value)}
-                  rows={4}
-                  placeholder="Enter response or explanation visible to the user..."
-                  className="textarea"
-                />
-              </div>
-
-              {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t-2 border-ink">
-                <button
-                  type="button"
-                  onClick={() => setReplyModalOpen(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={handleSaveReply}
-                  className="btn-primary"
-                >
-                  {saving ? (
-                    <ArrowClockwise className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <PaperPlaneRight className="w-4 h-4" weight="fill" />
-                  )}
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
+      {/* Reply & Status Modal */}
+      <ReplyModal
+        isOpen={replyModalOpen}
+        report={selectedReport}
+        replyStatus={replyStatus}
+        setReplyStatus={setReplyStatus}
+        replyMessage={replyMessage}
+        setReplyMessage={setReplyMessage}
+        saving={saving}
+        onClose={() => setReplyModalOpen(false)}
+        onSave={handleSaveReply}
+        onOpenTemplate={(tmpl) => {
+          setSelectedTemplateForModal(tmpl);
+          setTemplateModalOpen(true);
+        }}
+        onOpenUserPhoto={(photoData) => setSelectedPhotoUser(photoData)}
+      />
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
@@ -586,174 +473,20 @@ export default function UserReports() {
       />
 
       {/* Template Details & Preview Popup Modal */}
-      {templateModalOpen && selectedTemplateForModal && (
-        <ModalPortal>
-          <div className="modal-backdrop">
-            <div className="modal-card max-w-2xl p-6 space-y-5">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b-2 border-ink pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-flame-500 border-2 border-ink flex items-center justify-center shadow-hard-sm">
-                    <Sparkle className="w-5 h-5 text-white" weight="fill" />
-                  </div>
-                  <div>
-                    <h2 className="display text-lg text-ink">TEMPLATE DETAILS & PREVIEW</h2>
-                    <p className="font-mono text-[10px] text-ink-mute font-bold uppercase tracking-wider">
-                      ID: {selectedTemplateForModal._id}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setTemplateModalOpen(false);
-                    setSelectedTemplateForModal(null);
-                  }}
-                  className="btn-ghost p-1 text-ink"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      <TemplatePreviewModal
+        isOpen={templateModalOpen}
+        template={selectedTemplateForModal}
+        onClose={() => {
+          setTemplateModalOpen(false);
+          setSelectedTemplateForModal(null);
+        }}
+      />
 
-              {/* Grid content */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                {/* Image Preview Box */}
-                <div className="relative border-2 border-ink bg-paper-100 p-2 shadow-hard-sm rounded-[3px] text-center">
-                  {selectedTemplateForModal.thumbnail || selectedTemplateForModal.previewAsset || selectedTemplateForModal.mainMedia ? (
-                    <img
-                      src={selectedTemplateForModal.thumbnail || selectedTemplateForModal.previewAsset || selectedTemplateForModal.mainMedia}
-                      alt={selectedTemplateForModal.name}
-                      className="w-full h-72 object-contain bg-night-950 rounded-[2px] border border-ink/20"
-                    />
-                  ) : (
-                    <div className="w-full h-72 bg-paper-200 flex flex-col items-center justify-center text-ink-mute gap-2">
-                      <ImageIcon className="w-10 h-10" />
-                      <span className="text-xs font-bold">No Image Available</span>
-                    </div>
-                  )}
-
-                  {/* Badges on image */}
-                  <div className="absolute top-4 left-4 flex flex-wrap gap-1">
-                    {selectedTemplateForModal.accessType === 'vip' ? (
-                      <span className="badge bg-amber-400 text-ink font-bold border-ink flex items-center gap-1 shadow-sm text-[10px]">
-                        <Crown className="w-3 h-3 text-ink" weight="fill" /> VIP
-                      </span>
-                    ) : selectedTemplateForModal.accessType === 'paid' ? (
-                      <span className="badge bg-emerald-500 text-white font-bold border-ink shadow-sm text-[10px]">
-                        PAID ₹{selectedTemplateForModal.price || 0}
-                      </span>
-                    ) : (
-                      <span className="badge bg-sky-400 text-ink font-bold border-ink shadow-sm text-[10px]">
-                        FREE
-                      </span>
-                    )}
-
-                    {selectedTemplateForModal.isPinned && (
-                      <span className="badge bg-flame-500 text-white font-bold border-ink shadow-sm text-[10px]">
-                        PINNED
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details Column */}
-                <div className="space-y-4 text-xs">
-                  <div>
-                    <span className="label block mb-0.5">Template Name</span>
-                    <h3 className="display text-xl text-ink leading-snug">{selectedTemplateForModal.name}</h3>
-                  </div>
-
-                  {selectedTemplateForModal.description && (
-                    <div>
-                      <span className="label block mb-0.5">Description</span>
-                      <p className="text-ink bg-paper-100 p-2.5 border border-ink/20 font-medium">
-                        {selectedTemplateForModal.description}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2.5 bg-paper-100 border border-ink/20 rounded-[2px]">
-                      <span className="label block text-[9px]">Access Tier</span>
-                      <span className="font-bold text-ink uppercase text-xs">
-                        {selectedTemplateForModal.accessType || 'FREE'}
-                      </span>
-                    </div>
-                    <div className="p-2.5 bg-paper-100 border border-ink/20 rounded-[2px]">
-                      <span className="label block text-[9px]">Status</span>
-                      <span className={`font-bold text-xs uppercase ${selectedTemplateForModal.active !== false ? 'text-emerald-700' : 'text-red-700'}`}>
-                        {selectedTemplateForModal.active !== false ? 'Published' : 'Unpublished'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2.5 bg-paper-100 border border-ink/20 rounded-[2px]">
-                      <span className="label block text-[9px]">Total Uses</span>
-                      <span className="font-mono font-bold text-ink text-sm">
-                        {selectedTemplateForModal.usageCount || 0}
-                      </span>
-                    </div>
-                    <div className="p-2.5 bg-paper-100 border border-ink/20 rounded-[2px]">
-                      <span className="label block text-[9px]">Downloads</span>
-                      <span className="font-mono font-bold text-ink text-sm">
-                        {selectedTemplateForModal.downloadsCount || 0}
-                      </span>
-                    </div>
-                  </div>
-
-                  {selectedTemplateForModal.canvasConfig?.layers && (
-                    <div className="p-2.5 bg-paper-100 border border-ink/20 rounded-[2px]">
-                      <span className="label block text-[9px]">Canvas Layers</span>
-                      <span className="font-semibold text-ink">
-                        {selectedTemplateForModal.canvasConfig.layers.length} interactive layers ({selectedTemplateForModal.canvasConfig.layers.filter(l => l.type === 'photo').length} photo box, {selectedTemplateForModal.canvasConfig.layers.filter(l => l.type === 'text').length} text)
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-between pt-4 border-t-2 border-ink">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(selectedTemplateForModal._id);
-                    toast.success('Template ID copied to clipboard!');
-                  }}
-                  className="btn-secondary text-xs flex items-center gap-1.5"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy ID</span>
-                </button>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTemplateModalOpen(false);
-                      setSelectedTemplateForModal(null);
-                    }}
-                    className="btn-secondary text-xs"
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTemplateModalOpen(false);
-                      navigate(`/templates?search=${encodeURIComponent(selectedTemplateForModal.name)}`);
-                    }}
-                    className="btn-primary text-xs flex items-center gap-1.5"
-                  >
-                    <span>Manage in Templates</span>
-                    <ArrowSquareOut className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
+      {/* Profile Photo Preview Modal */}
+      <UserProfilePhotoModal
+        selectedPhotoUser={selectedPhotoUser}
+        onClose={() => setSelectedPhotoUser(null)}
+      />
     </div>
   );
 }

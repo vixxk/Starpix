@@ -84,6 +84,9 @@ const verifyOtp = asyncHandler(async (req, res) => {
         profilePhoto: user.profilePhoto,
         isPremium: user.isPremium,
         subscriptionStatus: user.subscriptionStatus,
+        subscriptionPlan: user.subscriptionPlan,
+        subscriptionExpiresAt: user.subscriptionExpiresAt,
+        vipGrantedBy: user.vipGrantedBy,
         favorites: user.favorites,
         isNewUser: isBrandNew || !user.name || user.name.startsWith('Starpix User'),
       },
@@ -97,6 +100,12 @@ const verifyOtp = asyncHandler(async (req, res) => {
 // @access  Private
 const getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate('favorites');
+  if (user && user.isPremium && user.subscriptionExpiresAt && new Date() > new Date(user.subscriptionExpiresAt)) {
+    user.isPremium = false;
+    user.subscriptionStatus = 'expired';
+    await user.save();
+  }
+
   res.status(200).json({
     success: true,
     data: user,
@@ -116,6 +125,11 @@ const updateProfile = asyncHandler(async (req, res) => {
   if (req.body.name !== undefined) user.name = req.body.name.trim();
   if (req.body.email !== undefined) user.email = req.body.email.trim().toLowerCase();
   if (req.body.profilePhoto !== undefined) user.profilePhoto = req.body.profilePhoto;
+  if (req.body.isPremium !== undefined) user.isPremium = Boolean(req.body.isPremium);
+  if (req.body.subscriptionStatus !== undefined) user.subscriptionStatus = req.body.subscriptionStatus;
+  if (req.body.subscriptionPlan !== undefined) user.subscriptionPlan = req.body.subscriptionPlan;
+  if (req.body.subscriptionExpiresAt !== undefined) user.subscriptionExpiresAt = req.body.subscriptionExpiresAt;
+  if (req.body.subscriptionDurationDays !== undefined) user.subscriptionDurationDays = Number(req.body.subscriptionDurationDays);
 
   await user.save();
 

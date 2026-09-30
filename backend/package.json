@@ -6,9 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "seed": "node src/seed.js",
-    "clean-db": "node src/scripts/cleanDb.js"
+    "dev": "node --watch src/server.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",

@@ -12,7 +12,7 @@ export default function ReelPersonalizationOverlay({
   cardWidth,
   cardHeight,
 }) {
-  if (!frameId) return null;
+  if (!frameId || frameId === 'none') return null;
 
   const photoSize = wp(0.18);
   const ringSize = wp(0.24);
@@ -114,15 +114,11 @@ export default function ReelPersonalizationOverlay({
                 <Stop offset="100%" stopColor="#D97706" />
               </LinearGradient>
             </Defs>
-            {/* Center petal */}
             <Path d="M 20 2 C 22 8 23 15 20 18 C 17 15 18 8 20 2 Z" fill="url(#lotusGrad)" />
-            {/* Left petals */}
             <Path d="M 20 18 C 16 16 11 12 12 7 C 15 8 18 13 20 18 Z" fill="url(#lotusGrad)" />
             <Path d="M 20 18 C 14 17 6 15 6 12 C 10 12 16 15 20 18 Z" fill="url(#lotusGrad)" opacity="0.85" />
-            {/* Right petals */}
             <Path d="M 20 18 C 24 16 29 12 28 7 C 25 8 22 13 20 18 Z" fill="url(#lotusGrad)" />
             <Path d="M 20 18 C 26 17 34 15 34 12 C 30 12 24 15 20 18 Z" fill="url(#lotusGrad)" opacity="0.85" />
-            {/* Base line */}
             <Path d="M 12 19 L 28 19" stroke="url(#lotusGrad)" strokeWidth="1.5" strokeLinecap="round" />
           </Svg>
         </View>
@@ -130,18 +126,56 @@ export default function ReelPersonalizationOverlay({
     );
   }
 
-  // Generic/Themed frame for other selected items (e.g. Moon Lake, Mandala, etc.)
+  // Mandala / Festive footer
+  if (frameId === 'mandala' || frameId === 'diya_temple') {
+    return (
+      <View style={[styles.container, { width: cardWidth }]} pointerEvents="none">
+        <View style={[styles.ringContainer, { width: ringSize, height: ringSize }]}>
+          <Svg width={ringSize} height={ringSize} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
+            <Defs>
+              <LinearGradient id="festiveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#FDE047" />
+                <Stop offset="50%" stopColor="#E11D48" />
+                <Stop offset="100%" stopColor="#9F1239" />
+              </LinearGradient>
+            </Defs>
+            <Circle cx="50" cy="50" r="47" stroke="url(#festiveGrad)" strokeWidth="3" fill="#1C1917" fillOpacity="0.6" />
+            <Circle cx="50" cy="50" r="41" stroke="#FDE047" strokeWidth="1.5" strokeDasharray="3, 3" fill="none" />
+            {[0, 60, 120, 180, 240, 300].map((angle, i) => {
+              const rad = (angle * Math.PI) / 180;
+              const cx = 50 + 46 * Math.cos(rad);
+              const cy = 50 + 46 * Math.sin(rad);
+              return <Circle key={i} cx={cx} cy={cy} r="2.2" fill="#FDE047" />;
+            })}
+          </Svg>
+          <View style={[styles.photoMask, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}>
+            <Image source={{ uri: effectivePhoto }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+          </View>
+        </View>
+
+        <View style={styles.bannerWrapper}>
+          <View style={styles.festivePlaque}>
+            <Text style={styles.festiveNameText} numberOfLines={1}>
+              {userName}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Modern / Glassmorphism footer for moon_lake, moon_clouds, couple, etc.
   return (
     <View style={[styles.container, { width: cardWidth }]} pointerEvents="none">
       <View style={[styles.ringContainer, { width: ringSize, height: ringSize }]}>
         <Svg width={ringSize} height={ringSize} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
           <Defs>
-            <LinearGradient id="mandalaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor="#FDE047" />
-              <Stop offset="100%" stopColor="#EA580C" />
+            <LinearGradient id="roseGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#FDA4AF" />
+              <Stop offset="100%" stopColor="#E11D48" />
             </LinearGradient>
           </Defs>
-          <Circle cx="50" cy="50" r="46" stroke="url(#mandalaGrad)" strokeWidth="3" fill="#18181B" fillOpacity="0.4" />
+          <Circle cx="50" cy="50" r="46" stroke="url(#roseGlow)" strokeWidth="3" fill="#18181B" fillOpacity="0.55" />
           <Circle cx="50" cy="50" r="41" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3, 3" fill="none" />
         </Svg>
         <View style={[styles.photoMask, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}>
@@ -203,6 +237,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.4,
     paddingHorizontal: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   simplePlaque: {
     backgroundColor: '#FFFDF5',
@@ -210,7 +246,25 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#F59E0B',
+    borderColor: '#E11D48',
+  },
+  festivePlaque: {
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#9F1239',
+  },
+  festiveNameText: {
+    fontSize: fontScale(13),
+    fontFamily: FONTS.bold,
+    color: '#9F1239',
+    textAlign: 'center',
+    letterSpacing: 0.4,
+    paddingHorizontal: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   titleWrapper: {
     alignItems: 'center',
@@ -226,6 +280,8 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1.5 },
     textShadowRadius: 3,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   durgaPujaText: {
     color: '#FFFBEB',
@@ -236,6 +292,8 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
     marginTop: -2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   lotusSvg: {
     marginTop: 2,

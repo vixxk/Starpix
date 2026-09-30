@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,76 +14,49 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
-import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { fontScale, wp, hp, SCREEN_PAD } from '../src/utils/responsive';
 import { useAuthStore } from '../src/store/useAuthStore';
 import ConfirmModal from '../src/components/ConfirmModal';
+import API from '../src/utils/api';
 
-// High-resolution posters hosted on S3 matching the reference layout exactly
-const POSTERS = {
-  durgaPuja: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/f30784b5-3698-40f5-9f55-4eae4622fcd4.jpg',
-  goodMorning: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/ccead801-2abb-4d74-8f50-7bee9c53fa7a.jpg',
-  goodNight: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/eb57459c-c20d-4bbb-8fee-5f5464efb57d.jpg',
-  togetherAlways: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/d81f4913-f71e-433f-b803-c3f27777967c.jpg',
-  happyDiwali: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/6adc6e37-9b98-4470-9a27-e2915e73b4e3.jpg',
-};
-
-const PLANS = [
-  {
-    id: '7days',
-    price: '₹29',
-    periodKey: 'sub_plan_7_days',
-    ctaKey: 'sub_cta_7_days',
-    features: [
-      'sub_feat_all_premium',
-      'sub_feat_daily_new',
-      'sub_feat_no_ads',
-    ],
-  },
-  {
-    id: '30days',
-    price: '₹99',
-    periodKey: 'sub_plan_30_days',
-    ctaKey: 'sub_cta_30_days',
-    badgeKey: 'sub_most_popular',
-    badgeType: 'popular',
-    features: [
-      'sub_feat_all_premium',
-      'sub_feat_daily_new',
-      'sub_feat_full_access_30',
-      'sub_feat_no_ads',
-    ],
-  },
-  {
-    id: '1year',
-    price: '₹599',
-    periodKey: 'sub_plan_1_year',
-    ctaKey: 'sub_cta_1_year',
-    badgeKey: 'sub_best_value',
-    badgeType: 'best_value',
-    features: [
-      'sub_feat_all_premium',
-      'sub_feat_daily_new',
-      'sub_feat_full_access_year',
-      'sub_feat_no_ads',
-      'sub_feat_exclusive_festivals',
-    ],
-  },
-];
+import {
+  POSTERS,
+  DEFAULT_PLANS,
+  styles,
+} from '../src/modules/vip';
 
 export default function VipScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const updateUserProfile = useAuthStore((state) => state.updateUserProfile);
 
+  const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [selectedPlanId, setSelectedPlanId] = useState('30days');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [purchaseDetails, setPurchaseDetails] = useState(null);
 
-  const selectedPlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[1];
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPlans = async () => {
+      try {
+        const res = await API.get('/payments/plans');
+        if (isMounted && res.data && res.data.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          setPlans(res.data.data);
+        }
+      } catch (err) {
+        // Fallback gracefully to default plans
+      }
+    };
+    fetchPlans();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[1] || plans[0] || DEFAULT_PLANS[1];
 
   const handleSelectPlan = (planId) => {
     setSelectedPlanId(planId);
@@ -91,23 +64,42 @@ export default function VipScreen() {
 
   const handlePurchase = async () => {
     try {
-      // Simulate upgrade / plan purchase
-      const daysToAdd = selectedPlan.id === '7days' ? 7 : selectedPlan.id === '30days' ? 30 : 365;
+      const daysToAdd = Number(selectedPlan.durationDays) || (selectedPlan.id === '7days' ? 7 : selectedPlan.id === '30days' ? 30 : 365);
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + daysToAdd);
 
-      if (user) {
-        await updateUserProfile({
-          isPremium: true,
-          subscriptionStatus: 'active',
-          subscriptionPlan: selectedPlan.id,
-          subscriptionExpiresAt: expiryDate.toISOString(),
-        });
+      try {
+        const res = await API.post('/payments/subscribe', { planId: selectedPlan.id });
+        if (res.data?.success && res.data?.data?.user) {
+          await updateUserProfile(res.data.data.user);
+        } else if (user) {
+          await updateUserProfile({
+            isPremium: true,
+            subscriptionStatus: 'active',
+            subscriptionPlan: selectedPlan.id,
+            subscriptionExpiresAt: expiryDate.toISOString(),
+          });
+        }
+      } catch (apiErr) {
+        if (user) {
+          await updateUserProfile({
+            isPremium: true,
+            subscriptionStatus: 'active',
+            subscriptionPlan: selectedPlan.id,
+            subscriptionExpiresAt: expiryDate.toISOString(),
+          });
+        }
       }
 
+      const planName = selectedPlan.periodKey && i18n.exists(selectedPlan.periodKey)
+        ? t(selectedPlan.periodKey)
+        : (selectedPlan.name || `${daysToAdd} Days Access`);
+
       setPurchaseDetails({
-        plan: t(selectedPlan.periodKey),
-        price: selectedPlan.price,
+        plan: planName,
+        price: typeof selectedPlan.price === 'number' || !String(selectedPlan.price).startsWith('₹')
+          ? `₹${selectedPlan.price}`
+          : selectedPlan.price,
       });
       setShowSuccessModal(true);
     } catch {
@@ -195,25 +187,9 @@ export default function VipScreen() {
 
       {/* Subtle ambient fluid background */}
       <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-        <Svg width={wp(1.0)} height={hp(1.0)}>
-          <Defs>
-            <RadialGradient id="topGlow" cx="90%" cy="12%" r="55%">
-              <Stop offset="0%" stopColor="#FFE4E6" stopOpacity="0.75" />
-              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-            </RadialGradient>
-            <RadialGradient id="bottomLeftGlow" cx="0%" cy="92%" r="45%">
-              <Stop offset="0%" stopColor="#FFE4E6" stopOpacity="0.5" />
-              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-            </RadialGradient>
-            <RadialGradient id="bottomRightGlow" cx="100%" cy="95%" r="45%">
-              <Stop offset="0%" stopColor="#FFF1F2" stopOpacity="0.55" />
-              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-          <Circle cx={wp(0.85)} cy={hp(0.14)} r={wp(0.48)} fill="url(#topGlow)" />
-          <Circle cx={wp(0.05)} cy={hp(0.9)} r={wp(0.35)} fill="url(#bottomLeftGlow)" />
-          <Circle cx={wp(0.95)} cy={hp(0.92)} r={wp(0.35)} fill="url(#bottomRightGlow)" />
-        </Svg>
+        <View style={styles.topGlowOrb} />
+        <View style={styles.bottomLeftGlowOrb} />
+        <View style={styles.bottomRightGlowOrb} />
       </View>
 
       {/* Top Header Bar */}
@@ -342,8 +318,22 @@ export default function VipScreen() {
 
         {/* 3 Subscription Plan Cards */}
         <View style={styles.plansContainer}>
-          {PLANS.map((plan) => {
+          {plans.map((plan) => {
             const isSelected = selectedPlanId === plan.id;
+            const hasBadge = plan.badgeKey || plan.badgeText || plan.badgeType;
+            const badgeLabel = plan.badgeKey && i18n.exists(plan.badgeKey)
+              ? t(plan.badgeKey)
+              : (plan.badgeText || (plan.badgeType === 'popular' ? t('sub_most_popular') : plan.badgeType === 'best_value' ? t('sub_best_value') : ''));
+            const isPopular = plan.badgeType === 'popular' || plan.id === '30days';
+
+            const formattedPrice = typeof plan.price === 'number' || !String(plan.price).startsWith('₹')
+              ? `₹${plan.price}`
+              : plan.price;
+
+            const periodTitle = plan.periodKey && i18n.exists(plan.periodKey)
+              ? t(plan.periodKey)
+              : (plan.name || `${plan.durationDays || 30} Days Access`);
+
             return (
               <TouchableOpacity
                 key={plan.id}
@@ -355,16 +345,16 @@ export default function VipScreen() {
                 activeOpacity={0.88}
               >
                 {/* Top Badge (Most Popular / Best Value) */}
-                {plan.badgeKey && (
+                {Boolean(hasBadge && badgeLabel) && (
                   <View
                     style={[
                       styles.planBadge,
-                      plan.badgeType === 'popular'
+                      isPopular
                         ? styles.popularBadge
                         : styles.bestValueBadge,
                     ]}
                   >
-                    {plan.badgeType === 'popular' ? (
+                    {isPopular ? (
                       <Ionicons
                         name="flash"
                         size={fontScale(9)}
@@ -377,13 +367,13 @@ export default function VipScreen() {
                     <Text
                       style={[
                         styles.planBadgeText,
-                        plan.badgeType === 'popular'
+                        isPopular
                           ? styles.popularBadgeText
                           : styles.bestValueBadgeText,
                       ]}
                       numberOfLines={1}
                     >
-                      {t(plan.badgeKey)}
+                      {badgeLabel}
                     </Text>
                   </View>
                 )}
@@ -408,7 +398,7 @@ export default function VipScreen() {
                   ]}
                   numberOfLines={1}
                 >
-                  {plan.price}
+                  {formattedPrice}
                 </Text>
 
                 {/* Period */}
@@ -419,7 +409,7 @@ export default function VipScreen() {
                   ]}
                   numberOfLines={1}
                 >
-                  {t(plan.periodKey)}
+                  {periodTitle}
                 </Text>
 
                 {/* Divider */}
@@ -427,8 +417,8 @@ export default function VipScreen() {
 
                 {/* Feature Bullet Points */}
                 <View style={styles.planFeaturesList}>
-                  {plan.features.map((featKey) => (
-                    <View key={featKey} style={styles.planFeatureRow}>
+                  {(plan.features || []).map((feat, fIdx) => (
+                    <View key={`${plan.id}-feat-${fIdx}`} style={styles.planFeatureRow}>
                       <Ionicons
                         name="checkmark"
                         size={fontScale(11)}
@@ -436,7 +426,7 @@ export default function VipScreen() {
                         style={styles.planCheckIcon}
                       />
                       <Text style={styles.planFeatureText} numberOfLines={2}>
-                        {t(featKey)}
+                        {i18n.exists(feat) ? t(feat) : feat}
                       </Text>
                     </View>
                   ))}
@@ -452,7 +442,23 @@ export default function VipScreen() {
           onPress={handlePurchase}
           activeOpacity={0.85}
         >
-          <Text style={styles.ctaButtonText}>{t(selectedPlan.ctaKey)}</Text>
+          <Text style={styles.ctaButtonText}>
+            {(() => {
+              const activePlan = selectedPlan || DEFAULT_PLANS[1];
+              const priceVal = activePlan?.price ?? 99;
+              const formattedPrice = typeof priceVal === 'number' || !String(priceVal).startsWith('₹')
+                ? `₹${priceVal}`
+                : priceVal;
+
+              if (activePlan?.ctaKey && i18n?.exists && i18n.exists(activePlan.ctaKey)) {
+                return t(activePlan.ctaKey).replace(/₹\s*\d+/g, formattedPrice);
+              }
+              const planTitle = activePlan?.periodKey && i18n?.exists && i18n.exists(activePlan.periodKey)
+                ? t(activePlan.periodKey)
+                : (activePlan?.name || `${activePlan?.durationDays || 30} Days`);
+              return `Get ${planTitle} for ${formattedPrice} →`;
+            })()}
+          </Text>
         </TouchableOpacity>
 
         {/* Disclaimers */}
@@ -541,442 +547,3 @@ export default function VipScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-
-  /* Header Bar */
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: wp(0.04),
-    paddingBottom: hp(0.01),
-    backgroundColor: 'transparent',
-    zIndex: 10,
-  },
-  headerBackBtn: {
-    width: wp(0.1),
-    height: wp(0.1),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  headerCenter: {
-    alignItems: 'center',
-  },
-  brandTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandTitle: {
-    fontSize: fontScale(22),
-    fontWeight: '900',
-    color: '#EE1D24',
-    letterSpacing: -0.5,
-  },
-  brandStar: {
-    marginLeft: wp(0.005),
-    marginTop: -hp(0.006),
-  },
-  brandTagline: {
-    fontSize: fontScale(9),
-    color: '#4B5563',
-    fontWeight: '500',
-    marginTop: -hp(0.002),
-  },
-  headerSkipBtn: {
-    width: wp(0.1),
-    height: wp(0.1),
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-  },
-  headerSkipText: {
-    fontSize: fontScale(13.5),
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-
-  /* Scroll container */
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: wp(0.04),
-  },
-
-  /* Hero Section */
-  heroSection: {
-    flexDirection: 'row',
-    marginTop: hp(0.006),
-    marginBottom: hp(0.015),
-    height: hp(0.355),
-  },
-  heroLeft: {
-    flex: 1.18,
-    paddingRight: wp(0.02),
-    justifyContent: 'flex-start',
-  },
-  heroUnlockText: {
-    fontSize: fontScale(23),
-    fontWeight: '900',
-    color: '#111827',
-    lineHeight: fontScale(27),
-    letterSpacing: -0.6,
-  },
-  heroBrandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  heroBrandText: {
-    fontSize: fontScale(20),
-    fontWeight: '900',
-    color: '#EE1D24',
-    lineHeight: fontScale(25),
-    letterSpacing: -0.4,
-  },
-  heroCrown: {
-    fontSize: fontScale(16),
-    marginLeft: wp(0.01),
-  },
-  heroSubtitle: {
-    fontSize: fontScale(10.5),
-    color: '#4B5563',
-    fontWeight: '500',
-    lineHeight: fontScale(14),
-    marginTop: hp(0.004),
-    marginBottom: hp(0.01),
-  },
-
-  /* Checklist */
-  checklist: {
-    gap: hp(0.007),
-  },
-  checkItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  checkIconBox: {
-    width: wp(0.055),
-    height: wp(0.055),
-    borderRadius: wp(0.013),
-    backgroundColor: '#FFE4E6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pBadge: {
-    width: wp(0.042),
-    height: wp(0.042),
-    backgroundColor: '#EE1D24',
-    borderRadius: wp(0.008),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pBadgeText: {
-    color: '#FFFFFF',
-    fontSize: fontScale(9),
-    fontWeight: '900',
-  },
-  checkItemText: {
-    fontSize: fontScale(10.2),
-    color: '#374151',
-    fontWeight: '500',
-    marginLeft: wp(0.018),
-    flex: 1,
-    lineHeight: fontScale(13.5),
-  },
-
-  /* Right Column: Fanned Cards */
-  heroRight: {
-    flex: 0.95,
-    position: 'relative',
-    height: '100%',
-  },
-  posterCard: {
-    position: 'absolute',
-    borderRadius: wp(0.035),
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#F3F4F6',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: hp(0.005) },
-    shadowOpacity: 0.22,
-    shadowRadius: wp(0.018),
-    elevation: 6,
-  },
-  posterImg: {
-    width: '100%',
-    height: '100%',
-  },
-
-  /* Precise positions & rotations for the 5 fanned cards */
-  poster1: {
-    top: 0,
-    left: wp(0.04),
-    width: wp(0.24),
-    height: wp(0.315),
-    transform: [{ rotate: '-6deg' }],
-    zIndex: 1,
-  },
-  poster2: {
-    top: hp(0.018),
-    right: wp(0.01),
-    width: wp(0.225),
-    height: wp(0.295),
-    transform: [{ rotate: '8deg' }],
-    zIndex: 2,
-  },
-  poster3: {
-    top: hp(0.095),
-    left: wp(0.005),
-    width: wp(0.235),
-    height: wp(0.305),
-    transform: [{ rotate: '-4deg' }],
-    zIndex: 3,
-  },
-  poster4: {
-    top: hp(0.125),
-    right: wp(0.01),
-    width: wp(0.225),
-    height: wp(0.295),
-    transform: [{ rotate: '6deg' }],
-    zIndex: 4,
-  },
-  poster5: {
-    top: hp(0.185),
-    left: wp(0.045),
-    width: wp(0.245),
-    height: wp(0.315),
-    transform: [{ rotate: '-3deg' }],
-    zIndex: 5,
-  },
-
-  /* Plans Container (3 Cards side by side) */
-  plansContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'stretch',
-    gap: wp(0.018),
-    marginTop: hp(0.008),
-  },
-  planCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: wp(0.035),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: wp(0.018),
-    paddingTop: hp(0.016),
-    paddingBottom: hp(0.014),
-    alignItems: 'center',
-    position: 'relative',
-    minHeight: hp(0.24),
-  },
-  planCardSelected: {
-    borderColor: '#EE1D24',
-    borderWidth: 1.8,
-    shadowColor: '#EE1D24',
-    shadowOffset: { width: 0, height: hp(0.004) },
-    shadowOpacity: 0.15,
-    shadowRadius: wp(0.02),
-    elevation: 4,
-  },
-
-  /* Badges */
-  planBadge: {
-    position: 'absolute',
-    top: -hp(0.013),
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: wp(0.018),
-    paddingVertical: hp(0.0035),
-    borderRadius: wp(0.02),
-    zIndex: 2,
-  },
-  popularBadge: {
-    backgroundColor: '#EE1D24',
-  },
-  bestValueBadge: {
-    backgroundColor: '#FEF08A',
-  },
-  badgeIcon: {
-    marginRight: wp(0.008),
-  },
-  badgeCrownIcon: {
-    fontSize: fontScale(8.5),
-    marginRight: wp(0.008),
-  },
-  planBadgeText: {
-    fontSize: fontScale(7.8),
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  popularBadgeText: {
-    color: '#FFFFFF',
-  },
-  bestValueBadgeText: {
-    color: '#854D0E',
-  },
-
-  /* Radio button */
-  radioWrap: {
-    marginBottom: hp(0.006),
-  },
-  radioCircle: {
-    width: wp(0.046),
-    height: wp(0.046),
-    borderRadius: wp(0.023),
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioCircleSelected: {
-    borderColor: '#EE1D24',
-  },
-  radioDot: {
-    width: wp(0.024),
-    height: wp(0.024),
-    borderRadius: wp(0.012),
-    backgroundColor: '#EE1D24',
-  },
-
-  /* Price & Period */
-  planPrice: {
-    fontSize: fontScale(18),
-    fontWeight: '900',
-    color: '#111827',
-    letterSpacing: -0.4,
-  },
-  planPriceSelected: {
-    color: '#EE1D24',
-  },
-  planPeriod: {
-    fontSize: fontScale(9.8),
-    fontWeight: '700',
-    color: '#111827',
-    marginTop: hp(0.002),
-    textAlign: 'center',
-  },
-  planPeriodSelected: {
-    color: '#EE1D24',
-  },
-
-  planCardDivider: {
-    width: '100%',
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginVertical: hp(0.008),
-  },
-
-  /* Plan feature list */
-  planFeaturesList: {
-    width: '100%',
-    gap: hp(0.005),
-  },
-  planFeatureRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  planCheckIcon: {
-    marginRight: wp(0.01),
-    marginTop: hp(0.001),
-  },
-  planFeatureText: {
-    fontSize: fontScale(8.6),
-    color: '#374151',
-    fontWeight: '500',
-    lineHeight: fontScale(11.5),
-    flex: 1,
-  },
-
-  /* Primary CTA Button */
-  ctaButton: {
-    backgroundColor: '#EE1D24',
-    borderRadius: wp(0.07),
-    paddingVertical: hp(0.016),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: hp(0.02),
-    shadowColor: '#EE1D24',
-    shadowOffset: { width: 0, height: hp(0.006) },
-    shadowOpacity: 0.35,
-    shadowRadius: wp(0.03),
-    elevation: 5,
-  },
-  ctaButtonText: {
-    color: '#FFFFFF',
-    fontSize: fontScale(15),
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-
-  /* Disclaimers */
-  disclaimersWrap: {
-    alignItems: 'center',
-    marginTop: hp(0.012),
-    marginBottom: hp(0.015),
-  },
-  disclaimerPrimary: {
-    fontSize: fontScale(10.5),
-    color: '#4B5563',
-    fontWeight: '600',
-  },
-  disclaimerSecondary: {
-    fontSize: fontScale(9.5),
-    color: '#9CA3AF',
-    marginTop: hp(0.003),
-  },
-
-  /* Trust Badges */
-  trustBadgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: hp(0.01),
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  trustBadgeItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: wp(0.01),
-  },
-  trustDivider: {
-    width: 1,
-    height: hp(0.035),
-    backgroundColor: '#E5E7EB',
-  },
-  trustBadgeText: {
-    fontSize: fontScale(8.6),
-    color: '#4B5563',
-    fontWeight: '500',
-    textAlign: 'center',
-    marginTop: hp(0.005),
-    lineHeight: fontScale(11),
-  },
-
-  /* Legal Footer */
-  legalFooter: {
-    alignItems: 'center',
-    marginTop: hp(0.012),
-    paddingHorizontal: wp(0.04),
-  },
-  legalText: {
-    fontSize: fontScale(9),
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: fontScale(13),
-  },
-  legalLink: {
-    color: '#EE1D24',
-    textDecorationLine: 'underline',
-  },
-});

@@ -351,7 +351,7 @@ export default function PreviewScreen() {
                 </View>
                 <View style={styles.unlockTextWrap}>
                   <Text style={styles.unlockLabel}>{t('vip_title')}</Text>
-                  <Text style={styles.unlockPrice}>{t('subscribe_now')} · ₹199/mo</Text>
+                  <Text style={styles.unlockPrice}>{t('subscribe_now')} · {t('from_price_prefix', { defaultValue: 'From ₹29' })}</Text>
                 </View>
                 <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
               </PressableScale>

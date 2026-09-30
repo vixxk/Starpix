@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
+import GrantVipModal from '../components/GrantVipModal';
+import ModalPortal from '../components/ModalPortal';
 import { useToast } from '../context/ToastContext';
 import { TableSkeleton } from '../components/Skeleton';
 import Pagination from '../components/Pagination';
@@ -18,22 +20,17 @@ import {
   Trash,
   Info,
   Clock,
+  ArrowSquareOut,
+  X,
 } from '@phosphor-icons/react';
-
-const resolveMediaUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
-    return path;
-  }
-  const apiBase = API.defaults.baseURL || '';
-  const rootHost = apiBase.replace(/\/api\/?$/, '');
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${rootHost}${cleanPath}`;
-};
+import { resolveMediaUrl } from '../utils/media';
 
 export default function UsersPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('directory'); // 'directory' | 'deletions'
+
+  // Photo Lightbox Preview State
+  const [selectedPhotoUser, setSelectedPhotoUser] = useState(null);
 
   // User Directory State
   const [users, setUsers] = useState([]);
@@ -283,24 +280,32 @@ export default function UsersPage() {
                     <tr key={u._id} className={u.isDeleted ? 'bg-red-500/5' : ''}>
                       <td>
                         <div className="flex items-center gap-3">
-                          {u.profilePhoto ? (
-                            <img
-                              src={resolveMediaUrl(u.profilePhoto)}
-                              alt={u.name || 'User'}
-                              className="w-10 h-10 rounded-full object-cover border border-paper-300 shadow-sm shrink-0 bg-ink"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                if (e.target.nextSibling) {
-                                  e.target.nextSibling.style.display = 'flex';
-                                }
-                              }}
-                            />
-                          ) : null}
-                          <div
-                            style={{ display: u.profilePhoto ? 'none' : 'flex' }}
-                            className="w-10 h-10 rounded-full bg-ink text-flame-400 border border-ink flex items-center justify-center font-display font-bold shrink-0 shadow-sm"
-                          >
-                            {(u.name || 'S').substring(0, 1).toUpperCase()}
+                          <div className="relative group/avatar shrink-0">
+                            {u.profilePhoto ? (
+                              <img
+                                src={resolveMediaUrl(u.profilePhoto)}
+                                alt={u.name || 'User'}
+                                onClick={() => setSelectedPhotoUser({
+                                  name: u.name,
+                                  phone: u.phoneNumber,
+                                  photo: resolveMediaUrl(u.profilePhoto),
+                                })}
+                                title="Click to view full photo"
+                                className="w-10 h-10 rounded-full object-cover border border-paper-300 shadow-sm shrink-0 bg-ink cursor-pointer hover:ring-2 hover:ring-flame-500 hover:scale-105 transition-all"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextElementSibling) {
+                                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              style={{ display: u.profilePhoto ? 'none' : 'flex' }}
+                              className="w-10 h-10 rounded-full bg-ink text-flame-400 border border-ink flex items-center justify-center font-display font-bold shrink-0 shadow-sm"
+                            >
+                              {(u.name || 'S').substring(0, 1).toUpperCase()}
+                            </div>
                           </div>
                           <div>
                             <p className="font-semibold text-ink flex items-center gap-2">
@@ -336,9 +341,23 @@ export default function UsersPage() {
                             )}
                           </div>
                         ) : u.isPremium ? (
-                          <span className="badge-amber flex items-center gap-1 w-max">
-                            <CrownSimple className="w-3 h-3" weight="fill" /> VIP Premium
-                          </span>
+                          <div>
+                            <span className="badge-amber flex items-center gap-1 w-max">
+                              <CrownSimple className="w-3 h-3" weight="fill" /> VIP Premium
+                            </span>
+                            <p className="text-[10px] font-mono font-bold text-amber-700 mt-1">
+                              {u.subscriptionPlan === '7days' ? '7 Days Pass' :
+                               u.subscriptionPlan === '30days' ? '30 Days Pass' :
+                               u.subscriptionPlan === '1year' ? '1 Year Pass' :
+                               u.subscriptionPlan === 'lifetime' ? 'Lifetime VIP' :
+                               u.subscriptionPlan || 'Active VIP'}
+                            </p>
+                            {u.subscriptionExpiresAt && (
+                              <p className="text-[9px] font-mono text-ink-mute">
+                                Exp: {new Date(u.subscriptionExpiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <span className="badge-muted flex items-center gap-1 w-max">Free Member</span>
                         )}
@@ -516,25 +535,78 @@ export default function UsersPage() {
         onConfirm={handleConfirmRestoreUser}
       />
 
-      {/* Grant / Revoke VIP Confirmation Modal */}
-      <ConfirmModal
+      {/* Grant / Revoke VIP Modal */}
+      <GrantVipModal
         isOpen={vipModalOpen}
-        title={userToToggleVip?.isPremium ? 'Revoke VIP Entitlement?' : 'Grant VIP Entitlement?'}
-        message={
-          userToToggleVip?.isPremium
-            ? `Are you sure you want to revoke VIP status for ${userToToggleVip?.name || userToToggleVip?.phoneNumber}? They will lose access to VIP templates.`
-            : `Are you sure you want to grant full VIP access to ${userToToggleVip?.name || userToToggleVip?.phoneNumber}?`
-        }
-        confirmText={userToToggleVip?.isPremium ? 'Revoke VIP' : 'Grant VIP'}
-        cancelText="Cancel"
-        danger={Boolean(userToToggleVip?.isPremium)}
-        loading={togglingVip}
+        user={userToToggleVip}
         onClose={() => {
           setVipModalOpen(false);
           setUserToToggleVip(null);
         }}
-        onConfirm={handleConfirmToggleVip}
+        onSuccess={() => {
+          fetchUsers();
+        }}
       />
+
+      {/* User Profile Photo Preview Lightbox Modal */}
+      {selectedPhotoUser && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-ink/80 backdrop-blur-sm animate-fade-in"
+            onClick={() => setSelectedPhotoUser(null)}
+          >
+            <div
+              className="bg-paper-50 border-2 border-ink shadow-hard-lg max-w-sm w-full overflow-hidden animate-scale-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-3.5 border-b-2 border-ink bg-paper-100">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-full bg-ink text-flame-400 border border-ink flex items-center justify-center font-display font-bold text-xs shrink-0">
+                    {(selectedPhotoUser.name || 'U').substring(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-ink text-xs truncate">
+                      {selectedPhotoUser.name || 'User Profile Photo'}
+                    </p>
+                    {selectedPhotoUser.phone && (
+                      <p className="font-mono text-[10px] text-ink-mute truncate">{selectedPhotoUser.phone}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhotoUser(null)}
+                  className="p-1 text-ink hover:bg-paper-200 border-2 border-transparent hover:border-ink transition-all"
+                  title="Close preview"
+                >
+                  <X className="w-4 h-4" weight="bold" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-ink/5 flex items-center justify-center">
+                <img
+                  src={selectedPhotoUser.photo}
+                  alt={selectedPhotoUser.name || 'User Profile Photo'}
+                  className="max-h-[60vh] max-w-full object-contain border-2 border-ink bg-ink shadow-hard-sm"
+                />
+              </div>
+
+              <div className="p-2.5 bg-paper-100 border-t-2 border-ink flex items-center justify-between">
+                <span className="label text-[9px]">Full Resolution Preview</span>
+                <a
+                  href={selectedPhotoUser.photo}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary text-[10px] py-1 px-2.5 flex items-center gap-1"
+                >
+                  <ArrowSquareOut className="w-3.5 h-3.5" />
+                  <span>Open Original</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }

@@ -10,7 +10,21 @@ const purchaseSchema = new mongoose.Schema(
     templateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Template',
-      required: true,
+      required: false,
+      default: null,
+    },
+    purchaseType: {
+      type: String,
+      enum: ['template_unlock', 'vip_subscription'],
+      default: 'template_unlock',
+    },
+    planId: {
+      type: String,
+      default: '',
+    },
+    planName: {
+      type: String,
+      default: '',
     },
     productId: {
       type: String,

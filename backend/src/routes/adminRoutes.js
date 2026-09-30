@@ -28,4 +28,14 @@ router.get('/reports', protectAdmin, getAdminReports);
 router.put('/reports/:id', protectAdmin, updateReportStatus);
 router.delete('/reports/:id', protectAdmin, deleteReport);
 
+// Pricing & subscription packs
+const { getAdminPricing, updateAdminPricing } = require('../controllers/pricingController');
+router.get('/pricing', protectAdmin, getAdminPricing);
+router.put('/pricing', protectAdmin, updateAdminPricing);
+
+// AI Credits settings & packs
+const { getAdminAICredits, updateAdminAICredits } = require('../controllers/aiCreditController');
+router.get('/ai-credits', protectAdmin, getAdminAICredits);
+router.put('/ai-credits', protectAdmin, updateAdminAICredits);
+
 module.exports = router;

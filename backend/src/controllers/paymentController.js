@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const Purchase = require('../models/Purchase');
 const Template = require('../models/Template');
 const User = require('../models/User');
+const PricingSetting = require('../models/PricingSetting');
 const { v4: uuidv4 } = require('uuid');
 
 // @desc    Initiate/Create payment transaction
@@ -91,7 +92,19 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
 
   // Check if user has an active global subscription (VIP Pass)
   const user = await User.findById(userId);
-  const isVip = Boolean(user && user.isPremium && user.subscriptionStatus === 'active');
+  let isVip = Boolean(user && user.isPremium && user.subscriptionStatus === 'active');
+  if (isVip && user.subscriptionExpiresAt && new Date() > new Date(user.subscriptionExpiresAt)) {
+    user.isPremium = false;
+    user.subscriptionStatus = 'expired';
+    await user.save();
+    isVip = false;
+  }
+
+  // Get active pricing plans
+  const pricing = await PricingSetting.findOne();
+  const lowestVipPrice = (pricing?.plans && pricing.plans.length > 0)
+    ? Math.min(...pricing.plans.filter((p) => p.isActive !== false).map((p) => p.price))
+    : 29;
 
   if (template.accessType === 'vip') {
     // VIP-only tier — unlocks exclusively via the VIP Pass
@@ -108,7 +121,7 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
       success: true,
       data: {
         isUnlocked: false,
-        price: 199,
+        price: lowestVipPrice,
         reason: 'vip_required',
       },
     });
@@ -171,8 +184,88 @@ const getMyPurchases = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Purchase VIP Subscription Plan
+// @route   POST /api/payments/subscribe
+// @access  Private (User)
+const subscribeVip = asyncHandler(async (req, res) => {
+  const { planId } = req.body;
+  const userId = req.user._id;
+
+  if (!planId) {
+    return res.status(400).json({ success: false, message: 'Plan ID is required' });
+  }
+
+  const pricing = await PricingSetting.findOne();
+  let plan = pricing?.plans?.find((p) => p.id === planId && p.isActive !== false);
+
+  if (!plan) {
+    const fallbackPlans = {
+      '7days': { id: '7days', name: '7 Days Access', price: 29, durationDays: 7 },
+      '30days': { id: '30days', name: '30 Days Access', price: 99, durationDays: 30 },
+      '1year': { id: '1year', name: '1 Year Access', price: 599, durationDays: 365 },
+    };
+    plan = fallbackPlans[planId];
+  }
+
+  if (!plan) {
+    return res.status(400).json({ success: false, message: 'Invalid or inactive VIP plan selected' });
+  }
+
+  const durationDays = Number(plan.durationDays) || 30;
+  const expiryDate = new Date();
+  expiryDate.setDate(expiryDate.getDate() + durationDays);
+
+  const transactionId = `txn_vip_${uuidv4().substring(0, 8)}`;
+
+  const purchase = await Purchase.create({
+    userId,
+    templateId: null,
+    purchaseType: 'vip_subscription',
+    planId: plan.id,
+    planName: plan.name,
+    productId: `vip_pack_${plan.id}`,
+    amount: plan.price,
+    currency: pricing?.currency || 'INR',
+    status: 'successful',
+    paymentProvider: 'development',
+    transactionId,
+  });
+
+  const user = await User.findById(userId);
+  if (user) {
+    user.isPremium = true;
+    user.subscriptionStatus = 'active';
+    user.subscriptionPlan = plan.id;
+    user.subscriptionExpiresAt = expiryDate;
+    user.subscriptionDurationDays = durationDays;
+    user.vipGrantedBy = 'purchase';
+    await user.save();
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Subscribed to ${plan.name} successfully`,
+    data: {
+      transactionId: purchase.transactionId,
+      purchaseId: purchase._id,
+      amount: purchase.amount,
+      currency: purchase.currency,
+      planId: plan.id,
+      planName: plan.name,
+      expiresAt: expiryDate,
+      user: {
+        isPremium: user?.isPremium,
+        subscriptionStatus: user?.subscriptionStatus,
+        subscriptionPlan: user?.subscriptionPlan,
+        subscriptionExpiresAt: user?.subscriptionExpiresAt,
+      },
+    },
+  });
+});
+
 module.exports = {
   createPayment,
   verifyEntitlement,
   getMyPurchases,
+  subscribeVip,
 };

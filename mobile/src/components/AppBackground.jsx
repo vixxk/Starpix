@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   glow: {
     position: 'absolute',
     borderRadius: 999,
-    backgroundColor: 'rgba(253, 186, 116, 0.14)',
+    backgroundColor: 'rgba(225, 29, 72, 0.06)',
   },
   glowTop: {
     top: -140,

@@ -74,7 +74,8 @@ export default function Reports() {
 
   const summary = data?.summary || {};
   const monthly = data?.monthly || [];
-  const byTemplate = data?.byTemplate || [];
+  const byTemplate = (data?.byTemplate || []).filter((t) => t.template);
+  const byVipPack = data?.byVipPack || [];
   const maxMonthRevenue = monthly.reduce((m, x) => Math.max(m, x.revenue), 0);
   const totalRevenue = summary.totalRevenue || 0;
 
@@ -200,15 +201,19 @@ export default function Reports() {
                 <TrendUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-flame-600 shrink-0" weight="bold" /> {rangeText(from, to)}
               </p>
             </div>
-            <div className="panel panel-hover px-2.5 py-2 sm:p-5">
-              <p className="label text-[8px] sm:text-[10px]">Unlocks</p>
-              <h3 className="display text-lg sm:text-2xl text-ink mt-0 sm:mt-1.5 tabular-nums">{summary.totalUnlocks || 0}</h3>
-              <p className="text-[9px] sm:text-[11px] text-ink-mute font-medium mt-0 sm:mt-1">successful purchases</p>
+            <div className="panel panel-hover px-2.5 py-2 sm:p-5 border-amber-500/20 bg-amber-500/5">
+              <p className="label text-[8px] sm:text-[10px] text-amber-600">VIP Subscriptions</p>
+              <h3 className="display text-lg sm:text-2xl text-ink mt-0 sm:mt-1.5 tabular-nums">{inr(summary.totalVipRevenue || 0)}</h3>
+              <p className="text-[9px] sm:text-[11px] text-amber-700 font-medium mt-0 sm:mt-1">
+                {summary.totalVipCount || 0} membership pack{summary.totalVipCount === 1 ? '' : 's'}
+              </p>
             </div>
             <div className="panel panel-hover px-2.5 py-2 sm:p-5">
-              <p className="label text-[8px] sm:text-[10px]">Months Covered</p>
-              <h3 className="display text-lg sm:text-2xl text-ink mt-0 sm:mt-1.5 tabular-nums">{summary.monthCount || 0}</h3>
-              <p className="text-[9px] sm:text-[11px] text-ink-mute font-medium mt-0 sm:mt-1">with activity</p>
+              <p className="label text-[8px] sm:text-[10px]">Template Unlocks</p>
+              <h3 className="display text-lg sm:text-2xl text-ink mt-0 sm:mt-1.5 tabular-nums">{inr(summary.templateRevenue || 0)}</h3>
+              <p className="text-[9px] sm:text-[11px] text-ink-mute font-medium mt-0 sm:mt-1">
+                {summary.totalUnlocks || 0} direct unlock{summary.totalUnlocks === 1 ? '' : 's'}
+              </p>
             </div>
             <div className="panel panel-hover px-2.5 py-2 sm:p-5">
               <p className="label text-[8px] sm:text-[10px]">Top Template</p>
@@ -256,6 +261,80 @@ export default function Reports() {
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* VIP Subscription Packs Breakdown */}
+          <div className="panel overflow-hidden">
+            <div className="px-3.5 py-3 sm:px-6 sm:pt-6 sm:pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+              <h3 className="display font-bold text-ink text-sm sm:text-base flex items-center gap-2 whitespace-nowrap">
+                <CrownSimple className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" weight="fill" /> VIP Subscription Packs
+              </h3>
+              <span className="label text-[9px] sm:text-[10px]">Packs Performance</span>
+            </div>
+
+            {byVipPack.length === 0 ? (
+              <div className="py-8 text-center bg-paper-50 border-t-2 border-ink/10">
+                <p className="text-xs text-ink-mute font-medium">No VIP pack subscriptions recorded in this range.</p>
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Subscription Pack</th>
+                      <th>Unit Price</th>
+                      <th>Packs Sold</th>
+                      <th>Total Revenue</th>
+                      <th className="w-56">Share of VIP Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byVipPack.map((v) => {
+                      const vipRev = summary.totalVipRevenue || 1;
+                      const share = (v.revenue / vipRev) * 100;
+                      return (
+                        <tr key={v._id}>
+                          <td>
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-8 rounded bg-ink flex items-center justify-center text-amber-400 border border-ink shrink-0">
+                                <CrownSimple className="w-3.5 h-3.5" weight="fill" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-ink text-xs sm:text-sm">
+                                  {v.planName === '7days' ? '7 Days Access' :
+                                   v.planName === '30days' ? '30 Days Access' :
+                                   v.planName === '1year' ? '1 Year Access' :
+                                   v.planName || 'VIP Membership Pack'}
+                                </p>
+                                <p className="text-[10px] text-ink-mute font-mono">{v._id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="font-semibold text-ink tabular-nums text-xs">
+                            {v.amount ? inr(v.amount) : '—'}
+                          </td>
+                          <td className="font-semibold text-ink tabular-nums">{v.count}</td>
+                          <td className="font-bold text-amber-700 tabular-nums">{inr(v.revenue)}</td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-3.5 bg-paper-100 border-2 border-ink relative overflow-hidden">
+                                <div
+                                  className="absolute inset-y-0 left-0 bg-amber-500"
+                                  style={{ width: `${Math.min(Math.max(share, 4), 100)}%` }}
+                                />
+                              </div>
+                              <span className="w-12 text-right font-mono text-[11px] font-bold text-ink tabular-nums">
+                                {share.toFixed(1)}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

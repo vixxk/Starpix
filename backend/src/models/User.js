@@ -40,6 +40,23 @@ const userSchema = new mongoose.Schema(
       enum: ['none', 'active', 'expired', 'cancelled'],
       default: 'none',
     },
+    subscriptionPlan: {
+      type: String,
+      default: '',
+    },
+    subscriptionExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    subscriptionDurationDays: {
+      type: Number,
+      default: 0,
+    },
+    vipGrantedBy: {
+      type: String,
+      enum: ['none', 'admin', 'purchase'],
+      default: 'none',
+    },
     favorites: [
       {
         type: mongoose.Schema.Types.ObjectId,

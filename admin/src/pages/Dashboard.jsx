@@ -226,15 +226,21 @@ export default function Dashboard() {
               {stats?.recentPurchases?.map((p) => (
                 <div key={p._id} className="flex items-center justify-between gap-3 py-2 border-b border-paper-100 last:border-0">
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={p.templateId?.thumbnail || p.finalAssetUrl || p.templateId?.previewAsset || p.templateId?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
-                      alt={p.templateId?.name || 'Template'}
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
-                      }}
-                      className="w-11 h-11 object-cover border-2 border-ink/20 shrink-0"
-                    />
+                    {p.templateId ? (
+                      <img
+                        src={p.templateId?.thumbnail || p.finalAssetUrl || p.templateId?.previewAsset || p.templateId?.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
+                        alt={p.templateId?.name || 'Template'}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
+                        }}
+                        className="w-11 h-11 object-cover border-2 border-ink/20 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 bg-ink border-2 border-ink flex items-center justify-center text-amber-400 shrink-0">
+                        <CrownSimple className="w-5 h-5" weight="fill" />
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-ink truncate">
                         {p.userId?.name && p.userId.name !== 'Trial Name'
@@ -245,7 +251,7 @@ export default function Dashboard() {
                           ? p.userId.email
                           : 'User'}
                       </h4>
-                      <p className="text-[11px] text-ink-mute truncate">{p.templateId?.name || 'Template'}</p>
+                      <p className="text-[11px] text-ink-mute truncate">{p.templateId?.name || p.planName || 'VIP Subscription Pass'}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">

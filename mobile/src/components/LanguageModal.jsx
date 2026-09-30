@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 5,
-    backgroundColor: 'rgba(249, 115, 22, 0.15)',
+    backgroundColor: 'rgba(225, 29, 72, 0.12)',
     borderRadius: 3,
   },
   customScrollThumb: {
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     paddingVertical: hp(0.012),
   },
   langItemActive: {
-    backgroundColor: '#FFF0E0',
+    backgroundColor: '#FFF1F2',
     borderColor: COLORS.orange,
   },
   langItemContent: {

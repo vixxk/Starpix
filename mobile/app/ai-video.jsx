@@ -27,6 +27,8 @@ import AppVideo, { ResizeMode } from '../src/components/AppVideo';
 import Toast from '../src/components/Toast';
 import Skeleton from '../src/components/Skeleton';
 import ConfirmModal from '../src/components/ConfirmModal';
+import PressableScale from '../src/components/PressableScale';
+import { FONTS } from '../src/constants/colors';
 
 import { fontScale, wp, hp, SCREEN_PAD } from '../src/utils/responsive';
 import { hapticTap, hapticSuccess, hapticError } from '../src/utils/haptics';
@@ -36,81 +38,14 @@ import { uploadUserMedia } from '../src/utils/upload';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useCreationStore } from '../src/store/useCreationStore';
 
-const LANGUAGES = [
-  { code: 'en', name: 'English', native: 'English' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
-  { code: 'mr', name: 'Marathi', native: 'मराठी' },
-  { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી' },
-  { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
-  { code: 'te', name: 'Telugu', native: 'తెలుగు' },
-  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' },
-  { code: 'bn', name: 'Bengali', native: 'বাংলা' },
-  { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
-  { code: 'ml', name: 'Malayalam', native: 'മലയാളം' },
-];
-
-const CATEGORIES = [
-  { id: "Today's Special", iconType: 'star' },
-  { id: 'Dance Video', iconType: 'music' },
-  { id: "Retro 80's", iconType: 'radio' },
-  { id: "Bappa in 80's", iconType: 'temple' },
-  { id: 'Ganesh Chaturthi', iconType: 'temple' },
-  { id: 'Devotional', iconType: 'om' },
-  { id: 'Photography Video', iconType: 'camera' },
-  { id: 'Motivation', iconType: 'trending' },
-  { id: 'Love', iconType: 'heart' },
-  { id: 'Birthday', iconType: 'cake' },
-];
-
-// Fallback high-resolution template definitions matching the screenshot
-const FALLBACK_TEMPLATES = [
-  {
-    _id: 'couple_ride_01',
-    title: 'Vintage Indian Couple Ride',
-    category: "Retro 80's",
-    mediaType: 'video',
-    requiredPhotos: 2,
-    creditsRequired: 100,
-    durationSeconds: 15,
-    videoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/c4902ddb-bfbf-4801-91b8-b0e0ba17af7c.jpg',
-    thumbnailUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/c4902ddb-bfbf-4801-91b8-b0e0ba17af7c.jpg',
-    sampleSourceImageUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/1f8259ce-bdf1-4094-aa69-3b35db4b3aac.jpg',
-    sampleSourceImageUrls: [
-      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/1f8259ce-bdf1-4094-aa69-3b35db4b3aac.jpg',
-      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/8a02f588-c7e8-4e48-8fe4-9d878d881783.jpg',
-    ],
-  },
-  {
-    _id: 'retro_six_frames_02',
-    title: 'Retro Six Frames',
-    category: "Retro 80's",
-    mediaType: 'image',
-    requiredPhotos: 1,
-    creditsRequired: 25,
-    durationSeconds: 0,
-    videoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/4c03b402-0f4b-46a6-8241-c3ddc6288dbf.jpg',
-    thumbnailUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/4c03b402-0f4b-46a6-8241-c3ddc6288dbf.jpg',
-    sampleSourceImageUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
-    sampleSourceImageUrls: [
-      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
-    ],
-  },
-  {
-    _id: 'bollywood_portrait_03',
-    title: '1980s Bollywood Portrait',
-    category: "Retro 80's",
-    mediaType: 'image',
-    requiredPhotos: 1,
-    creditsRequired: 30,
-    durationSeconds: 0,
-    videoUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/d0b84582-8bc9-428b-bef6-1ba72f1cc506.jpg',
-    thumbnailUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/d0b84582-8bc9-428b-bef6-1ba72f1cc506.jpg',
-    sampleSourceImageUrl: 'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
-    sampleSourceImageUrls: [
-      'https://starpix-media-production.s3.ap-south-1.amazonaws.com/ai-trends/530a9c2b-88eb-4cc6-93a1-0e2ce8ea8d30.jpg',
-    ],
-  },
-];
+import {
+  LANGUAGES,
+  CATEGORIES,
+  FALLBACK_TEMPLATES,
+  LanguageSelectModal,
+  HeroTemplateCard,
+  styles,
+} from '../src/modules/aiVideo';
 
 export default function AITrendsScreen() {
   const insets = useSafeAreaInsets();
@@ -119,6 +54,8 @@ export default function AITrendsScreen() {
 
   const user = useAuthStore((state) => state.user);
   const addDownloadedCreation = useCreationStore((state) => state.addDownloadedCreation);
+
+  const scrollRef = useRef(null);
 
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -136,6 +73,10 @@ export default function AITrendsScreen() {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
+
+  // Result actions state
+  const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -172,27 +113,49 @@ export default function AITrendsScreen() {
     setToastKey((k) => k + 1);
   };
 
-  // Switch active template
+  // Switch active template and smoothly scroll back to top
   const handleSelectTemplate = (tmpl) => {
     hapticTap();
     setSelectedTemplate(tmpl);
+    setUserFaces([]);
     setGeneratedResult(null);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ y: 0, animated: true });
+    }
+  };
+
+  // Category filter selection
+  const handleSelectCategory = (catId) => {
+    hapticTap();
+    setActiveCategory(catId);
+    const filtered = catId === "Today's Special"
+      ? templates
+      : templates.filter((t) => t.category?.toLowerCase() === catId.toLowerCase());
+    if (filtered.length > 0) {
+      setSelectedTemplate(filtered[0]);
+      setUserFaces([]);
+      setGeneratedResult(null);
+      if (scrollRef.current) {
+        scrollRef.current.scrollTo({ y: 0, animated: true });
+      }
+    }
   };
 
   // Image Picker for face slots
   const handlePickFaceImage = async (slotIndex = 0) => {
     try {
+      hapticTap();
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         Alert.alert(t('photo_access_required'), t('gallery_permission_required'));
         return;
       }
 
-      const result = await ImagePicker.launchImagePickerAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.9,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -200,11 +163,25 @@ export default function AITrendsScreen() {
         const updated = [...userFaces];
         updated[slotIndex] = pickedUri;
         setUserFaces(updated);
-        hapticTap();
+        hapticSuccess();
+        showToast(t('photo_selected') || 'Photo selected!');
       }
     } catch (err) {
       console.log('Error picking face image:', err?.message);
     }
+  };
+
+  const handleUploadCardPress = () => {
+    hapticTap();
+    const reqCount = selectedTemplate?.requiredPhotos || 1;
+    let targetSlot = 0;
+    for (let i = 0; i < reqCount; i++) {
+      if (!userFaces[i]) {
+        targetSlot = i;
+        break;
+      }
+    }
+    handlePickFaceImage(targetSlot);
   };
 
   const handleRemoveFace = (slotIndex) => {
@@ -229,10 +206,24 @@ export default function AITrendsScreen() {
     return null;
   };
 
-  // Trigger Generation
+  // Trigger Generation with credit validation
   const handleTriggerCreate = () => {
     if (!selectedTemplate) return;
     hapticTap();
+    const userCredits = user?.credits !== undefined ? user.credits : 240;
+    const needed = selectedTemplate?.creditsRequired || 25;
+    if (user && userCredits < needed) {
+      Alert.alert(
+        t('insufficient_credits') || 'Insufficient Credits',
+        t('not_enough_credits_msg', { needed, available: userCredits }) ||
+          `You need ${needed} credits to generate this, but currently have ${userCredits}. Would you like to buy more?`,
+        [
+          { text: t('cancel') || 'Cancel', style: 'cancel' },
+          { text: t('settings_buy_ai_credits') || 'Buy Credits', onPress: () => router.push('/buy-credits') },
+        ]
+      );
+      return;
+    }
     setConfirmModalVisible(true);
   };
 
@@ -285,6 +276,13 @@ export default function AITrendsScreen() {
           templateId: selectedTemplate._id,
         });
 
+        // Deduct credits reactively in client auth store
+        const cost = selectedTemplate.creditsRequired || 25;
+        const updateUserProfile = useAuthStore.getState().updateUserProfile;
+        if (updateUserProfile && user?.credits !== undefined) {
+          updateUserProfile({ credits: Math.max(0, (user.credits || 0) - cost) });
+        }
+
         addDownloadedCreation({
           id: `ai_${Date.now()}`,
           name: selectedTemplate.title || 'AI Trend Creation',
@@ -306,6 +304,56 @@ export default function AITrendsScreen() {
       Alert.alert('AI Notice', msg);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // Download generated result to gallery
+  const handleDownloadResult = async () => {
+    if (!generatedResult?.resultUrl) return;
+    try {
+      setDownloading(true);
+      hapticTap();
+      const mediaUrl = resolveMediaUrl(generatedResult.resultUrl);
+      const isVideo = generatedResult.mediaType === 'video';
+      const ext = isVideo ? 'mp4' : 'jpg';
+      const fileUri = `${FileSystem.documentDirectory}starpix_ai_${Date.now()}.${ext}`;
+
+      const downloaded = await FileSystem.downloadAsync(mediaUrl, fileUri);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.createAssetAsync(downloaded.uri);
+        hapticSuccess();
+        showToast(t('download_saved_msg') || 'Saved to gallery!');
+      } else {
+        showToast('Permission needed to save to gallery');
+      }
+    } catch (e) {
+      console.warn('Download result error:', e);
+      Alert.alert('Notice', 'Failed to save to gallery');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Share generated result
+  const handleShareResult = async () => {
+    if (!generatedResult?.resultUrl) return;
+    try {
+      setSharing(true);
+      hapticTap();
+      const mediaUrl = resolveMediaUrl(generatedResult.resultUrl);
+      const isVideo = generatedResult.mediaType === 'video';
+      const ext = isVideo ? 'mp4' : 'jpg';
+      const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
+
+      const downloaded = await FileSystem.downloadAsync(mediaUrl, fileUri);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(downloaded.uri);
+      }
+    } catch (e) {
+      console.warn('Share result error:', e);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -345,8 +393,13 @@ export default function AITrendsScreen() {
   const isCurrentVideo = (selectedTemplate?.mediaType || 'video') === 'video';
   const requiredPhotosCount = selectedTemplate?.requiredPhotos || 1;
 
-  // Filter templates list excluding the currently selected template
-  const otherTemplates = templates.filter((t) => t._id !== selectedTemplate?._id);
+  // Filter templates list based on category and excluding currently selected template
+  const displayTemplates = activeCategory === "Today's Special"
+    ? templates
+    : (templates.filter((t) => t.category?.toLowerCase() === activeCategory.toLowerCase()).length > 0
+        ? templates.filter((t) => t.category?.toLowerCase() === activeCategory.toLowerCase())
+        : templates);
+  const otherTemplates = displayTemplates.filter((t) => t._id !== selectedTemplate?._id);
 
   return (
     <View style={styles.screen}>
@@ -388,15 +441,19 @@ export default function AITrendsScreen() {
             <Text style={styles.langIconText}>文A</Text>
           </TouchableOpacity>
 
-          {/* PRO Badge */}
-          <TouchableOpacity
-            onPress={() => router.push('/vip')}
-            style={styles.proBadge}
-            activeOpacity={0.8}
+          {/* PRO Pill Button */}
+          <PressableScale
+            onPress={() => {
+              hapticTap();
+              router.push('/vip');
+            }}
+            scaleTo={0.93}
+            style={styles.proBtn}
+            contentStyle={styles.proContent}
           >
-            <Text style={styles.proCrown}>👑</Text>
-            <Text style={styles.proText}>PRO</Text>
-          </TouchableOpacity>
+            <MaterialCommunityIcons name="crown" size={fontScale(14)} color="#F59E0B" />
+            <Text style={styles.proText}>{t('pro_badge') || 'PRO'}</Text>
+          </PressableScale>
 
           {/* More options menu */}
           <TouchableOpacity
@@ -410,6 +467,7 @@ export default function AITrendsScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
@@ -458,10 +516,7 @@ export default function AITrendsScreen() {
             return (
               <TouchableOpacity
                 key={cat.id}
-                onPress={() => {
-                  hapticTap();
-                  setActiveCategory(cat.id);
-                }}
+                onPress={() => handleSelectCategory(cat.id)}
                 style={[
                   styles.categoryChip,
                   isSelected && styles.categoryChipSelected,
@@ -490,210 +545,44 @@ export default function AITrendsScreen() {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Hero Featured Template Viewer */}
-        {selectedTemplate ? (
-          <View style={styles.heroCard}>
-            {/* Top Before & Upload Cards Row */}
-            <View style={styles.beforeRow}>
-              {/* Before Slot Card */}
-              <View style={styles.beforeContainer}>
-                <View style={styles.beforeBadge}>
-                  <Text style={styles.beforeBadgeText}>{t('before')}</Text>
-                </View>
-
-                {/* Multiple / Single Face Photos */}
-                <View style={styles.beforePhotosRow}>
-                  {Array.from({ length: requiredPhotosCount }).map((_, idx) => {
-                    const uri = getSlotImageUri(selectedTemplate, idx);
-                    return (
-                      <View key={idx} style={styles.beforePhotoWrap}>
-                        {uri ? (
-                          <Image
-                            source={{ uri }}
-                            style={styles.beforePhotoImg}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View style={styles.emptyBeforePhoto}>
-                            <Ionicons name="person" size={fontScale(24)} color="#9CA3AF" />
-                          </View>
-                        )}
-                        <TouchableOpacity
-                          style={styles.removeFaceBtn}
-                          onPress={() => handleRemoveFace(idx)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons name="close" size={fontScale(11)} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {/* Curved Arrow pointer pointing downward */}
-                <View style={styles.curvedArrowWrap}>
-                  <Svg width={wp(0.06)} height={hp(0.035)} viewBox="0 0 24 24">
-                    <Path
-                      d="M 4 2 Q 4 16 16 16 L 16 19 L 21 14 L 16 9 L 16 12 Q 7 12 7 2 Z"
-                      fill="#EE1D24"
-                    />
-                  </Svg>
-                </View>
-              </View>
-
-              {/* Upload Your Photo(s) Card */}
-              <TouchableOpacity
-                style={styles.uploadCard}
-                onPress={() => handlePickFaceImage(0)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.uploadIconBadge}>
-                  <MaterialCommunityIcons
-                    name="account-plus-outline"
-                    size={fontScale(22)}
-                    color="#EE1D24"
-                  />
-                </View>
-                <Text style={styles.uploadTitle} numberOfLines={1}>
-                  {requiredPhotosCount > 1 ? t('upload_your_photos') : t('upload_your_photo')}
-                </Text>
-                <Text style={styles.uploadSubtitle} numberOfLines={1}>
-                  {requiredPhotosCount > 1 ? t('add_1_or_2_photos') : t('add_1_photo')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* After Result / Preview Media Card */}
-            <View style={styles.afterCard}>
-              <View style={styles.afterTopRow}>
-                <View style={styles.afterBadge}>
-                  <Text style={styles.afterBadgeText}>{t('after')}</Text>
-                </View>
-
-                <View style={styles.mediaTypeBadge}>
-                  <Ionicons
-                    name={isCurrentVideo ? 'videocam' : 'image'}
-                    size={fontScale(12)}
-                    color="#EE1D24"
-                    style={{ marginRight: wp(0.01) }}
-                  />
-                  <Text style={styles.mediaTypeBadgeText}>
-                    {isCurrentVideo ? 'Video' : 'Image'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Main Media Preview */}
-              <View style={styles.mediaContainer}>
-                {generatedResult?.resultUrl ? (
-                  isCurrentVideo ? (
-                    <AppVideo
-                      source={{ uri: resolveMediaUrl(generatedResult.resultUrl) }}
-                      style={styles.mainMedia}
-                      resizeMode={ResizeMode.COVER}
-                      shouldPlay
-                      isLooping
-                    />
-                  ) : (
-                    <Image
-                      source={{ uri: resolveMediaUrl(generatedResult.resultUrl) }}
-                      style={styles.mainMedia}
-                      resizeMode="cover"
-                    />
-                  )
-                ) : (
-                  <View style={styles.mediaPreviewWrap}>
-                    <Image
-                      source={{
-                        uri: resolveMediaUrl(
-                          selectedTemplate.videoUrl || selectedTemplate.thumbnailUrl
-                        ),
-                      }}
-                      style={styles.mainMedia}
-                      resizeMode="cover"
-                    />
-                    {isCurrentVideo && (
-                      <View style={styles.playButtonOverlay}>
-                        <View style={styles.playButtonCircle}>
-                          <Ionicons
-                            name="play"
-                            size={fontScale(24)}
-                            color="#FFFFFF"
-                            style={{ marginLeft: wp(0.01) }}
-                          />
-                        </View>
-                      </View>
-                    )}
-                    {isCurrentVideo && (
-                      <View style={styles.durationBadge}>
-                        <Text style={styles.durationText}>
-                          {`00:${selectedTemplate.durationSeconds || 15}`}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {generating && (
-                  <View style={styles.generatingOverlay}>
-                    <ActivityIndicator size="large" color="#EE1D24" />
-                    <Text style={styles.generatingText}>Generating AI Magic...</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Info Row: Title & Credits */}
-              <View style={styles.cardInfoRow}>
-                <Text style={styles.templateTitle} numberOfLines={1}>
-                  {selectedTemplate.title}
-                </Text>
-
-                <View style={styles.templateDetailsRight}>
-                  <View style={styles.uploadCountRow}>
-                    <Ionicons
-                      name={requiredPhotosCount > 1 ? 'people' : 'person'}
-                      size={fontScale(12)}
-                      color="#EE1D24"
-                      style={{ marginRight: wp(0.01) }}
-                    />
-                    <Text style={styles.uploadCountText}>
-                      {requiredPhotosCount > 1
-                        ? t('upload_2_photos')
-                        : t('upload_1_photo')}
-                    </Text>
-                  </View>
-                  <Text style={styles.creditText}>
-                    {t('required_credit', { credit: selectedTemplate.creditsRequired || 25 })}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Dynamic Action Button: Create Image or Create Video based on content */}
-              <TouchableOpacity
-                style={styles.createButton}
-                onPress={handleTriggerCreate}
-                disabled={generating}
-                activeOpacity={0.88}
-              >
-                <MaterialCommunityIcons
-                  name="star-four-points"
-                  size={fontScale(16)}
-                  color="#FFFFFF"
-                  style={{ marginRight: wp(0.015) }}
-                />
-                <Text style={styles.createButtonText}>
-                  {isCurrentVideo ? t('create_video') : t('create_image')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : null}
+        {/* Hero Featured Template Viewer or Skeleton */}
+        <HeroTemplateCard
+          loading={loadingTemplates}
+          selectedTemplate={selectedTemplate}
+          requiredPhotosCount={requiredPhotosCount}
+          userFaces={userFaces}
+          getSlotImageUri={getSlotImageUri}
+          handlePickFaceImage={handlePickFaceImage}
+          handleRemoveFace={handleRemoveFace}
+          handleUploadCardPress={handleUploadCardPress}
+          isCurrentVideo={isCurrentVideo}
+          generatedResult={generatedResult}
+          generating={generating}
+          downloading={downloading}
+          sharing={sharing}
+          handleDownloadResult={handleDownloadResult}
+          handleShareResult={handleShareResult}
+          handleTriggerCreate={handleTriggerCreate}
+          t={t}
+        />
 
         {/* Next Items / Feed List */}
         <View style={styles.feedSection}>
-          {otherTemplates.map((tmpl) => {
-            const isTmplVideo = tmpl.mediaType === 'video';
-            const imgUri = resolveMediaUrl(tmpl.thumbnailUrl || tmpl.videoUrl);
+          {loadingTemplates ? (
+            [1, 2, 3].map((itemKey) => (
+              <View key={`skel-feed-${itemKey}`} style={styles.feedCard}>
+                <Skeleton width={wp(0.24)} height={wp(0.24)} borderRadius={wp(0.025)} />
+                <View style={[styles.feedDetails, { justifyContent: 'center', gap: 8 }]}>
+                  <Skeleton width="75%" height={16} borderRadius={4} />
+                  <Skeleton width="45%" height={12} borderRadius={3} />
+                  <Skeleton width={wp(0.28)} height={hp(0.035)} borderRadius={wp(0.02)} style={{ marginTop: 4 }} />
+                </View>
+              </View>
+            ))
+          ) : (
+            otherTemplates.map((tmpl) => {
+              const isTmplVideo = tmpl.mediaType === 'video';
+              const imgUri = resolveMediaUrl(tmpl.thumbnailUrl || tmpl.videoUrl);
 
             return (
               <TouchableOpacity
@@ -758,52 +647,19 @@ export default function AITrendsScreen() {
                 </View>
               </TouchableOpacity>
             );
-          })}
+          })
+        )}
         </View>
       </ScrollView>
 
       {/* Language Selection Modal */}
-      <Modal
+      <LanguageSelectModal
         visible={showLanguageModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLanguageModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.langModalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowLanguageModal(false)}
-        >
-          <View style={styles.langModalCard}>
-            <View style={styles.langModalHeader}>
-              <Text style={styles.langModalTitle}>{t('settings_preferred_language')}</Text>
-              <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                <Ionicons name="close" size={fontScale(20)} color="#111827" />
-              </TouchableOpacity>
-            </View>
-            {LANGUAGES.map((lang) => {
-              const isSelected = i18n.language === lang.code;
-              return (
-                <TouchableOpacity
-                  key={lang.code}
-                  style={[
-                    styles.langItem,
-                    isSelected && styles.langItemSelected,
-                  ]}
-                  onPress={() => handleSelectLanguage(lang.code)}
-                >
-                  <Text style={[styles.langText, isSelected && styles.langTextSelected]}>
-                    {lang.native} ({lang.name})
-                  </Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={fontScale(18)} color="#EE1D24" />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        currentLanguage={i18n.language}
+        title={t('settings_preferred_language')}
+        onClose={() => setShowLanguageModal(false)}
+        onSelectLanguage={handleSelectLanguage}
+      />
 
       {/* Confirm Generation Modal */}
       <ConfirmModal
@@ -823,601 +679,3 @@ export default function AITrendsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-
-  /* Header Bar */
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: wp(0.04),
-    paddingBottom: hp(0.01),
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  backBtn: {
-    width: wp(0.09),
-    height: wp(0.09),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  titleWrap: {
-    marginLeft: wp(0.01),
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  titleStar: {
-    marginRight: wp(0.01),
-  },
-  titleText: {
-    fontSize: fontScale(19),
-    fontWeight: '900',
-    color: '#111827',
-    letterSpacing: -0.4,
-  },
-  subtitleText: {
-    fontSize: fontScale(9.8),
-    color: '#9CA3AF',
-    fontWeight: '500',
-    marginTop: -hp(0.002),
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: wp(0.025),
-  },
-  langBtn: {
-    width: wp(0.08),
-    height: wp(0.08),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  langIconText: {
-    fontSize: fontScale(15),
-    fontWeight: '700',
-    color: '#EE1D24',
-  },
-  proBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FDE047',
-    paddingHorizontal: wp(0.022),
-    paddingVertical: hp(0.005),
-    borderRadius: wp(0.015),
-    gap: wp(0.01),
-  },
-  proCrown: {
-    fontSize: fontScale(11),
-  },
-  proText: {
-    fontSize: fontScale(11),
-    fontWeight: '900',
-    color: '#111827',
-  },
-  moreBtn: {
-    width: wp(0.08),
-    height: wp(0.08),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  /* Scroll Content */
-  scrollContent: {
-    paddingHorizontal: wp(0.04),
-    paddingTop: hp(0.01),
-  },
-
-  /* Quick Action Bar */
-  quickActionBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: wp(0.03),
-    marginVertical: hp(0.01),
-  },
-  buyCreditsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEFCE8',
-    borderWidth: 1,
-    borderColor: '#FEF08A',
-    paddingHorizontal: wp(0.035),
-    paddingVertical: hp(0.008),
-    borderRadius: wp(0.05),
-    gap: wp(0.015),
-  },
-  coinBadge: {
-    width: wp(0.045),
-    height: wp(0.045),
-    borderRadius: wp(0.0225),
-    backgroundColor: '#F59E0B',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coinText: {
-    color: '#FFFFFF',
-    fontSize: fontScale(9.5),
-    fontWeight: '900',
-  },
-  buyCreditsText: {
-    fontSize: fontScale(11.5),
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  historyPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EE1D24',
-    paddingHorizontal: wp(0.04),
-    paddingVertical: hp(0.008),
-    borderRadius: wp(0.05),
-    gap: wp(0.015),
-  },
-  historyText: {
-    fontSize: fontScale(11.5),
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  /* Categories Chips */
-  categoriesScroll: {
-    paddingVertical: hp(0.006),
-    gap: wp(0.018),
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: wp(0.03),
-    paddingVertical: hp(0.007),
-    borderRadius: wp(0.05),
-  },
-  categoryChipSelected: {
-    backgroundColor: '#EE1D24',
-    borderColor: '#EE1D24',
-  },
-  catIcon: {
-    marginRight: wp(0.012),
-  },
-  categoryText: {
-    fontSize: fontScale(11),
-    fontWeight: '600',
-    color: '#374151',
-  },
-  categoryTextSelected: {
-    color: '#FFFFFF',
-  },
-  categoryTextMore: {
-    fontSize: fontScale(11),
-    fontWeight: '600',
-    color: '#EE1D24',
-    marginRight: 2,
-  },
-
-  /* Hero Featured Template Viewer */
-  heroCard: {
-    marginTop: hp(0.012),
-    backgroundColor: '#FFFFFF',
-    borderRadius: wp(0.04),
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    padding: wp(0.03),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: wp(0.02),
-    elevation: 3,
-  },
-
-  /* Before Row */
-  beforeRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: wp(0.03),
-    marginBottom: hp(0.015),
-    position: 'relative',
-  },
-  beforeContainer: {
-    flex: 1.15,
-    backgroundColor: '#F9FAFB',
-    borderRadius: wp(0.03),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: wp(0.02),
-    position: 'relative',
-    minHeight: hp(0.13),
-  },
-  beforeBadge: {
-    position: 'absolute',
-    top: hp(0.006),
-    left: wp(0.018),
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: wp(0.018),
-    paddingVertical: hp(0.002),
-    borderRadius: wp(0.015),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    zIndex: 5,
-  },
-  beforeBadgeText: {
-    fontSize: fontScale(8.5),
-    fontWeight: '700',
-    color: '#111827',
-  },
-  beforePhotosRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: wp(0.02),
-    marginTop: hp(0.018),
-  },
-  beforePhotoWrap: {
-    width: wp(0.18),
-    height: wp(0.18),
-    borderRadius: wp(0.02),
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#E5E7EB',
-  },
-  beforePhotoImg: {
-    width: '100%',
-    height: '100%',
-  },
-  emptyBeforePhoto: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeFaceBtn: {
-    position: 'absolute',
-    top: 3,
-    right: 3,
-    width: wp(0.045),
-    height: wp(0.045),
-    borderRadius: wp(0.0225),
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  curvedArrowWrap: {
-    position: 'absolute',
-    bottom: -hp(0.02),
-    right: wp(0.04),
-    zIndex: 10,
-  },
-
-  /* Upload Card */
-  uploadCard: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#EE1D24',
-    borderRadius: wp(0.03),
-    backgroundColor: '#FFF5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: wp(0.025),
-  },
-  uploadIconBadge: {
-    marginBottom: hp(0.004),
-  },
-  uploadTitle: {
-    fontSize: fontScale(11.5),
-    fontWeight: '800',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  uploadSubtitle: {
-    fontSize: fontScale(9.5),
-    color: '#6B7280',
-    marginTop: hp(0.002),
-    textAlign: 'center',
-  },
-
-  /* After Card */
-  afterCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: wp(0.03),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-    padding: wp(0.025),
-  },
-  afterTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: hp(0.008),
-  },
-  afterBadge: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: wp(0.02),
-    paddingVertical: hp(0.003),
-    borderRadius: wp(0.015),
-  },
-  afterBadgeText: {
-    fontSize: fontScale(9.5),
-    fontWeight: '700',
-    color: '#111827',
-  },
-  mediaTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFE4E6',
-    paddingHorizontal: wp(0.02),
-    paddingVertical: hp(0.003),
-    borderRadius: wp(0.015),
-  },
-  mediaTypeBadgeText: {
-    fontSize: fontScale(9.5),
-    fontWeight: '700',
-    color: '#EE1D24',
-  },
-
-  /* Main Media */
-  mediaContainer: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: wp(0.025),
-    overflow: 'hidden',
-    backgroundColor: '#000000',
-    position: 'relative',
-  },
-  mediaPreviewWrap: {
-    width: '100%',
-    height: '100%',
-    position: 'relative',
-  },
-  mainMedia: {
-    width: '100%',
-    height: '100%',
-  },
-  playButtonOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playButtonCircle: {
-    width: wp(0.13),
-    height: wp(0.13),
-    borderRadius: wp(0.065),
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  durationBadge: {
-    position: 'absolute',
-    bottom: hp(0.01),
-    right: wp(0.02),
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: wp(0.018),
-    paddingVertical: hp(0.002),
-    borderRadius: wp(0.01),
-  },
-  durationText: {
-    fontSize: fontScale(9),
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  generatingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  generatingText: {
-    fontSize: fontScale(12),
-    fontWeight: '700',
-    color: '#EE1D24',
-    marginTop: hp(0.01),
-  },
-
-  /* Card Info Row */
-  cardInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: hp(0.01),
-  },
-  templateTitle: {
-    fontSize: fontScale(14),
-    fontWeight: '900',
-    color: '#111827',
-    flex: 1,
-    letterSpacing: -0.3,
-  },
-  templateDetailsRight: {
-    alignItems: 'flex-end',
-  },
-  uploadCountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  uploadCountText: {
-    fontSize: fontScale(10.5),
-    fontWeight: '700',
-    color: '#EE1D24',
-  },
-  creditText: {
-    fontSize: fontScale(10),
-    fontWeight: '600',
-    color: '#D97706',
-    marginTop: hp(0.002),
-  },
-
-  /* Big Red CTA Button */
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EE1D24',
-    borderRadius: wp(0.06),
-    paddingVertical: hp(0.016),
-    marginTop: hp(0.014),
-    shadowColor: '#EE1D24',
-    shadowOffset: { width: 0, height: hp(0.004) },
-    shadowOpacity: 0.35,
-    shadowRadius: wp(0.02),
-    elevation: 4,
-  },
-  createButtonText: {
-    fontSize: fontScale(14),
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-
-  /* Feed Section */
-  feedSection: {
-    marginTop: hp(0.015),
-    gap: hp(0.012),
-  },
-  feedCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: wp(0.03),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: wp(0.025),
-    alignItems: 'center',
-    gap: wp(0.03),
-  },
-  feedThumbWrap: {
-    width: wp(0.24),
-    height: wp(0.24),
-    borderRadius: wp(0.025),
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#F3F4F6',
-  },
-  feedThumbImg: {
-    width: '100%',
-    height: '100%',
-  },
-  feedPlayIcon: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-  },
-  feedDetails: {
-    flex: 1,
-    justifyContent: 'space-between',
-    height: wp(0.24),
-    paddingVertical: hp(0.002),
-  },
-  feedTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  feedTitleText: {
-    fontSize: fontScale(12.5),
-    fontWeight: '800',
-    color: '#111827',
-    flex: 1,
-    marginRight: wp(0.01),
-  },
-  feedMediaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFE4E6',
-    paddingHorizontal: wp(0.015),
-    paddingVertical: hp(0.002),
-    borderRadius: wp(0.01),
-  },
-  feedMediaBadgeText: {
-    fontSize: fontScale(8.5),
-    fontWeight: '700',
-    color: '#EE1D24',
-  },
-  feedCreditText: {
-    fontSize: fontScale(10),
-    fontWeight: '600',
-    color: '#D97706',
-  },
-  feedMiniButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF1F2',
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-    borderRadius: wp(0.04),
-    paddingVertical: hp(0.008),
-    paddingHorizontal: wp(0.03),
-    alignSelf: 'flex-start',
-  },
-  feedMiniButtonText: {
-    fontSize: fontScale(11),
-    fontWeight: '700',
-    color: '#EE1D24',
-  },
-
-  /* Language Modal */
-  langModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: wp(0.05),
-  },
-  langModalCard: {
-    width: '100%',
-    maxHeight: hp(0.7),
-    backgroundColor: '#FFFFFF',
-    borderRadius: wp(0.04),
-    padding: wp(0.04),
-  },
-  langModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: hp(0.015),
-    paddingBottom: hp(0.01),
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  langModalTitle: {
-    fontSize: fontScale(15),
-    fontWeight: '800',
-    color: '#111827',
-  },
-  langItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: hp(0.012),
-    borderBottomWidth: 1,
-    borderBottomColor: '#F9FAFB',
-  },
-  langItemSelected: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: wp(0.02),
-    paddingHorizontal: wp(0.02),
-  },
-  langText: {
-    fontSize: fontScale(13),
-    color: '#374151',
-    fontWeight: '500',
-  },
-  langTextSelected: {
-    color: '#EE1D24',
-    fontWeight: '700',
-  },
-});

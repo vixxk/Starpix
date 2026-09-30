@@ -128,7 +128,7 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
                 <Text style={styles.optionDesc}>{t('unlock_all')}</Text>
               </View>
               <View style={styles.optionRight}>
-                <Text style={styles.optionPriceAlt}>₹199/mo</Text>
+                <Text style={styles.optionPriceAlt}>{t('from_price_prefix', { defaultValue: 'From ₹29' })}</Text>
                 <Ionicons name="chevron-forward" size={15} color={COLORS.inkFaint} />
               </View>
             </PressableScale>

@@ -1,52 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
-import ModalPortal from '../components/ModalPortal';
-import MediaUploadZone from '../components/MediaUploadZone';
 import { TableSkeleton } from '../components/Skeleton';
 import Pagination from '../components/Pagination';
 import { useToast } from '../context/ToastContext';
 import {
   VideoCamera,
   MagnifyingGlass,
-  FunnelSimple,
   PencilSimple,
   Trash,
   Eye,
   EyeSlash,
   Plus,
-  X,
-  FloppyDisk,
   Sparkle,
-  Globe,
-  DownloadSimple,
-  Phone,
-  Clock,
-  Play,
-  ArrowSquareOut,
 } from '@phosphor-icons/react';
-import MultilingualNameModal from '../components/MultilingualNameModal';
 
-const DEFAULT_PROMPT = 'High-quality ultra-realistic 8k AI face swap. Swap ONLY the facial identity, skin texture, expression, and features from user image onto target media face. Keep all original clothing, garments, outfit, body, hairstyle, background, lighting, and pose from target media 100% identical, unchanged, and untouched. Do not alter any clothes or attire. Zero distortion.';
-
-const initialForm = {
-  title: '',
-  titleTranslations: {},
-  category: "Retro 80's",
-  mediaType: 'video',
-  requiredPhotos: 1,
-  videoUrl: '',
-  thumbnailUrl: '',
-  sampleSourceImageUrl: '',
-  sampleSourceImageUrls: [],
-  sampleResultVideoUrl: '',
-  durationSeconds: 10,
-  creditsRequired: 0,
-  prompt: DEFAULT_PROMPT,
-  sortOrder: 0,
-  isActive: true,
-};
+import {
+  DEFAULT_PROMPT,
+  initialForm,
+  TemplateModal,
+  CreationsTable,
+  MediaPreviewModal,
+} from '../modules/aiVideoTemplates';
 
 export default function AIVideoTemplates() {
   const { toast } = useToast();
@@ -126,7 +102,7 @@ export default function AIVideoTemplates() {
     }
   }, [activeTab, creationPage, creationSearch, creationTypeFilter]);
 
-  const filteredTemplates = React.useMemo(() => {
+  const filteredTemplates = useMemo(() => {
     return templates.filter((t) => {
       const matchesSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());
       const matchesType = mediaTypeFilter === 'all' ? true : t.mediaType === mediaTypeFilter;
@@ -402,20 +378,22 @@ export default function AIVideoTemplates() {
                         </button>
                       </td>
                       <td>
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-2">
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(t)}
-                            className="btn-xs border-ink hover:bg-paper-200"
+                            className="p-1.5 sm:p-2 border border-ink bg-white text-ink hover:text-flame-600 hover:border-flame-500 hover:bg-paper-100 rounded-[2px] shadow-sm transition-all active:translate-y-[1px]"
                             title="Edit AI Template"
                           >
-                            <PencilSimple className="w-3.5 h-3.5" /> Edit
+                            <PencilSimple className="w-5 h-5" weight="bold" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setDeleteTarget(t)}
-                            className="btn-xs border-red-300 text-red-600 hover:bg-red-50"
+                            className="p-1.5 sm:p-2 border border-red-300 bg-white text-red-600 hover:bg-red-50 hover:border-red-500 rounded-[2px] shadow-sm transition-all active:translate-y-[1px]"
                             title="Delete AI Template"
                           >
-                            <Trash className="w-3.5 h-3.5" />
+                            <Trash className="w-5 h-5" weight="bold" />
                           </button>
                         </div>
                       </td>
@@ -429,398 +407,36 @@ export default function AIVideoTemplates() {
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       ) : (
-        <>
-          {/* User Generated AI Content Toolbar */}
-          <div className="panel p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="flex-1 relative">
-              <MagnifyingGlass className="w-4 h-4 text-ink-mute absolute left-3.5 top-3" />
-              <input
-                type="text"
-                placeholder="Search AI creations by template title or format..."
-                value={creationSearch}
-                onChange={(e) => setCreationSearch(e.target.value)}
-                className="input pl-10"
-              />
-            </div>
-            <div className="relative">
-              <select
-                value={creationTypeFilter}
-                onChange={(e) => setCreationTypeFilter(e.target.value)}
-                className="select font-bold uppercase text-xs sm:w-44"
-              >
-                <option value="all">All AI Media Types</option>
-                <option value="video">AI Videos (.mp4)</option>
-                <option value="image">AI Photos (.png/.jpg)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* User AI Generated Creations Grid / Table */}
-          {creationLoading ? (
-            <TableSkeleton rows={5} cols={5} />
-          ) : creations.length === 0 ? (
-            <div className="panel p-12 text-center">
-              <Sparkle className="w-8 h-8 text-paper-400 mx-auto mb-2" />
-              <p className="text-sm text-ink-mute font-medium">No user-generated AI content found.</p>
-            </div>
-          ) : (
-            <div className="table-scroll anim">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Generated Media Asset</th>
-                    <th>Template / Title</th>
-                    <th>Created By User</th>
-                    <th>Type & Format</th>
-                    <th>Created Date & Time</th>
-                    <th className="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {creations.map((c) => {
-                    const isVideo = c.format === 'mp4' || c.mediaType === 'video' || (c.imageUrl && c.imageUrl.toLowerCase().includes('.mp4'));
-                    const userPhone = c.userId?.phoneNumber || 'N/A';
-                    const userName = c.userId?.name || 'Starpix Mobile User';
-                    const title = c.templateTitle || c.aiTemplateId?.title || c.templateId?.name || 'AI Face Swap';
-
-                    return (
-                      <tr key={c._id}>
-                        <td>
-                          <div className="relative w-14 aspect-[9/16] bg-ink border-2 border-ink rounded-[2px] overflow-hidden group cursor-pointer" onClick={() => setPreviewMedia({ url: c.imageUrl, isVideo, title })}>
-                            {isVideo ? (
-                              <video
-                                src={c.imageUrl}
-                                className="w-full h-full object-cover"
-                                muted
-                                loop
-                                onMouseOver={(e) => e.target.play().catch(() => {})}
-                                onMouseOut={(e) => e.target.pause()}
-                              />
-                            ) : (
-                              <img
-                                src={c.imageUrl}
-                                alt={title}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
-                                }}
-                              />
-                            )}
-                            <div className="absolute inset-0 bg-ink/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Play className="w-5 h-5 text-white" weight="fill" />
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <p className="font-bold text-ink text-sm line-clamp-1">{title}</p>
-                          <p className="text-[11px] text-ink-mute font-mono truncate max-w-[200px]">
-                            ID: {c._id}
-                          </p>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-ink text-flame-400 font-bold text-xs flex items-center justify-center border border-ink">
-                              {userName.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="font-bold text-ink text-xs">{userName}</p>
-                              <p className="font-mono text-xs text-ink-soft flex items-center gap-1">
-                                <Phone className="w-3 h-3 text-glow-600" />
-                                {userPhone}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase tracking-wider ${isVideo ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-purple-100 text-purple-700 border border-purple-300'}`}>
-                            {isVideo ? 'AI Video (.mp4)' : 'AI Photo (.png)'}
-                          </span>
-                        </td>
-                        <td className="text-ink-mute text-xs font-mono">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-ink-mute" />
-                            {new Date(c.downloadedAt || c.createdAt).toLocaleString('en-IN')}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewMedia({ url: c.imageUrl, isVideo, title })}
-                              className="btn-xs border-ink bg-paper-100 hover:bg-paper-200"
-                            >
-                              <Eye className="w-3.5 h-3.5" /> Preview
-                            </button>
-                            <a
-                              href={c.imageUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn-xs bg-flame-500 text-ink border-ink hover:bg-flame-400 flex items-center gap-1"
-                            >
-                              <ArrowSquareOut className="w-3.5 h-3.5" /> Open S3
-                            </a>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Creations Pagination */}
-          <Pagination
-            page={creationPagination.page}
-            totalPages={creationPagination.totalPages}
-            totalItems={creationPagination.totalItems}
-            limit={creationPagination.limit}
-            onPageChange={(p) => setCreationPage(p)}
-          />
-        </>
+        <CreationsTable
+          creations={creations}
+          loading={creationLoading}
+          search={creationSearch}
+          setSearch={setCreationSearch}
+          typeFilter={creationTypeFilter}
+          setTypeFilter={setCreationTypeFilter}
+          page={creationPage}
+          setPage={setCreationPage}
+          pagination={creationPagination}
+          onPreview={setPreviewMedia}
+        />
       )}
 
       {/* Full Screen Media Preview Modal */}
-      {previewMedia && (
-        <ModalPortal>
-          <div className="fixed inset-0 z-[120] bg-ink/80 flex items-center justify-center p-4">
-            <div className="panel max-w-lg w-full bg-paper-50 p-4 border-2 border-ink shadow-hard-lg">
-              <div className="flex items-center justify-between border-b-2 border-ink pb-3 mb-4">
-                <h3 className="font-bold text-ink text-sm uppercase flex items-center gap-2">
-                  <Sparkle className="w-4 h-4 text-flame-600" /> {previewMedia.title}
-                </h3>
-                <button
-                  onClick={() => setPreviewMedia(null)}
-                  className="p-1 hover:bg-paper-200 rounded border border-ink"
-                >
-                  <X className="w-5 h-5 text-ink" />
-                </button>
-              </div>
-              <div className="w-full aspect-[9/16] bg-black rounded border-2 border-ink overflow-hidden flex items-center justify-center">
-                {previewMedia.isVideo ? (
-                  <video src={previewMedia.url} className="w-full h-full object-contain" controls autoPlay loop />
-                ) : (
-                  <img src={previewMedia.url} alt={previewMedia.title} className="w-full h-full object-contain" />
-                )}
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <a
-                  href={previewMedia.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-primary !py-2 !px-4 !text-xs flex items-center gap-1.5"
-                >
-                  <DownloadSimple className="w-4 h-4" /> Download Original Media
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setPreviewMedia(null)}
-                  className="btn-secondary !py-2 !px-4 !text-xs"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
+      <MediaPreviewModal
+        previewMedia={previewMedia}
+        onClose={() => setPreviewMedia(null)}
+      />
 
       {/* Create / Edit Modal */}
-      {isModalOpen && (
-        <ModalPortal>
-          <div className="fixed inset-0 z-[100] bg-ink/60 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="panel max-w-2xl w-full bg-paper-50 p-6 space-y-4 my-8">
-              <div className="flex items-center justify-between border-b-2 border-ink pb-3">
-                <h3 className="display text-xl text-ink">
-                  {editingTemplate ? 'Edit AI Studio Template' : 'Add New AI Studio Template'}
-                </h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-1 text-ink-mute hover:text-ink">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label mb-1">Title (English) *</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        required
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="input flex-1"
-                        placeholder="e.g. Heroic Warrior AI Video"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setIsLangModalOpen(true)}
-                        className="btn-secondary px-2.5"
-                        title="Configure Title Translations"
-                      >
-                        <Globe className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="label mb-1">Media Type *</label>
-                    <select
-                      value={formData.mediaType}
-                      onChange={(e) => setFormData({ ...formData, mediaType: e.target.value })}
-                      className="select w-full"
-                    >
-                      <option value="video">Video (.mp4)</option>
-                      <option value="image">Image (.png / .jpg)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label mb-1">Category</label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="select w-full"
-                    >
-                      <option value="Retro 80's">Retro 80's</option>
-                      <option value="Today's Special">Today's Special</option>
-                      <option value="Dance Video">Dance Video</option>
-                      <option value="Bappa in 80's">Bappa in 80's</option>
-                      <option value="Ganesh Chaturthi">Ganesh Chaturthi</option>
-                      <option value="Devotional">Devotional</option>
-                      <option value="Photography Video">Photography Video</option>
-                      <option value="Motivation">Motivation</option>
-                      <option value="Love">Love</option>
-                      <option value="Birthday">Birthday</option>
-                      <option value="Trending">Trending</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="label mb-1">Required Faces / People *</label>
-                    <select
-                      value={formData.requiredPhotos}
-                      onChange={(e) => {
-                        const count = parseInt(e.target.value, 10) || 1;
-                        const curr = [...(formData.sampleSourceImageUrls || [])];
-                        while (curr.length < count) curr.push('');
-                        setFormData({
-                          ...formData,
-                          requiredPhotos: count,
-                          sampleSourceImageUrls: curr.slice(0, count),
-                        });
-                      }}
-                      className="select w-full font-semibold"
-                    >
-                      <option value={1}>👤 1 Person (Single Face)</option>
-                      <option value={2}>👥 2 People (Couple / Duo Faces)</option>
-                      <option value={3}>👥 3 People (Trio)</option>
-                      <option value={4}>👥 4 People (Group)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <MediaUploadZone
-                    label={`Main Template ${formData.mediaType === 'image' ? 'Image' : 'Video'} (After Result Asset) *`}
-                    value={formData.videoUrl}
-                    onChange={(url) => setFormData({ ...formData, videoUrl: url })}
-                    folder="ai-templates"
-                    accept={formData.mediaType === 'image' ? 'image/*' : 'video/*'}
-                  />
-                </div>
-
-                {/* Multi-Person Sample Before Faces Uploads */}
-                <div className="p-3 bg-paper-100 rounded border border-ink/10 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
-                      {formData.requiredPhotos > 1 ? '👥 Sample Before Face Photos' : '👤 Sample Before Face Photo'}
-                    </span>
-                    <span className="text-[11px] text-ink-mute">
-                      {formData.requiredPhotos > 1 ? `Upload ${formData.requiredPhotos} sample faces` : 'Upload 1 sample face'}
-                    </span>
-                  </div>
-
-                  {Array.from({ length: formData.requiredPhotos || 1 }).map((_, idx) => {
-                    const currentUrl = (formData.sampleSourceImageUrls && formData.sampleSourceImageUrls[idx]) || (idx === 0 ? formData.sampleSourceImageUrl : '');
-                    return (
-                      <MediaUploadZone
-                        key={idx}
-                        label={`Sample Before Face #${idx + 1} ${formData.requiredPhotos === 2 ? (idx === 0 ? '(e.g. Man)' : '(e.g. Woman)') : ''}`}
-                        value={currentUrl}
-                        onChange={(url) => {
-                          const updated = [...(formData.sampleSourceImageUrls || [])];
-                          while (updated.length < (formData.requiredPhotos || 1)) updated.push('');
-                          updated[idx] = url;
-                          setFormData({
-                            ...formData,
-                            sampleSourceImageUrls: updated,
-                            sampleSourceImageUrl: updated[0] || '',
-                          });
-                        }}
-                        folder="ai-sample-faces"
-                        accept="image/*"
-                      />
-                    );
-                  })}
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="label mb-1">Credits Required</label>
-                    <input
-                      type="number"
-                      value={formData.creditsRequired}
-                      onChange={(e) => setFormData({ ...formData, creditsRequired: parseInt(e.target.value, 10) || 0 })}
-                      className="input w-full font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="label mb-1">Duration (Secs)</label>
-                    <input
-                      type="number"
-                      value={formData.durationSeconds}
-                      onChange={(e) => setFormData({ ...formData, durationSeconds: parseInt(e.target.value, 10) || 0 })}
-                      className="input w-full font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="label mb-1">Sort Order</label>
-                    <input
-                      type="number"
-                      value={formData.sortOrder}
-                      onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value, 10) || 0 })}
-                      className="input w-full font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t-2 border-ink flex items-center justify-end gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn-primary flex items-center gap-2">
-                    <FloppyDisk className="w-4 h-4" /> {editingTemplate ? 'Save Changes' : 'Create AI Template'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-
-      {/* Multilingual Title Modal */}
-      <MultilingualNameModal
-        isOpen={isLangModalOpen}
-        onClose={() => setIsLangModalOpen(false)}
-        baseName={formData.title}
-        translations={formData.titleTranslations}
-        onSave={(updatedTranslations) => setFormData({ ...formData, titleTranslations: updatedTranslations })}
+      <TemplateModal
+        isOpen={isModalOpen}
+        editingTemplate={editingTemplate}
+        formData={formData}
+        setFormData={setFormData}
+        isLangModalOpen={isLangModalOpen}
+        setIsLangModalOpen={setIsLangModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSave}
       />
 
       {/* Delete Confirmation Modal */}
