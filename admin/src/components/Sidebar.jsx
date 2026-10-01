@@ -17,13 +17,11 @@ import {
   SignOut,
   Crown,
   Coins,
-  FrameCorners,
 } from '@phosphor-icons/react';
 
 const navigation = [
   { name: 'Overview', href: '/', icon: ChartBar },
   { name: 'Templates', href: '/templates', icon: Sparkle },
-  { name: 'Footers & Frames', href: '/footers', icon: FrameCorners },
   { name: 'AI Content Studio', href: '/ai-video-templates', icon: VideoCamera },
   { name: 'Categories', href: '/categories', icon: FolderSimple },
   { name: 'Campaigns', href: '/campaigns', icon: MegaphoneSimple },

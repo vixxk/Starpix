@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '../constants/colors';
 import { fontScale, wp, hp } from '../utils/responsive';
-import PressableScale from './PressableScale';
+import BackButton from './BackButton';
 
 /**
  * Themed sub-screen header (back button + icon + title + subtitle).
@@ -12,9 +12,7 @@ import PressableScale from './PressableScale';
 export default function ScreenHeader({ icon, title, subtitle, onBack }) {
   return (
     <View style={styles.header}>
-      <PressableScale onPress={onBack} scaleTo={0.88} style={styles.backBtn} contentStyle={styles.backContent}>
-        <Ionicons name="chevron-back" size={24} color={COLORS.orange} />
-      </PressableScale>
+      <BackButton onPress={onBack} />
 
       {icon && (
         <View style={styles.iconChip}>

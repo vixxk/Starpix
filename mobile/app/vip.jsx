@@ -221,14 +221,7 @@ export default function VipScreen() {
           <Text style={styles.brandTagline}>{t('sub_tagline')}</Text>
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerSkipBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.headerSkipText}>{t('sub_skip')}</Text>
-        </TouchableOpacity>
+        <View style={{ width: wp(0.1) }} />
       </View>
 
       {/* Main Scrollable Content */}

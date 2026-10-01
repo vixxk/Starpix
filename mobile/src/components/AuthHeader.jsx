@@ -111,7 +111,7 @@ export default function AuthHeader({ showBack = false, onBack, tagline }) {
           hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
           style={[styles.backButton, { top: Math.max(insets.top, hp(0.015)) + hp(0.01) }]}
         >
-          <Ionicons name="arrow-back" size={fontScale(24)} color="#FFFFFF" />
+          <Ionicons name="chevron-back" size={fontScale(22)} color="#FFFFFF" />
         </TouchableOpacity>
       )}
 

@@ -13,15 +13,24 @@ const uploadSingleMedia = asyncHandler(async (req, res) => {
   const folder = req.body.folder || 'media';
   let bufferToUpload = req.file.buffer;
 
-  // Enforce 9:16 aspect ratio (1080x1920) with zoom/cover crop for image uploads
+  const isProfilePhoto = folder === 'user-profiles' || folder === 'avatars' || folder === 'profiles';
+
+  // Process image assets: 1:1 square (512x512) for profile photos, 9:16 (1080x1920) for media templates
   if (req.file.mimetype && req.file.mimetype.startsWith('image/')) {
     try {
-      bufferToUpload = await sharp(req.file.buffer)
-        .resize(1080, 1920, { fit: 'cover', position: 'center' })
-        .toBuffer();
-      console.log('[Upload] Image asset processed into 9:16 aspect ratio (1080x1920 cover zoom)');
+      if (isProfilePhoto) {
+        bufferToUpload = await sharp(req.file.buffer)
+          .resize(512, 512, { fit: 'cover', position: 'center' })
+          .toBuffer();
+        console.log('[Upload] Profile photo asset processed into 1:1 square (512x512 cover)');
+      } else {
+        bufferToUpload = await sharp(req.file.buffer)
+          .resize(1080, 1920, { fit: 'cover', position: 'center' })
+          .toBuffer();
+        console.log('[Upload] Image asset processed into 9:16 aspect ratio (1080x1920 cover zoom)');
+      }
     } catch (sharpErr) {
-      console.error('[Upload] Error processing image to 9:16 aspect ratio:', sharpErr.message);
+      console.error('[Upload] Error processing image ratio:', sharpErr.message);
     }
   }
 

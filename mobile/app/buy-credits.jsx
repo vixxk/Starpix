@@ -16,6 +16,7 @@ import { fontScale, wp, hp } from '../src/utils/responsive';
 import { hapticTap, hapticSuccess } from '../src/utils/haptics';
 import { useAuthStore } from '../src/store/useAuthStore';
 import ConfirmModal from '../src/components/ConfirmModal';
+import BackButton from '../src/components/BackButton';
 import API from '../src/utils/api';
 
 import {
@@ -119,14 +120,7 @@ export default function BuyCreditsScreen() {
 
       {/* Top Header Bar */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, hp(0.015)) }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={fontScale(22)} color="#111827" />
-        </TouchableOpacity>
+        <BackButton />
 
         {/* Center Logo */}
         <View style={styles.headerCenter}>

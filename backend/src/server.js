@@ -1,7 +1,6 @@
 require('dotenv').config();
 const app = require('./app');
 const connectDB = require('./config/db');
-const { autoSeedIfEmpty } = require('./autoSeed');
 
 const PORT = process.env.PORT || 5000;
 
@@ -15,11 +14,10 @@ server.timeout = 900000; // 15 minutes
 server.keepAliveTimeout = 300000; // 5 minutes
 server.headersTimeout = 905000; // slightly more than server.timeout
 
-// 2. Connect to database and seed asynchronously
+// 2. Connect to database
 (async () => {
   try {
     await connectDB();
-    await autoSeedIfEmpty();
   } catch (err) {
     console.error('[Server Init Error]', err.message);
   }

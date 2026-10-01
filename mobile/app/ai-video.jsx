@@ -28,6 +28,7 @@ import Toast from '../src/components/Toast';
 import Skeleton from '../src/components/Skeleton';
 import ConfirmModal from '../src/components/ConfirmModal';
 import PressableScale from '../src/components/PressableScale';
+import BackButton from '../src/components/BackButton';
 import { FONTS } from '../src/constants/colors';
 
 import { fontScale, wp, hp, SCREEN_PAD } from '../src/utils/responsive';
@@ -408,14 +409,7 @@ export default function AITrendsScreen() {
       {/* Top Header Bar */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, hp(0.015)) }]}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={fontScale(22)} color="#111827" />
-          </TouchableOpacity>
+          <BackButton />
 
           <View style={styles.titleWrap}>
             <View style={styles.titleRow}>
@@ -535,14 +529,6 @@ export default function AITrendsScreen() {
               </TouchableOpacity>
             );
           })}
-          <TouchableOpacity
-            style={styles.categoryChip}
-            onPress={() => hapticTap()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.categoryTextMore}>More</Text>
-            <Ionicons name="chevron-down" size={fontScale(12)} color="#EE1D24" />
-          </TouchableOpacity>
         </ScrollView>
 
         {/* Hero Featured Template Viewer or Skeleton */}

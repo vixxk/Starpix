@@ -85,8 +85,9 @@ const templateSchema = new mongoose.Schema(
     },
     footers: [
       {
-        name: { type: String, default: 'Cloud Footer' },
-        videoAsset: { type: String, required: true },
+        name: { type: String, default: 'Footer' },
+        asset: { type: String, default: '' },
+        videoAsset: { type: String, default: '' },
         thumbnail: { type: String, default: '' },
         heightPercent: { type: Number, default: 40 },
         objectFit: { type: String, default: 'contain' },

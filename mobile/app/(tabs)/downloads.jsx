@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library/legacy';
 
 import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
@@ -24,6 +25,7 @@ import {
   styles,
   getTemplateId,
   getCreationId,
+  isVideoMedia,
   DownloadCard,
   DownloadPreviewModal,
 } from '../../src/modules/downloads';
@@ -157,16 +159,20 @@ export default function DownloadsScreen() {
   const handleShare = async (fileOrUrl) => {
     if (!fileOrUrl) return;
     try {
+      const isVideo = isVideoMedia(fileOrUrl);
+      const ext = isVideo ? 'mp4' : 'jpg';
+      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       let shareUri = fileOrUrl;
+
       if (fileOrUrl.startsWith('http://') || fileOrUrl.startsWith('https://')) {
-        const fileUri = `${FileSystem.documentDirectory}starpix_share_${Date.now()}.jpg`;
+        const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
         const downloaded = await FileSystem.downloadAsync(fileOrUrl, fileUri);
         shareUri = downloaded.uri;
       }
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(shareUri, {
-          mimeType: 'image/jpeg',
+          mimeType,
           dialogTitle: 'Share Starpix Creation',
         });
       } else {
@@ -183,10 +189,25 @@ export default function DownloadsScreen() {
       const uri = item.image;
       if (!uri) return;
 
+      const isVideo = isVideoMedia(uri);
+      const ext = isVideo ? 'mp4' : 'jpg';
+      let localPath = uri;
+
       if (uri.startsWith('http://') || uri.startsWith('https://')) {
-        const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.jpg`;
-        await FileSystem.downloadAsync(uri, targetPath);
+        const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.${ext}`;
+        const downloaded = await FileSystem.downloadAsync(uri, targetPath);
+        localPath = downloaded.uri;
       }
+
+      try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === 'granted') {
+          await MediaLibrary.createAssetAsync(localPath);
+        }
+      } catch (mediaErr) {
+        console.warn('MediaLibrary save notice:', mediaErr?.message);
+      }
+
       setRedownloadSuccessAlert(true);
     } catch (err) {
       console.error('Re-download error:', err);

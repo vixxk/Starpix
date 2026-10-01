@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '../src/i18n';
 import LanguageModal from '../src/components/LanguageModal';
 import ConfirmModal from '../src/components/ConfirmModal';
+import BackButton from '../src/components/BackButton';
 import Toast from '../src/components/Toast';
 import { hapticTap, hapticImpact } from '../src/utils/haptics';
 import * as Haptics from 'expo-haptics';
@@ -144,20 +145,7 @@ export default function SettingsScreen() {
 
       {/* Top Header */}
       <View style={[styles.topHeader, { paddingTop: Math.max(insets.top, hp(0.015)) + hp(0.008) }]}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => {
-            hapticTap();
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/profile');
-            }
-          }}
-          style={styles.backCircleBtn}
-        >
-          <Ionicons name="arrow-back" size={fontScale(20)} color="#EE1D24" />
-        </TouchableOpacity>
+        <BackButton />
 
         <View style={styles.headerTitleCol}>
           <Text style={styles.headerTitle}>{t('settings_title') || 'Settings'}</Text>

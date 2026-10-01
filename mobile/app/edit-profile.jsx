@@ -1,23 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Image, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, BackHandler } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  Image,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  BackHandler,
+  Modal,
+  TouchableOpacity,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 
 import AppBackground from '../src/components/AppBackground';
 import PressableScale from '../src/components/PressableScale';
+import BackButton from '../src/components/BackButton';
 import Toast from '../src/components/Toast';
 import ConfirmModal from '../src/components/ConfirmModal';
 import { COLORS, FONTS, BRUTAL } from '../src/constants/colors';
-import { SCREEN_PAD, CARD_SHADOW, hp, wp } from '../src/utils/responsive';
+import { SCREEN_PAD, CARD_SHADOW, hp, wp, fontScale } from '../src/utils/responsive';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useCreationStore } from '../src/store/useCreationStore';
 import { resolveMediaUrl } from '../src/utils/media';
 import { uploadUserMedia } from '../src/utils/upload';
-import { hapticTap } from '../src/utils/haptics';
+import { hapticTap, hapticImpact } from '../src/utils/haptics';
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -39,6 +53,7 @@ export default function EditProfileScreen() {
   const [emailText, setEmailText] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
@@ -87,12 +102,41 @@ export default function EditProfileScreen() {
     setToastKey((k) => k + 1);
   };
 
-  const handlePickImage = async () => {
+  // Option 1: Take Photo with device camera
+  const handleTakePhoto = async () => {
+    setShowPhotoModal(false);
+    hapticTap();
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        showToast(t('camera_permission_required') || 'Camera permission is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]?.uri) {
+        setPhotoUri(result.assets[0].uri);
+        showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
+      }
+    } catch (err) {
+      console.error('Error taking photo:', err);
+      showToast(t('failed_pick_image') || 'Failed to capture photo');
+    }
+  };
+
+  // Option 2: Choose from Gallery
+  const handleChooseFromGallery = async () => {
+    setShowPhotoModal(false);
     hapticTap();
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        showToast(t('gallery_permission_required'));
+        showToast(t('gallery_permission_required') || 'Gallery access permission is required!');
         return;
       }
 
@@ -105,18 +149,20 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets[0]?.uri) {
         setPhotoUri(result.assets[0].uri);
-        showToast(t('photo_selected'));
+        showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
       }
     } catch (err) {
-      console.error('Error picking photo:', err);
-      showToast(t('failed_pick_image'));
+      console.error('Error picking photo from gallery:', err);
+      showToast(t('failed_pick_image') || 'Failed to choose image from gallery');
     }
   };
 
-  const handleRemoveImage = () => {
+  // Option 3: Remove Photo
+  const handleRemovePhoto = () => {
+    setShowPhotoModal(false);
     hapticTap();
     setPhotoUri(null);
-    showToast(t('photo_cleared'));
+    showToast(t('photo_cleared') || 'Photo cleared.');
   };
 
   const handleSave = async () => {
@@ -130,18 +176,38 @@ export default function EditProfileScreen() {
         photoUri &&
         (photoUri.startsWith('file://') ||
           photoUri.startsWith('content://') ||
-          photoUri.startsWith('ph://') ||
-          photoUri.startsWith('data:image/'))
+          photoUri.startsWith('ph://'))
       ) {
-        uploadedPhotoUrl = await uploadUserMedia(photoUri, 'user-profiles');
+        try {
+          uploadedPhotoUrl = await uploadUserMedia(photoUri, 'user-profiles');
+        } catch (upErr) {
+          console.warn('uploadUserMedia direct error:', upErr);
+        }
+      }
+
+      // If uploadedPhotoUrl is still local (e.g. S3 direct upload failed), convert to base64 Data URI
+      // so the backend can upload it directly to S3 and make it visible in the admin portal
+      if (
+        uploadedPhotoUrl &&
+        (uploadedPhotoUrl.startsWith('file://') || uploadedPhotoUrl.startsWith('content://'))
+      ) {
+        try {
+          const base64 = await FileSystem.readAsStringAsync(uploadedPhotoUrl, {
+            encoding: FileSystem.EncodingType?.Base64 || 'base64',
+          });
+          const mimeType = uploadedPhotoUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
+          uploadedPhotoUrl = `data:${mimeType};base64,${base64}`;
+        } catch (b64Err) {
+          console.warn('Base64 encoding fallback error:', b64Err);
+        }
       }
 
       // Update global creation store
       setDefaultUserPhotoUri(uploadedPhotoUrl);
       setDefaultUserNameText(trimmedName);
 
-      // Sync with user auth profile if logged in
-      if (updateUserProfile && user) {
+      // Sync with user auth profile in backend
+      if (updateUserProfile) {
         await updateUserProfile({
           name: trimmedName,
           email: emailText.trim(),
@@ -149,7 +215,7 @@ export default function EditProfileScreen() {
         });
       }
 
-      showToast(t('profile_updated'));
+      showToast(t('profile_updated') || 'Profile updated successfully!');
       setTimeout(() => {
         if (router.canGoBack()) {
           router.back();
@@ -159,7 +225,7 @@ export default function EditProfileScreen() {
       }, 600);
     } catch (err) {
       console.error('Error saving profile:', err);
-      showToast(t('error_saving_profile'));
+      showToast(t('error_saving_profile') || 'Error saving changes');
     } finally {
       setSaving(false);
     }
@@ -169,19 +235,13 @@ export default function EditProfileScreen() {
     <AppBackground>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        {/* Header Bar */}
+        {/* Top Header Bar with Standardized VIP-style Back Button on Top Left */}
         <View style={styles.headerBar}>
-          <PressableScale
-            onPress={handleBackPress}
-            scaleTo={0.9}
-            style={styles.backBtn}
-            contentStyle={styles.centerContent}
-          >
-            <Ionicons name="arrow-back" size={20} color={COLORS.ink} />
-          </PressableScale>
-          <View>
-            <Text style={styles.headerTitle}>{t('edit_profile_title')}</Text>
+          <BackButton onPress={handleBackPress} />
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>{t('edit_profile_title') || 'Edit Profile'}</Text>
           </View>
+          <View style={{ width: wp(0.1) }} />
         </View>
 
         <KeyboardAvoidingView
@@ -194,134 +254,224 @@ export default function EditProfileScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          {/* Photo Upload Section */}
-          <View style={[styles.sectionCard, CARD_SHADOW]}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.iconChip}>
-                <Ionicons name="camera-outline" size={18} color={COLORS.orange} />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>{t('photo')}</Text>
-              </View>
-            </View>
-
-            <View style={styles.avatarPickerWrap}>
-              <PressableScale onPress={handlePickImage} scaleTo={0.95} style={styles.avatarGlowBorder}>
-                {photoUri ? (
-                  <Image source={{ uri: resolveMediaUrl(photoUri) }} style={styles.heroAvatarImage} resizeMode="cover" />
-                ) : (
-                  <View style={styles.heroAvatarPlaceholder}>
-                    <Ionicons name="person-add" size={40} color={COLORS.orange} />
-                    <Text style={styles.addPhotoTag}>{t('photo')}</Text>
-                  </View>
-                )}
-                <View style={styles.cameraFloatingBadge}>
-                  <Ionicons name="camera" size={14} color={COLORS.white} />
+            {/* Photo Upload Section */}
+            <View style={[styles.sectionCard, CARD_SHADOW]}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.iconChip}>
+                  <Ionicons name="camera-outline" size={18} color="#E11D48" />
                 </View>
-              </PressableScale>
+                <View>
+                  <Text style={styles.sectionTitle}>{t('photo') || 'Photo'}</Text>
+                </View>
+              </View>
 
-              <View style={styles.photoActionButtons}>
-                <PressableScale onPress={handlePickImage} scaleTo={0.96} style={styles.choosePhotoBtn} contentStyle={styles.btnContent}>
-                  <Ionicons name="image" size={16} color={COLORS.white} />
-                  <Text style={styles.choosePhotoBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {photoUri ? t('change_photo_gallery') : t('select_photo_gallery')}
-                  </Text>
+              <View style={styles.avatarPickerWrap}>
+                <PressableScale
+                  onPress={() => setShowPhotoModal(true)}
+                  scaleTo={0.95}
+                  style={styles.avatarGlowBorder}
+                >
+                  {photoUri ? (
+                    <Image
+                      source={{ uri: resolveMediaUrl(photoUri) }}
+                      style={styles.heroAvatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.heroAvatarPlaceholder}>
+                      <Ionicons name="person-add" size={38} color="#E11D48" />
+                      <Text style={styles.addPhotoTag}>{t('add_photo') || 'Add Photo'}</Text>
+                    </View>
+                  )}
+                  <View style={styles.cameraFloatingBadge}>
+                    <Ionicons name="camera" size={13} color="#FFFFFF" />
+                  </View>
                 </PressableScale>
-              </View>
-            </View>
-          </View>
 
-          {/* Name Input Section */}
-          <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 16 }]}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.iconChip}>
-                <Ionicons name="text-outline" size={18} color={COLORS.orange} />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>{t('full_name')}</Text>
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Ionicons name="person" size={18} color={COLORS.orange} style={{ marginRight: 10 }} />
-              <TextInput
-                value={nameText}
-                onChangeText={setNameText}
-                placeholder={t('enter_name_placeholder')}
-                placeholderTextColor={COLORS.inkMuted}
-                style={styles.textInput}
-                maxLength={36}
-                autoCapitalize="words"
-              />
-              {nameText.length > 0 && (
-                <PressableScale onPress={() => setNameText('')} scaleTo={0.88}>
-                  <Ionicons name="close-circle" size={18} color={COLORS.inkMuted} />
-                </PressableScale>
-              )}
-            </View>
-            <Text style={styles.charCountText}>{nameText.length}/36</Text>
-          </View>
-
-          {/* Email (Optional) Input Section */}
-          <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 16 }]}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.iconChip}>
-                <Ionicons name="mail-outline" size={18} color={COLORS.orange} />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>{t('auth_email_optional')}</Text>
+                <View style={styles.photoActionButtons}>
+                  <PressableScale
+                    onPress={() => setShowPhotoModal(true)}
+                    scaleTo={0.96}
+                    style={styles.choosePhotoBtn}
+                    contentStyle={styles.btnContent}
+                  >
+                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                    <Text style={styles.choosePhotoBtnText} numberOfLines={1}>
+                      {photoUri ? (t('change_photo_gallery') || 'Change Photo') : (t('add_photo') || 'Add Photo')}
+                    </Text>
+                  </PressableScale>
+                </View>
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail" size={18} color={COLORS.orange} style={{ marginRight: 10 }} />
-              <TextInput
-                value={emailText}
-                onChangeText={setEmailText}
-                placeholder={t('auth_email_placeholder')}
-                placeholderTextColor={COLORS.inkMuted}
-                style={styles.textInput}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {emailText.length > 0 && (
-                <PressableScale onPress={() => setEmailText('')} scaleTo={0.88}>
-                  <Ionicons name="close-circle" size={18} color={COLORS.inkMuted} />
-                </PressableScale>
-              )}
+            {/* Name Input Section */}
+            <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 16 }]}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.iconChip}>
+                  <Ionicons name="text-outline" size={18} color="#E11D48" />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>{t('full_name') || 'Full Name'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="person" size={18} color="#E11D48" style={{ marginRight: 10 }} />
+                <TextInput
+                  value={nameText}
+                  onChangeText={setNameText}
+                  placeholder={t('enter_name_placeholder') || 'Enter your name'}
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.textInput}
+                  maxLength={36}
+                  autoCapitalize="words"
+                />
+                {nameText.length > 0 && (
+                  <PressableScale onPress={() => setNameText('')} scaleTo={0.88}>
+                    <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                  </PressableScale>
+                )}
+              </View>
+              <Text style={styles.charCountText}>{nameText.length}/36</Text>
             </View>
-          </View>
 
-          {/* Floating Save Button */}
-          <PressableScale
-            onPress={handleSave}
-            disabled={saving}
-            scaleTo={0.96}
-            style={styles.primarySaveBtn}
-            contentStyle={styles.centerContent}
-          >
-            <Text style={styles.primarySaveBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-              {saving ? '...' : t('save_changes')}
-            </Text>
-          </PressableScale>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            {/* Email (Optional) Input Section */}
+            <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 16 }]}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.iconChip}>
+                  <Ionicons name="mail-outline" size={18} color="#E11D48" />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>{t('auth_email_optional') || 'Email (Optional)'}</Text>
+                </View>
+              </View>
 
-        <ConfirmModal
-          visible={showDiscardModal}
-          title={t('discard_changes_title')}
-          message={t('discard_changes_msg')}
-          confirmText={t('discard')}
-          cancelText={t('keep_editing')}
-          icon="alert-circle-outline"
-          iconColor={COLORS.orange}
-          onCancel={() => setShowDiscardModal(false)}
-          onConfirm={handleConfirmDiscard}
-        />
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail" size={18} color="#E11D48" style={{ marginRight: 10 }} />
+                <TextInput
+                  value={emailText}
+                  onChangeText={setEmailText}
+                  placeholder={t('auth_email_placeholder') || 'Enter your email address'}
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.textInput}
+                  maxLength={64}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                {emailText.length > 0 && (
+                  <PressableScale onPress={() => setEmailText('')} scaleTo={0.88}>
+                    <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                  </PressableScale>
+                )}
+              </View>
+            </View>
 
-        <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
+            {/* Save Changes Button */}
+            <PressableScale
+              onPress={handleSave}
+              disabled={saving}
+              scaleTo={0.97}
+              style={styles.primarySaveBtn}
+              contentStyle={styles.btnContent}
+            >
+              <Text style={styles.primarySaveBtnText}>
+                {saving ? (t('saving') || 'Saving...') : (t('save_changes') || 'Save Changes')}
+              </Text>
+            </PressableScale>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
+
+      {/* 3-Options "Add Photo" Bottom Sheet Modal Matching Reference */}
+      <Modal
+        visible={showPhotoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPhotoModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowPhotoModal(false)}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.photoSheet, { paddingBottom: Math.max(insets.bottom, 16) + 10 }]}
+          >
+            {/* Top Pill Handle Indicator */}
+            <View style={styles.sheetHandle} />
+
+            {/* Modal Title */}
+            <Text style={styles.sheetTitle}>{t('add_photo') || 'Add Photo'}</Text>
+
+            {/* 3 Options Group */}
+            <View style={styles.sheetOptionsGroup}>
+              {/* Option 1: Take Photo */}
+              <TouchableOpacity
+                style={styles.sheetOptionRow}
+                activeOpacity={0.7}
+                onPress={handleTakePhoto}
+              >
+                <View style={styles.sheetOptionIconCircle}>
+                  <Ionicons name="camera" size={20} color="#E11D48" />
+                </View>
+                <Text style={styles.sheetOptionText}>{t('take_photo') || 'Take Photo'}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              {/* Option 2: Choose from Gallery */}
+              <TouchableOpacity
+                style={styles.sheetOptionRow}
+                activeOpacity={0.7}
+                onPress={handleChooseFromGallery}
+              >
+                <View style={styles.sheetOptionIconCircle}>
+                  <Ionicons name="image" size={20} color="#E11D48" />
+                </View>
+                <Text style={styles.sheetOptionText}>{t('choose_from_gallery') || 'Choose from Gallery'}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              {/* Option 3: Remove Photo */}
+              <TouchableOpacity
+                style={[styles.sheetOptionRow, { borderBottomWidth: 0 }]}
+                activeOpacity={0.7}
+                onPress={handleRemovePhoto}
+              >
+                <View style={styles.sheetOptionIconCircle}>
+                  <Ionicons name="trash" size={20} color="#E11D48" />
+                </View>
+                <Text style={styles.sheetOptionText}>{t('remove_photo') || 'Remove Photo'}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={styles.sheetCancelBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowPhotoModal(false)}
+            >
+              <Text style={styles.sheetCancelText}>{t('cancel') || 'Cancel'}</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Discard Confirmation Modal */}
+      <ConfirmModal
+        visible={showDiscardModal}
+        title={t('discard_changes_title') || 'Discard Changes?'}
+        message={t('discard_changes_msg') || 'You have unsaved changes. Are you sure you want to discard them?'}
+        confirmText={t('discard') || 'Discard'}
+        cancelText={t('keep_editing') || 'Keep Editing'}
+        icon="alert-circle-outline"
+        iconColor="#EF4444"
+        onCancel={() => setShowDiscardModal(false)}
+        onConfirm={handleConfirmDiscard}
+      />
+
+      <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
     </AppBackground>
   );
 }
@@ -331,168 +481,86 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SCREEN_PAD,
-    paddingBottom: 12,
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: wp(0.04),
+    paddingBottom: hp(0.012),
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  centerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  btnContent: {
-    flexDirection: 'row',
+  headerTitleWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
   headerTitle: {
-    color: COLORS.ink,
-    fontSize: 18,
+    fontSize: fontScale(17),
     fontFamily: FONTS.bold,
-  },
-  headerSub: {
-    color: COLORS.inkMuted,
-    fontSize: 12,
-    fontFamily: FONTS.regular,
+    color: '#111827',
   },
   scrollContent: {
     paddingHorizontal: SCREEN_PAD,
-    paddingBottom: 80,
-    paddingTop: 4,
+    paddingTop: hp(0.01),
+    paddingBottom: hp(0.06),
   },
-
-  /* Live Preview Card */
-  previewCard: {
-    backgroundColor: '#1E1005',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.3)',
-    marginBottom: 16,
-  },
-  previewLabel: {
-    color: COLORS.orange,
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  previewAvatarRing: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderColor: COLORS.orange,
-    overflow: 'hidden',
-  },
-  previewAvatarImg: {
-    width: '100%',
-    height: '100%',
-  },
-  previewAvatarPlaceholder: {
-    flex: 1,
-    backgroundColor: 'rgba(249, 115, 22, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  previewTextWrap: {
-    flex: 1,
-  },
-  previewNameText: {
-    color: COLORS.white,
-    fontSize: 17,
-    fontFamily: FONTS.bold,
-  },
-  previewSubtitle: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    marginTop: 2,
-  },
-
-  /* Section Cards */
   sectionCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 22,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
+    borderColor: '#F1F5F9',
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 18,
+    gap: 10,
+    marginBottom: 16,
   },
   iconChip: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#FFF1F2',
     justifyContent: 'center',
     alignItems: 'center',
   },
   sectionTitle: {
-    color: COLORS.ink,
-    fontSize: 15,
+    fontSize: fontScale(15),
     fontFamily: FONTS.bold,
+    color: '#111827',
   },
-  sectionSub: {
-    color: COLORS.inkMuted,
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    marginTop: 1,
-  },
-
-  /* Avatar Picker */
   avatarPickerWrap: {
     alignItems: 'center',
+    paddingVertical: 10,
   },
   avatarGlowBorder: {
-    width: 106,
-    height: 106,
-    borderRadius: 53,
-    borderWidth: 3,
-    borderColor: COLORS.orange,
     position: 'relative',
-    elevation: 4,
-    shadowColor: COLORS.orange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    borderRadius: 55,
+    padding: 3,
   },
   heroAvatarImage: {
-    width: '100%',
-    height: '100%',
+    width: 100,
+    height: 100,
     borderRadius: 50,
+    borderWidth: 2.5,
+    borderColor: '#E11D48',
   },
   heroAvatarPlaceholder: {
-    width: '100%',
-    height: '100%',
+    width: 100,
+    height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+    backgroundColor: '#FFF1F2',
+    borderWidth: 2,
+    borderColor: '#FDA4AF',
+    borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addPhotoTag: {
-    color: COLORS.orange,
-    fontSize: 10,
+    fontSize: fontScale(11),
     fontFamily: FONTS.bold,
+    color: '#E11D48',
     marginTop: 4,
   },
   cameraFloatingBadge: {
@@ -502,91 +570,149 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: COLORS.orange,
-    borderWidth: 2.5,
-    borderColor: COLORS.white,
+    backgroundColor: '#E11D48',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   photoActionButtons: {
     alignItems: 'center',
-    gap: 10,
-    marginTop: 18,
+    marginTop: 16,
     width: '100%',
   },
   choosePhotoBtn: {
-    backgroundColor: COLORS.orange,
+    backgroundColor: '#E11D48',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 14,
+    height: 44,
+    borderRadius: 22,
     width: '100%',
   },
   choosePhotoBtnText: {
-    color: COLORS.white,
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: fontScale(13.5),
     fontFamily: FONTS.bold,
     textAlign: 'center',
-    flexShrink: 1,
-    paddingHorizontal: 4,
   },
-  removePhotoBtn: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 14,
-    width: '100%',
+  btnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    gap: 8,
   },
-  removePhotoBtnText: {
-    color: '#DC2626',
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    textAlign: 'center',
-    flexShrink: 1,
-  },
-
-  /* Name Input */
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
-    borderColor: 'rgba(249, 115, 22, 0.3)',
+    borderColor: '#F1F5F9',
     borderRadius: 16,
     paddingHorizontal: 14,
     height: 52,
   },
   textInput: {
     flex: 1,
-    color: COLORS.ink,
-    fontSize: 15,
-    fontFamily: FONTS.bold,
+    color: '#111827',
+    fontSize: fontScale(14.5),
+    fontFamily: FONTS.medium,
   },
   charCountText: {
-    color: COLORS.inkMuted,
-    fontSize: 11,
+    color: '#9CA3AF',
+    fontSize: fontScale(11),
     fontFamily: FONTS.medium,
     textAlign: 'right',
     marginTop: 6,
   },
-
-  /* Save Button */
   primarySaveBtn: {
-    backgroundColor: COLORS.orange,
+    backgroundColor: '#EE1D24',
     marginTop: 24,
-    height: 52,
-    borderRadius: 18,
-    elevation: 6,
-    shadowColor: COLORS.orange,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    height: 50,
+    borderRadius: 25,
+    shadowColor: '#EE1D24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   primarySaveBtnText: {
-    color: COLORS.white,
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: fontScale(15),
     fontFamily: FONTS.bold,
     textAlign: 'center',
-    paddingHorizontal: 12,
-    flexShrink: 1,
+  },
+
+  /* "Add Photo" Bottom Sheet Modal Styles */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  photoSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    alignItems: 'center',
+  },
+  sheetHandle: {
+    width: 44,
+    height: 4.5,
+    borderRadius: 3,
+    backgroundColor: '#D1D5DB',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: fontScale(17),
+    fontFamily: FONTS.bold,
+    color: '#111827',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  sheetOptionsGroup: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    overflow: 'hidden',
+  },
+  sheetOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sheetOptionIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFF1F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  sheetOptionText: {
+    flex: 1,
+    fontSize: fontScale(15),
+    fontFamily: FONTS.semiBold,
+    color: '#1F2937',
+  },
+  sheetCancelBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF1F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  sheetCancelText: {
+    fontSize: fontScale(15),
+    fontFamily: FONTS.bold,
+    color: '#E11D48',
   },
 });

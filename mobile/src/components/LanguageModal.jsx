@@ -1,5 +1,14 @@
-import React from 'react';
-import { View, Text, Modal, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  Modal,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  Animated,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { COLORS, FONTS, BRUTAL } from '../constants/colors';
@@ -12,9 +21,9 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
   const { i18n, t } = useTranslation();
   const currentLang = i18n.language || 'en';
 
-  const [contentHeight, setContentHeight] = React.useState(1);
-  const [visibleHeight, setVisibleHeight] = React.useState(1);
-  const [scrollY, setScrollY] = React.useState(0);
+  const [contentHeight, setContentHeight] = useState(1);
+  const [visibleHeight, setVisibleHeight] = useState(1);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   if (!visible) return null;
 
@@ -28,9 +37,13 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
   };
 
   const scrollableDist = Math.max(1, contentHeight - visibleHeight);
-  const thumbHeight = Math.max(28, (visibleHeight / contentHeight) * visibleHeight);
+  const thumbHeight = Math.max(28, (visibleHeight / Math.max(1, contentHeight)) * visibleHeight);
   const maxThumbTop = Math.max(0, visibleHeight - thumbHeight);
-  const thumbTop = Math.min(maxThumbTop, Math.max(0, (scrollY / scrollableDist) * maxThumbTop));
+  const thumbTop = scrollY.interpolate({
+    inputRange: [0, scrollableDist],
+    outputRange: [0, maxThumbTop],
+    extrapolate: 'clamp',
+  });
   const showScrollbar = contentHeight > visibleHeight + 5;
 
   return (
@@ -40,16 +53,14 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={onClose}
-        style={styles.backdrop}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={(e) => e.stopPropagation()}
-          style={styles.dialogContainer}
-        >
+      <View style={styles.backdrop}>
+        {/* Backdrop touchable to close */}
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={StyleSheet.absoluteFillObject} />
+        </TouchableWithoutFeedback>
+
+        {/* Dialog content is a pure View, never intercepts ScrollView gestures */}
+        <View style={styles.dialogContainer}>
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={styles.headerTitleWrap}>
@@ -67,9 +78,14 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
                 </Text>
               </View>
             </View>
-            <PressableScale onPress={onClose} scaleTo={0.88} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.closeBtn}
+            >
               <Ionicons name="close" size={wp(0.05)} color={COLORS.inkMuted} />
-            </PressableScale>
+            </TouchableOpacity>
           </View>
 
           {/* Language Options List */}
@@ -78,49 +94,64 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
               style={styles.scrollList}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
-              onLayout={(e) => setVisibleHeight(e.nativeEvent.layout.height)}
-              onContentSizeChange={(_, h) => setContentHeight(h)}
-              onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+              bounces={true}
+              overScrollMode="always"
               scrollEventThrottle={16}
+              onLayout={(e) => {
+                const h = Math.round(e.nativeEvent.layout.height);
+                if (h > 0) setVisibleHeight(h);
+              }}
+              onContentSizeChange={(_, h) => {
+                const ch = Math.round(h);
+                if (ch > 0) setContentHeight(ch);
+              }}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: true }
+              )}
             >
               {SUPPORTED_LANGUAGES.map((lang) => {
                 const isSelected = currentLang === lang.code;
                 return (
-                  <PressableScale
+                  <TouchableOpacity
                     key={lang.code}
+                    activeOpacity={0.7}
+                    delayPressIn={40}
                     onPress={() => handleSelect(lang.code)}
-                    scaleTo={0.97}
                     style={[
                       styles.langItem,
                       isSelected && styles.langItemActive,
                     ]}
-                    contentStyle={styles.langItemContent}
                   >
-                    <View style={styles.langLeft}>
-                      <Text style={styles.flagIcon}>{lang.flag}</Text>
-                      <View style={styles.langNameWrap}>
-                        <Text style={[styles.nativeName, isSelected && styles.nativeNameActive]}>
-                          {lang.nativeName}
-                        </Text>
-                        <Text style={[styles.englishName, isSelected && styles.englishNameActive]}>
-                          {lang.name}
-                        </Text>
+                    <View style={styles.langItemContent}>
+                      <View style={styles.langLeft}>
+                        <Text style={styles.flagIcon}>{lang.flag}</Text>
+                        <View style={styles.langNameWrap}>
+                          <Text style={[styles.nativeName, isSelected && styles.nativeNameActive]}>
+                            {lang.nativeName}
+                          </Text>
+                          <Text style={[styles.englishName, isSelected && styles.englishNameActive]}>
+                            {lang.name}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={wp(0.04)} color={COLORS.white} />
+                        )}
                       </View>
                     </View>
-
-                    <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                      {isSelected && (
-                        <Ionicons name="checkmark" size={wp(0.04)} color={COLORS.white} />
-                      )}
-                    </View>
-                  </PressableScale>
+                  </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
             {showScrollbar && (
-              <View style={styles.customScrollTrack}>
-                <View
+              <View style={styles.customScrollTrack} pointerEvents="none">
+                <Animated.View
                   style={[
                     styles.customScrollThumb,
                     {
@@ -142,8 +173,8 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
           >
             <Text style={styles.doneBtnText}>{t('got_it')}</Text>
           </PressableScale>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }

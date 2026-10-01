@@ -124,7 +124,23 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   if (req.body.name !== undefined) user.name = req.body.name.trim();
   if (req.body.email !== undefined) user.email = req.body.email.trim().toLowerCase();
-  if (req.body.profilePhoto !== undefined) user.profilePhoto = req.body.profilePhoto;
+  if (req.body.profilePhoto !== undefined) {
+    let photoVal = req.body.profilePhoto;
+    if (typeof photoVal === 'string' && photoVal.startsWith('data:image/')) {
+      try {
+        const { uploadToS3 } = require('../services/s3Service');
+        const mimeType = photoVal.match(/^data:(image\/[a-zA-Z+]+);base64,/)?.[1] || 'image/jpeg';
+        const ext = mimeType.split('/')[1] || 'jpg';
+        const base64Data = photoVal.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const s3Url = await uploadToS3(buffer, `user_${user._id}.${ext}`, mimeType, 'user-profiles');
+        photoVal = s3Url;
+      } catch (uploadErr) {
+        console.error('[AuthController] Error saving base64 profile photo to S3:', uploadErr?.message);
+      }
+    }
+    user.profilePhoto = photoVal;
+  }
   if (req.body.isPremium !== undefined) user.isPremium = Boolean(req.body.isPremium);
   if (req.body.subscriptionStatus !== undefined) user.subscriptionStatus = req.body.subscriptionStatus;
   if (req.body.subscriptionPlan !== undefined) user.subscriptionPlan = req.body.subscriptionPlan;

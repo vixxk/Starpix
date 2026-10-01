@@ -13,9 +13,8 @@ import { useTranslation } from 'react-i18next';
 
 const TAB_KEYS = {
   index: { translationKey: 'nav_home', active: 'home', inactive: 'home-outline' },
-  explore: { translationKey: 'nav_search_status', active: 'search', inactive: 'search-outline' },
   downloads: { translationKey: 'nav_downloads', active: 'time', inactive: 'time-outline' },
-  profile: { translationKey: 'nav_profile', active: 'person-circle', inactive: 'person-circle-outline' },
+  profile: { translationKey: 'settings_title', active: 'settings', inactive: 'settings-outline' },
 };
 
 function useFocusPop(focused) {
@@ -91,10 +90,6 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="index" focused={focused} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="explore" focused={focused} color={color} /> }}
       />
       <Tabs.Screen
         name="downloads"

@@ -12,6 +12,7 @@ import PaywallModal from '../../src/components/PaywallModal';
 import ReportModal from '../../src/components/ReportModal';
 import Toast from '../../src/components/Toast';
 import Skeleton from '../../src/components/Skeleton';
+import BackButton from '../../src/components/BackButton';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
@@ -331,9 +332,7 @@ export default function TemplateEditorScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeftGroup}>
-            <PressableScale onPress={() => router.back()} scaleTo={0.88} style={styles.headerBtn} contentStyle={styles.iconContent}>
-              <Ionicons name="chevron-back" size={24} color={COLORS.orange} />
-            </PressableScale>
+            <BackButton />
             <Text numberOfLines={1} style={styles.templateTitle}>{getLocalizedName(activeTemplate, i18n.language)}</Text>
           </View>
           <View style={styles.headerRightGroup}>

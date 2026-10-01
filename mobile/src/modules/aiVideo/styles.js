@@ -186,12 +186,6 @@ export const styles = StyleSheet.create({
   categoryTextSelected: {
     color: '#FFFFFF',
   },
-  categoryTextMore: {
-    fontSize: fontScale(11),
-    fontWeight: '600',
-    color: '#EE1D24',
-    marginRight: 2,
-  },
 
   /* Hero Featured Template Viewer */
   heroCard: {
