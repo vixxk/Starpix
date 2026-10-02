@@ -127,26 +127,27 @@ export default function Templates() {
       return;
     }
 
-    if (!formData.thumbnail || isVideoUrl(formData.thumbnail)) {
-      toast.error('Card Thumbnail Image is required and must be an image file (not a video).');
-      return;
-    }
-
     if (!formData.mainMedia && !formData.previewAsset) {
       toast.error('Template Media Asset is required.');
       return;
     }
 
+    const payload = {
+      ...formData,
+      thumbnail: formData.thumbnail || (!isVideoUrl(formData.mainMedia) ? formData.mainMedia : (formData.previewAsset && !isVideoUrl(formData.previewAsset) ? formData.previewAsset : '')),
+      previewAsset: formData.previewAsset || formData.mainMedia,
+    };
+
     try {
       if (editingTemplate) {
-        await API.put(`/templates/${editingTemplate._id}`, formData);
+        await API.put(`/templates/${editingTemplate._id}`, payload);
       } else {
-        await API.post('/templates', formData);
+        await API.post('/templates', payload);
       }
       setIsModalOpen(false);
       fetchTemplates();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving template');
+      toast.error(err.response?.data?.message || 'Error Saving template');
     }
   };
 
@@ -295,15 +296,24 @@ export default function Templates() {
                   </td>
                   <td>
                     <div className="flex items-center gap-3">
-                      <img
-                        src={t.thumbnail || t.previewAsset || t.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
-                        alt={t.name || ''}
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
-                        }}
-                        className="w-10 aspect-[9/16] object-cover border-2 border-ink/20 shrink-0 rounded-[2px]"
-                      />
+                      {isVideoUrl(t.thumbnail || t.previewAsset || t.mainMedia) ? (
+                        <video
+                          src={t.thumbnail || t.previewAsset || t.mainMedia}
+                          className="w-10 aspect-[9/16] object-cover border-2 border-ink/20 shrink-0 rounded-[2px]"
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={t.thumbnail || t.previewAsset || t.mainMedia || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80'}
+                          alt={t.name || ''}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80';
+                          }}
+                          className="w-10 aspect-[9/16] object-cover border-2 border-ink/20 shrink-0 rounded-[2px]"
+                        />
+                      )}
                       <div>
                         <p className="font-semibold text-ink line-clamp-1">{t.name}</p>
                       </div>

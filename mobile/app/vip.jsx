@@ -8,6 +8,7 @@ import {
   Image,
   Linking,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { fontScale, wp, hp, SCREEN_PAD } from '../src/utils/responsive';
 import { useAuthStore } from '../src/store/useAuthStore';
 import ConfirmModal from '../src/components/ConfirmModal';
+import PlanAlertModal from '../src/components/PlanAlertModal';
 import API from '../src/utils/api';
 
 import {
@@ -37,6 +39,65 @@ export default function VipScreen() {
   const [selectedPlanId, setSelectedPlanId] = useState('30days');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [purchaseDetails, setPurchaseDetails] = useState(null);
+  const [planAlertState, setPlanAlertState] = useState({
+    visible: false,
+    type: 'downgrade',
+  });
+
+  // Active subscription verification and plan tier hierarchy
+  const now = new Date();
+  const hasActiveSub = Boolean(
+    user &&
+    user.isPremium &&
+    user.subscriptionStatus === 'active' &&
+    user.subscriptionExpiresAt &&
+    new Date(user.subscriptionExpiresAt) > now
+  );
+
+  const activePlanName = (() => {
+    if (!hasActiveSub || !user?.subscriptionPlan) return '';
+    const sp = String(user.subscriptionPlan).toLowerCase();
+    if (sp.includes('year') || sp.includes('annual') || sp.includes('365')) {
+      return t('sub_plan_1_year') || '1 Year Plan';
+    }
+    if (sp.includes('30') || sp.includes('month')) {
+      return t('sub_plan_30_days') || '30 Days Plan';
+    }
+    if (sp.includes('7') || sp.includes('week')) {
+      return t('sub_plan_7_days') || '7 Days Plan';
+    }
+    return user.subscriptionPlan;
+  })();
+
+  const formattedExpiry = user?.subscriptionExpiresAt
+    ? new Date(user.subscriptionExpiresAt).toLocaleDateString(i18n.language || 'en', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    : '';
+
+  const getPlanTier = (pid) => {
+    if (!pid) return 0;
+    const s = String(pid).toLowerCase();
+    if (s.includes('year') || s.includes('annual') || s.includes('365')) return 3;
+    if (s.includes('30') || s.includes('month')) return 2;
+    if (s.includes('7') || s.includes('week')) return 1;
+    return 1;
+  };
+
+  const currentPlanTier = hasActiveSub ? getPlanTier(user.subscriptionPlan) : 0;
+
+  // Auto-select valid upgrade plan if current plan is active
+  useEffect(() => {
+    if (currentPlanTier === 1) {
+      setSelectedPlanId('30days');
+    } else if (currentPlanTier === 2) {
+      setSelectedPlanId('1year');
+    } else if (currentPlanTier >= 3) {
+      setSelectedPlanId('1year');
+    }
+  }, [currentPlanTier]);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,10 +120,31 @@ export default function VipScreen() {
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[1] || plans[0] || DEFAULT_PLANS[1];
 
   const handleSelectPlan = (planId) => {
+    const planTier = getPlanTier(planId);
+    if (currentPlanTier > 0) {
+      if (planTier < currentPlanTier) {
+        setPlanAlertState({ visible: true, type: 'downgrade' });
+        return;
+      }
+      if (planTier === currentPlanTier) {
+        setPlanAlertState({ visible: true, type: 'already_active' });
+        return;
+      }
+    }
     setSelectedPlanId(planId);
   };
 
   const handlePurchase = async () => {
+    const planTier = getPlanTier(selectedPlan.id);
+    if (currentPlanTier > 0 && planTier <= currentPlanTier) {
+      if (planTier === currentPlanTier) {
+        setPlanAlertState({ visible: true, type: 'already_active' });
+      } else {
+        setPlanAlertState({ visible: true, type: 'downgrade' });
+      }
+      return;
+    }
+
     try {
       const daysToAdd = Number(selectedPlan.durationDays) || (selectedPlan.id === '7days' ? 7 : selectedPlan.id === '30days' ? 30 : 365);
       const expiryDate = new Date();
@@ -81,6 +163,10 @@ export default function VipScreen() {
           });
         }
       } catch (apiErr) {
+        if (apiErr.response?.data?.message) {
+          Alert.alert('Notice', apiErr.response.data.message);
+          return;
+        }
         if (user) {
           await updateUserProfile({
             isPremium: true,
@@ -312,7 +398,13 @@ export default function VipScreen() {
         {/* 3 Subscription Plan Cards */}
         <View style={styles.plansContainer}>
           {plans.map((plan) => {
-            const isSelected = selectedPlanId === plan.id;
+            const planTier = getPlanTier(plan.id);
+            const isCurrentPlan = currentPlanTier > 0 && planTier === currentPlanTier;
+            const isLowerPlan = currentPlanTier > 0 && planTier < currentPlanTier;
+            const isUpgrade = currentPlanTier > 0 && planTier > currentPlanTier;
+            const isDisabled = isCurrentPlan || isLowerPlan;
+            const isSelected = selectedPlanId === plan.id && !isDisabled;
+
             const hasBadge = plan.badgeKey || plan.badgeText || plan.badgeType;
             const badgeLabel = plan.badgeKey && i18n.exists(plan.badgeKey)
               ? t(plan.badgeKey)
@@ -333,12 +425,35 @@ export default function VipScreen() {
                 style={[
                   styles.planCard,
                   isSelected && styles.planCardSelected,
+                  isCurrentPlan && styles.planCardActiveSub,
+                  isLowerPlan && styles.planCardDisabled,
                 ]}
                 onPress={() => handleSelectPlan(plan.id)}
-                activeOpacity={0.88}
+                activeOpacity={isDisabled ? 0.9 : 0.88}
               >
-                {/* Top Badge (Most Popular / Best Value) */}
-                {Boolean(hasBadge && badgeLabel) && (
+                {/* Top Badge: Active Plan / Lower Plan / Upgrade / Most Popular / Best Value */}
+                {isCurrentPlan ? (
+                  <View style={[styles.planBadge, styles.activePlanBadge]}>
+                    <Ionicons name="checkmark-circle" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
+                    <Text style={[styles.planBadgeText, styles.activePlanBadgeText]} numberOfLines={1}>
+                      {t('sub_current_active_plan') || 'CURRENT PLAN'}
+                    </Text>
+                  </View>
+                ) : isLowerPlan ? (
+                  <View style={[styles.planBadge, styles.lockedPlanBadge]}>
+                    <Ionicons name="lock-closed" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
+                    <Text style={[styles.planBadgeText, styles.lockedPlanBadgeText]} numberOfLines={1}>
+                      {t('sub_lower_plan_locked') || 'LOWER PLAN'}
+                    </Text>
+                  </View>
+                ) : isUpgrade ? (
+                  <View style={[styles.planBadge, styles.upgradePlanBadge]}>
+                    <Ionicons name="arrow-up-circle" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
+                    <Text style={[styles.planBadgeText, styles.upgradePlanBadgeText]} numberOfLines={1}>
+                      {t('sub_upgrade_plan') || 'UPGRADE'}
+                    </Text>
+                  </View>
+                ) : Boolean(hasBadge && badgeLabel) ? (
                   <View
                     style={[
                       styles.planBadge,
@@ -369,18 +484,28 @@ export default function VipScreen() {
                       {badgeLabel}
                     </Text>
                   </View>
-                )}
+                ) : null}
 
-                {/* Radio Button */}
+                {/* Radio Button / Status Icon */}
                 <View style={styles.radioWrap}>
-                  <View
-                    style={[
-                      styles.radioCircle,
-                      isSelected && styles.radioCircleSelected,
-                    ]}
-                  >
-                    {isSelected && <View style={styles.radioDot} />}
-                  </View>
+                  {isCurrentPlan ? (
+                    <View style={[styles.radioCircle, { borderColor: '#16A34A', backgroundColor: '#DCFCE7' }]}>
+                      <Ionicons name="checkmark" size={fontScale(10)} color="#16A34A" />
+                    </View>
+                  ) : isLowerPlan ? (
+                    <View style={[styles.radioCircle, { borderColor: '#9CA3AF', backgroundColor: '#F3F4F6' }]}>
+                      <Ionicons name="lock-closed" size={fontScale(9)} color="#6B7280" />
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.radioCircle,
+                        isSelected && styles.radioCircleSelected,
+                      ]}
+                    >
+                      {isSelected && <View style={styles.radioDot} />}
+                    </View>
+                  )}
                 </View>
 
                 {/* Price */}
@@ -388,6 +513,8 @@ export default function VipScreen() {
                   style={[
                     styles.planPrice,
                     isSelected && styles.planPriceSelected,
+                    isCurrentPlan && { color: '#16A34A' },
+                    isLowerPlan && { color: '#9CA3AF' },
                   ]}
                   numberOfLines={1}
                 >
@@ -399,6 +526,8 @@ export default function VipScreen() {
                   style={[
                     styles.planPeriod,
                     isSelected && styles.planPeriodSelected,
+                    isCurrentPlan && { color: '#16A34A' },
+                    isLowerPlan && { color: '#9CA3AF' },
                   ]}
                   numberOfLines={1}
                 >
@@ -415,10 +544,16 @@ export default function VipScreen() {
                       <Ionicons
                         name="checkmark"
                         size={fontScale(11)}
-                        color="#EE1D24"
+                        color={isCurrentPlan ? '#16A34A' : isLowerPlan ? '#9CA3AF' : '#EE1D24'}
                         style={styles.planCheckIcon}
                       />
-                      <Text style={styles.planFeatureText} numberOfLines={2}>
+                      <Text
+                        style={[
+                          styles.planFeatureText,
+                          isLowerPlan && { color: '#9CA3AF' },
+                        ]}
+                        numberOfLines={2}
+                      >
                         {i18n.exists(feat) ? t(feat) : feat}
                       </Text>
                     </View>
@@ -429,14 +564,21 @@ export default function VipScreen() {
           })}
         </View>
 
-        {/* Big Red CTA Button */}
+        {/* Big Red CTA Button or Disabled State if highest plan active */}
         <TouchableOpacity
-          style={styles.ctaButton}
+          style={[
+            styles.ctaButton,
+            (currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan.id) <= currentPlanTier)) && styles.ctaButtonDisabled,
+          ]}
           onPress={handlePurchase}
+          disabled={currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan.id) <= currentPlanTier)}
           activeOpacity={0.85}
         >
           <Text style={styles.ctaButtonText}>
             {(() => {
+              if (currentPlanTier >= 3) {
+                return t('highest_plan_active') || 'VIP Active • Highest Plan Unlocked';
+              }
               const activePlan = selectedPlan || DEFAULT_PLANS[1];
               const priceVal = activePlan?.price ?? 99;
               const formattedPrice = typeof priceVal === 'number' || !String(priceVal).startsWith('₹')
@@ -535,6 +677,15 @@ export default function VipScreen() {
           setShowSuccessModal(false);
           router.back();
         }}
+      />
+
+      {/* Plan Downgrade & Already Active Alert Modal */}
+      <PlanAlertModal
+        visible={planAlertState.visible}
+        type={planAlertState.type}
+        currentPlanName={activePlanName}
+        expiryDate={formattedExpiry ? `${t('active_until') || 'Active until'}: ${formattedExpiry}` : ''}
+        onClose={() => setPlanAlertState((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );

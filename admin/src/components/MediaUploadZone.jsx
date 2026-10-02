@@ -19,11 +19,56 @@ export default function MediaUploadZone({ label, value, onChange, folder = 'uplo
   const isAudio = value && (value.endsWith('.mp3') || value.endsWith('.wav') || value.endsWith('.ogg') || value.endsWith('.m4a') || value.endsWith('.aac') || value.endsWith('.flac') || value.includes('audio'));
   const hasPreview = value && typeof value === 'string' && value.startsWith('http');
 
+  const [aspectNotice, setAspectNotice] = useState(null);
+
+  const checkAspectRatio = (file) => {
+    return new Promise((resolve) => {
+      if (file.type && file.type.startsWith('video/')) {
+        const v = document.createElement('video');
+        v.preload = 'metadata';
+        const url = URL.createObjectURL(file);
+        v.src = url;
+        v.onloadedmetadata = () => {
+          URL.revokeObjectURL(url);
+          resolve({ width: v.videoWidth, height: v.videoHeight, isVideo: true });
+        };
+        v.onerror = () => resolve(null);
+      } else if (file.type && file.type.startsWith('image/')) {
+        const img = new window.Image();
+        const url = URL.createObjectURL(file);
+        img.src = url;
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve({ width: img.naturalWidth, height: img.naturalHeight, isVideo: false });
+        };
+        img.onerror = () => resolve(null);
+      } else {
+        resolve(null);
+      }
+    });
+  };
+
   const handleUpload = useCallback(async (file) => {
     if (!file) return;
     setError(null);
     setUploading(true);
     setProgress(0);
+
+    if (folder === 'templates' || folder === 'reels') {
+      const meta = await checkAspectRatio(file);
+      if (meta && meta.width && meta.height) {
+        const ratio = meta.width / meta.height;
+        const is916 = Math.abs(ratio - 9 / 16) < 0.04;
+        if (is916) {
+          setAspectNotice({ type: 'success', text: `✓ 9:16 Vertical Ratio Verified (${meta.width}×${meta.height})` });
+        } else {
+          setAspectNotice({
+            type: 'info',
+            text: `ℹ️ Uploading (${meta.width}×${meta.height}) · Backend will standardize to exact 9:16 (1080×1920) ratio for mobile consistency.`,
+          });
+        }
+      }
+    }
 
     const formData = new FormData();
     formData.append('file', file);
@@ -163,6 +208,19 @@ export default function MediaUploadZone({ label, value, onChange, folder = 'uplo
           </div>
         )}
       </div>
+
+      {/* Aspect Ratio Notice */}
+      {aspectNotice && (
+        <div
+          className={`text-[11px] font-semibold px-2 py-1 rounded-[2px] border ${
+            aspectNotice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              : 'bg-amber-50 text-amber-800 border-amber-300'
+          }`}
+        >
+          {aspectNotice.text}
+        </div>
+      )}
 
       {/* Error */}
       {error && <p className="text-[10px] font-bold text-red-600">{error}</p>}

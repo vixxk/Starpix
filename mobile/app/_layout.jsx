@@ -101,6 +101,7 @@ export default function RootLayout() {
           <Stack.Screen name="campaign/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="buy-credits" options={{ headerShown: false }} />
+          <Stack.Screen name="transaction-history" options={{ headerShown: false }} />
           <Stack.Screen name="vip" options={{ headerShown: false }} />
         </Stack>
       </React.Fragment>

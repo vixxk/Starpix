@@ -30,37 +30,54 @@ if (!isMockS3) {
   s3Client = new S3Client(s3Config);
 }
 
+const saveLocally = (fileBuffer, objectKey, folder, req = null) => {
+  const uploadsDir = path.join(__dirname, '../../uploads', folder);
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  const filePath = path.join(uploadsDir, path.basename(objectKey));
+  fs.writeFileSync(filePath, fileBuffer);
+
+  let host = process.env.BASE_URL;
+  if (!host && req) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const hostHeader = req.headers['x-forwarded-host'] || req.get('host');
+    if (hostHeader) host = `${proto}://${hostHeader}`;
+  }
+  if (!host) {
+    host = process.env.PORT ? `http://localhost:${process.env.PORT}` : 'http://localhost:5000';
+  }
+  return `${host}/uploads/${folder}/${path.basename(objectKey)}`;
+};
+
 // Upload buffer/file to S3 or mock local uploads
-const uploadToS3 = async (fileBuffer, fileName, mimeType, folder = 'general') => {
+const uploadToS3 = async (fileBuffer, fileName, mimeType, folder = 'general', req = null) => {
   const fileExtension = path.extname(fileName) || '.png';
   const objectKey = `${folder}/${uuidv4()}${fileExtension}`;
 
-  if (isMockS3) {
-    // Save to local uploads directory for development fallback
-    const uploadsDir = path.join(__dirname, '../../uploads', folder);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+  if (isMockS3 || !s3Client) {
+    return saveLocally(fileBuffer, objectKey, folder, req);
+  }
+
+  try {
+    const bucketName = getBucketName();
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: objectKey,
+      Body: fileBuffer,
+      ContentType: mimeType,
+    });
+
+    await s3Client.send(command);
+
+    if (process.env.AWS_CLOUDFRONT_URL) {
+      return `${process.env.AWS_CLOUDFRONT_URL.replace(/\/$/, '')}/${objectKey}`;
     }
-    const filePath = path.join(uploadsDir, path.basename(objectKey));
-    fs.writeFileSync(filePath, fileBuffer);
-    const host = process.env.PORT ? `http://localhost:${process.env.PORT}` : 'http://localhost:5000';
-    return `${host}/uploads/${folder}/${path.basename(objectKey)}`;
+    return `https://${bucketName}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${objectKey}`;
+  } catch (s3Err) {
+    console.warn(`[S3Service] S3 upload failed (${s3Err.message}). Falling back to local storage.`);
+    return saveLocally(fileBuffer, objectKey, folder, req);
   }
-
-  const bucketName = getBucketName();
-  const command = new PutObjectCommand({
-    Bucket: bucketName,
-    Key: objectKey,
-    Body: fileBuffer,
-    ContentType: mimeType,
-  });
-
-  await s3Client.send(command);
-
-  if (process.env.AWS_CLOUDFRONT_URL) {
-    return `${process.env.AWS_CLOUDFRONT_URL.replace(/\/$/, '')}/${objectKey}`;
-  }
-  return `https://${bucketName}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${objectKey}`;
 };
 
 // Generate short-lived signed URL for paid downloads

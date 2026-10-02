@@ -38,11 +38,11 @@ const templateSchema = new mongoose.Schema(
     },
     thumbnail: {
       type: String,
-      required: true,
+      default: '',
     },
     previewAsset: {
       type: String,
-      required: true,
+      default: '',
     },
     mainMedia: {
       type: String,

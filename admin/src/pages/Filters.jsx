@@ -125,7 +125,7 @@ export default function Filters() {
       setIsModalOpen(false);
       fetchFilters();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving video filter');
+      toast.error(err.response?.data?.message || 'Error Saving video filter');
     }
   };
 

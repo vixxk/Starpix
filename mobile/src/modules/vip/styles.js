@@ -290,6 +290,15 @@ export const styles = StyleSheet.create({
   bestValueBadge: {
     backgroundColor: '#FEF08A',
   },
+  activePlanBadge: {
+    backgroundColor: '#16A34A',
+  },
+  lockedPlanBadge: {
+    backgroundColor: '#6B7280',
+  },
+  upgradePlanBadge: {
+    backgroundColor: '#D97706',
+  },
   badgeIcon: {
     marginRight: wp(0.008),
   },
@@ -307,6 +316,24 @@ export const styles = StyleSheet.create({
   },
   bestValueBadgeText: {
     color: '#854D0E',
+  },
+  activePlanBadgeText: {
+    color: '#FFFFFF',
+  },
+  lockedPlanBadgeText: {
+    color: '#FFFFFF',
+  },
+  upgradePlanBadgeText: {
+    color: '#FFFFFF',
+  },
+  planCardActiveSub: {
+    borderColor: '#16A34A',
+    borderWidth: 1.8,
+    backgroundColor: '#F0FDF4',
+  },
+  planCardDisabled: {
+    opacity: 0.45,
+    backgroundColor: '#F9FAFB',
   },
 
   /* Radio button */
@@ -395,6 +422,11 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: wp(0.03),
     elevation: 5,
+  },
+  ctaButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   ctaButtonText: {
     color: '#FFFFFF',

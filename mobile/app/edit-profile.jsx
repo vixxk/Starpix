@@ -43,13 +43,15 @@ export default function EditProfileScreen() {
   const defaultUserNameText = useCreationStore((s) => s.defaultUserNameText);
   const setDefaultUserPhotoUri = useCreationStore((s) => s.setDefaultUserPhotoUri);
   const setDefaultUserNameText = useCreationStore((s) => s.setDefaultUserNameText);
+  const setUserPhotoUri = useCreationStore((s) => s.setUserPhotoUri);
+  const setUserNameText = useCreationStore((s) => s.setUserNameText);
 
-  const [initialPhotoUri] = useState(defaultUserPhotoUri || user?.profilePhoto || null);
-  const [initialNameText] = useState(defaultUserNameText || user?.name || '');
+  const [initialPhotoUri] = useState(user?.profilePhoto || defaultUserPhotoUri || null);
+  const [initialNameText] = useState(user?.name || defaultUserNameText || '');
   const [initialEmailText] = useState(user?.email || '');
 
-  const [photoUri, setPhotoUri] = useState(defaultUserPhotoUri || user?.profilePhoto || null);
-  const [nameText, setNameText] = useState(defaultUserNameText || user?.name || '');
+  const [photoUri, setPhotoUri] = useState(user?.profilePhoto || defaultUserPhotoUri || null);
+  const [nameText, setNameText] = useState(user?.name || defaultUserNameText || '');
   const [emailText, setEmailText] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
@@ -179,14 +181,18 @@ export default function EditProfileScreen() {
           photoUri.startsWith('ph://'))
       ) {
         try {
-          uploadedPhotoUrl = await uploadUserMedia(photoUri, 'user-profiles');
+          const remoteUrl = await uploadUserMedia(photoUri, 'user-profiles');
+          if (remoteUrl && (remoteUrl.startsWith('http://') || remoteUrl.startsWith('https://'))) {
+            uploadedPhotoUrl = remoteUrl;
+          }
         } catch (upErr) {
           console.warn('uploadUserMedia direct error:', upErr);
         }
       }
 
-      // If uploadedPhotoUrl is still local (e.g. S3 direct upload failed), convert to base64 Data URI
-      // so the backend can upload it directly to S3 and make it visible in the admin portal
+      // If photoUri is local and remote upload couldn't produce an http url,
+      // prepare base64 for backend upload to S3 without bloating local state
+      let profilePhotoForBackend = uploadedPhotoUrl || '';
       if (
         uploadedPhotoUrl &&
         (uploadedPhotoUrl.startsWith('file://') || uploadedPhotoUrl.startsWith('content://'))
@@ -196,22 +202,24 @@ export default function EditProfileScreen() {
             encoding: FileSystem.EncodingType?.Base64 || 'base64',
           });
           const mimeType = uploadedPhotoUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
-          uploadedPhotoUrl = `data:${mimeType};base64,${base64}`;
+          profilePhotoForBackend = `data:${mimeType};base64,${base64}`;
         } catch (b64Err) {
           console.warn('Base64 encoding fallback error:', b64Err);
         }
       }
 
-      // Update global creation store
+      // Update global creation store with clean URI (local file URI or S3 URL, NOT raw base64!)
       setDefaultUserPhotoUri(uploadedPhotoUrl);
       setDefaultUserNameText(trimmedName);
+      setUserPhotoUri(uploadedPhotoUrl);
+      setUserNameText(trimmedName);
 
       // Sync with user auth profile in backend
       if (updateUserProfile) {
         await updateUserProfile({
           name: trimmedName,
           email: emailText.trim(),
-          profilePhoto: uploadedPhotoUrl || '',
+          profilePhoto: profilePhotoForBackend,
         });
       }
 
@@ -225,7 +233,7 @@ export default function EditProfileScreen() {
       }, 600);
     } catch (err) {
       console.error('Error saving profile:', err);
-      showToast(t('error_saving_profile') || 'Error saving changes');
+      showToast(t('error_saving_profile') || 'Error Saving changes');
     } finally {
       setSaving(false);
     }

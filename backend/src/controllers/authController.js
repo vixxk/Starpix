@@ -83,6 +83,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         email: user.email || '',
         profilePhoto: user.profilePhoto,
         isPremium: user.isPremium,
+        credits: user.credits !== undefined ? user.credits : 240,
         subscriptionStatus: user.subscriptionStatus,
         subscriptionPlan: user.subscriptionPlan,
         subscriptionExpiresAt: user.subscriptionExpiresAt,
@@ -103,6 +104,10 @@ const getMe = asyncHandler(async (req, res) => {
   if (user && user.isPremium && user.subscriptionExpiresAt && new Date() > new Date(user.subscriptionExpiresAt)) {
     user.isPremium = false;
     user.subscriptionStatus = 'expired';
+    await user.save();
+  }
+  if (user && (user.credits === undefined || user.credits === null)) {
+    user.credits = 240;
     await user.save();
   }
 
@@ -134,10 +139,17 @@ const updateProfile = asyncHandler(async (req, res) => {
         const base64Data = photoVal.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
         const s3Url = await uploadToS3(buffer, `user_${user._id}.${ext}`, mimeType, 'user-profiles');
-        photoVal = s3Url;
+        if (s3Url && (s3Url.startsWith('http://') || s3Url.startsWith('https://'))) {
+          photoVal = s3Url;
+        } else {
+          photoVal = user.profilePhoto || '';
+        }
       } catch (uploadErr) {
         console.error('[AuthController] Error saving base64 profile photo to S3:', uploadErr?.message);
+        photoVal = user.profilePhoto || '';
       }
+    } else if (typeof photoVal === 'string' && photoVal.includes('d3arutsevouzgm.cloudfront.net')) {
+      photoVal = photoVal.replace('d3arutsevouzgm.cloudfront.net', 'starpix-media-production.s3.ap-south-1.amazonaws.com');
     }
     user.profilePhoto = photoVal;
   }
@@ -146,8 +158,23 @@ const updateProfile = asyncHandler(async (req, res) => {
   if (req.body.subscriptionPlan !== undefined) user.subscriptionPlan = req.body.subscriptionPlan;
   if (req.body.subscriptionExpiresAt !== undefined) user.subscriptionExpiresAt = req.body.subscriptionExpiresAt;
   if (req.body.subscriptionDurationDays !== undefined) user.subscriptionDurationDays = Number(req.body.subscriptionDurationDays);
+  if (req.body.credits !== undefined) {
+    const parsedCredits = Number(req.body.credits);
+    if (!isNaN(parsedCredits) && parsedCredits >= 0) {
+      user.credits = parsedCredits;
+    }
+  }
 
   await user.save();
+
+  if (req.body.credits !== undefined) {
+    try {
+      const { broadcastBalanceUpdate } = require('../utils/balanceSSE');
+      broadcastBalanceUpdate(user._id, { credits: user.credits, reason: 'profile_update' });
+    } catch (sseErr) {
+      console.warn('[Auth] SSE broadcast error:', sseErr.message);
+    }
+  }
 
   res.status(200).json({
     success: true,

@@ -43,7 +43,6 @@ import {
   LANGUAGES,
   CATEGORIES,
   FALLBACK_TEMPLATES,
-  LanguageSelectModal,
   HeroTemplateCard,
   styles,
 } from '../src/modules/aiVideo';
@@ -71,7 +70,6 @@ export default function AITrendsScreen() {
   const [generating, setGenerating] = useState(false);
   const [generatedResult, setGeneratedResult] = useState(null);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
-  const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
 
@@ -116,6 +114,7 @@ export default function AITrendsScreen() {
 
   // Switch active template and smoothly scroll back to top
   const handleSelectTemplate = (tmpl) => {
+    if (generating) return;
     hapticTap();
     setSelectedTemplate(tmpl);
     setUserFaces([]);
@@ -127,6 +126,7 @@ export default function AITrendsScreen() {
 
   // Category filter selection
   const handleSelectCategory = (catId) => {
+    if (generating) return;
     hapticTap();
     setActiveCategory(catId);
     const filtered = catId === "Today's Special"
@@ -164,6 +164,7 @@ export default function AITrendsScreen() {
         const updated = [...userFaces];
         updated[slotIndex] = pickedUri;
         setUserFaces(updated);
+        setGeneratedResult(null);
         hapticSuccess();
         showToast(t('photo_selected') || 'Photo selected!');
       }
@@ -190,6 +191,7 @@ export default function AITrendsScreen() {
     const updated = [...userFaces];
     updated[slotIndex] = null;
     setUserFaces(updated);
+    setGeneratedResult(null);
   };
 
   // Get active face URI for a given slot (user face > template sample face > user profile photo)
@@ -232,9 +234,17 @@ export default function AITrendsScreen() {
     setConfirmModalVisible(false);
     if (!selectedTemplate) return;
 
+    const cost = selectedTemplate.creditsRequired || 25;
+    const prevCredits = user?.credits !== undefined ? user.credits : 240;
+
     try {
       setGenerating(true);
       showToast(t('ai_generation_started') || 'AI Generation Started');
+
+      // Real-time instantaneous credit update
+      if (prevCredits >= cost) {
+        useAuthStore.getState().setUserCredits(prevCredits - cost);
+      }
 
       const requiredCount = selectedTemplate.requiredPhotos || 1;
       const finalFaceUrls = [];
@@ -277,11 +287,17 @@ export default function AITrendsScreen() {
           templateId: selectedTemplate._id,
         });
 
-        // Deduct credits reactively in client auth store
+        // Update credits with exact server-confirmed balance
         const cost = selectedTemplate.creditsRequired || 25;
-        const updateUserProfile = useAuthStore.getState().updateUserProfile;
-        if (updateUserProfile && user?.credits !== undefined) {
-          updateUserProfile({ credits: Math.max(0, (user.credits || 0) - cost) });
+        const serverRemaining = res.data.data?.remainingCredits;
+        const setUserCredits = useAuthStore.getState().setUserCredits;
+        if (serverRemaining !== undefined) {
+          if (setUserCredits) setUserCredits(serverRemaining);
+        } else if (user?.credits !== undefined) {
+          const nextVal = Math.max(0, (user.credits || 0) - cost);
+          if (setUserCredits) setUserCredits(nextVal);
+          const updateUserProfile = useAuthStore.getState().updateUserProfile;
+          if (updateUserProfile) updateUserProfile({ credits: nextVal });
         }
 
         addDownloadedCreation({
@@ -301,6 +317,23 @@ export default function AITrendsScreen() {
       }
     } catch (err) {
       hapticError();
+      if (prevCredits !== undefined) {
+        useAuthStore.getState().setUserCredits(prevCredits);
+      }
+      if (err.response?.data?.code === 'INSUFFICIENT_CREDITS') {
+        const needed = err.response.data.creditsRequired || selectedTemplate?.creditsRequired || 25;
+        const avail = err.response.data.availableCredits ?? (user?.credits || 0);
+        Alert.alert(
+          t('insufficient_credits') || 'Insufficient Credits',
+          t('not_enough_credits_msg', { needed, available: avail }) ||
+            `You need ${needed} credits to generate this, but currently have ${avail}. Would you like to buy more?`,
+          [
+            { text: t('cancel') || 'Cancel', style: 'cancel' },
+            { text: t('settings_buy_ai_credits') || 'Buy Credits', onPress: () => router.push('/buy-credits') },
+          ]
+        );
+        return;
+      }
       const msg = err.response?.data?.message || err.message || 'AI generation failed';
       Alert.alert('AI Notice', msg);
     } finally {
@@ -358,12 +391,6 @@ export default function AITrendsScreen() {
     }
   };
 
-  const handleSelectLanguage = (code) => {
-    i18n.changeLanguage(code);
-    setShowLanguageModal(false);
-    hapticTap();
-  };
-
   // Render category icons
   const renderCategoryIcon = (iconType, isSelected) => {
     const color = isSelected ? '#FFFFFF' : '#EE1D24';
@@ -402,6 +429,32 @@ export default function AITrendsScreen() {
         : templates);
   const otherTemplates = displayTemplates.filter((t) => t._id !== selectedTemplate?._id);
 
+  const getSubscriptionLabel = () => {
+    const isVip = Boolean(
+      user &&
+      user.isPremium &&
+      (user.subscriptionStatus === 'active' || !user.subscriptionStatus) &&
+      (!user.subscriptionExpiresAt || new Date() <= new Date(user.subscriptionExpiresAt))
+    );
+    if (!isVip) {
+      return t('pro_badge') || 'PRO';
+    }
+    const plan = user.subscriptionPlan;
+    if (plan === '7days') return '7D VIP';
+    if (plan === '30days') return '30D VIP';
+    if (plan === '1year' || plan === 'annual') return '1Y VIP';
+    return t('vip') || 'VIP';
+  };
+
+  const formatDisplayTitle = (val) => {
+    if (!val || typeof val !== 'string') return '';
+    if (val.includes('_')) {
+      const cleaned = val.replace(/_/g, ' ').trim();
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+    return val;
+  };
+
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
@@ -426,15 +479,6 @@ export default function AITrendsScreen() {
         </View>
 
         <View style={styles.headerRight}>
-          {/* Language Switcher */}
-          <TouchableOpacity
-            onPress={() => setShowLanguageModal(true)}
-            style={styles.langBtn}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.langIconText}>文A</Text>
-          </TouchableOpacity>
-
           {/* PRO Pill Button */}
           <PressableScale
             onPress={() => {
@@ -445,18 +489,27 @@ export default function AITrendsScreen() {
             style={styles.proBtn}
             contentStyle={styles.proContent}
           >
-            <MaterialCommunityIcons name="crown" size={fontScale(14)} color="#F59E0B" />
-            <Text style={styles.proText}>{t('pro_badge') || 'PRO'}</Text>
+            <MaterialCommunityIcons name="crown" size={fontScale(14)} color="#1E1B2E" />
+            <Text style={styles.proText}>{getSubscriptionLabel()}</Text>
           </PressableScale>
 
-          {/* More options menu */}
-          <TouchableOpacity
-            onPress={() => router.push('/settings')}
-            style={styles.moreBtn}
-            activeOpacity={0.7}
+          {/* Available Credits Pill Badge */}
+          <PressableScale
+            onPress={() => {
+              hapticTap();
+              router.push('/buy-credits');
+            }}
+            scaleTo={0.93}
+            style={styles.headerCreditsPill}
+            contentStyle={styles.headerCreditsContent}
           >
-            <Ionicons name="ellipsis-vertical" size={fontScale(18)} color="#111827" />
-          </TouchableOpacity>
+            <View style={styles.headerCreditsIconBox}>
+              <MaterialCommunityIcons name="star-four-points" size={fontScale(11)} color="#FFFFFF" />
+            </View>
+            <Text style={styles.headerCreditsValue}>
+              {user?.credits !== undefined ? user.credits : 240}
+            </Text>
+          </PressableScale>
         </View>
       </View>
 
@@ -490,7 +543,7 @@ export default function AITrendsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/downloads')}
+            onPress={() => router.push({ pathname: '/(tabs)/downloads', params: { from: 'ai-video' } })}
             style={styles.historyPill}
             activeOpacity={0.8}
           >
@@ -595,7 +648,7 @@ export default function AITrendsScreen() {
                 <View style={styles.feedDetails}>
                   <View style={styles.feedTitleRow}>
                     <Text style={styles.feedTitleText} numberOfLines={1}>
-                      {tmpl.title}
+                      {formatDisplayTitle(tmpl.title)}
                     </Text>
                     <View style={styles.feedMediaBadge}>
                       <Ionicons
@@ -638,20 +691,14 @@ export default function AITrendsScreen() {
         </View>
       </ScrollView>
 
-      {/* Language Selection Modal */}
-      <LanguageSelectModal
-        visible={showLanguageModal}
-        currentLanguage={i18n.language}
-        title={t('settings_preferred_language')}
-        onClose={() => setShowLanguageModal(false)}
-        onSelectLanguage={handleSelectLanguage}
-      />
-
       {/* Confirm Generation Modal */}
       <ConfirmModal
         visible={confirmModalVisible}
-        title={selectedTemplate ? `✦ ${selectedTemplate.title}` : t('ai_trends')}
-        message={`Use ${selectedTemplate?.creditsRequired || 25} credits to generate your personalized AI ${isCurrentVideo ? 'video' : 'image'}?`}
+        title={selectedTemplate ? `✦ ${formatDisplayTitle(selectedTemplate.title)}` : t('ai_trends')}
+        message={t('confirm_use_credits', {
+          count: selectedTemplate?.creditsRequired || 25,
+          type: isCurrentVideo ? t('media_video') : t('media_image'),
+        }) || `Use ${selectedTemplate?.creditsRequired || 25} credits to generate this?`}
         confirmText={isCurrentVideo ? t('create_video') : t('create_image')}
         cancelText={t('cancel')}
         icon="sparkles"

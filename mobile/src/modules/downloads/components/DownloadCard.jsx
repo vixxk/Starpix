@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../../../constants/colors';
 import PressableScale from '../../../components/PressableScale';
 import { getLocalizedName } from '../../../utils/localized';
-import { getCardThumbnail, formatDownloadDate } from '../constants';
+import { resolveMediaUrl } from '../../../utils/media';
+import { getCardThumbnail, formatDownloadDate, isVideoMedia } from '../constants';
 import { styles } from '../styles';
 
 export default function DownloadCard({
@@ -14,11 +15,16 @@ export default function DownloadCard({
   onRedownload,
   onShare,
   onDelete,
+  isRedownloading = false,
+  isSharing = false,
 }) {
   const { t, i18n } = useTranslation();
+  const [thumbLoading, setThumbLoading] = useState(true);
 
   const formattedDate = item.downloadedAt ? formatDownloadDate(item.downloadedAt, i18n.language) : null;
   const title = getLocalizedName(item.activeTemplate || item.aiTemplate || item.template, i18n.language) || item.title;
+  const thumbUri = getCardThumbnail(item);
+  const isVideo = isVideoMedia(item.image || item.localUri);
 
   return (
     <View style={styles.card}>
@@ -27,11 +33,31 @@ export default function DownloadCard({
         scaleTo={0.94}
         style={styles.cardLeft}
       >
-        <Image
-          source={{ uri: getCardThumbnail(item) }}
-          style={styles.thumbnail}
-          resizeMode="cover"
-        />
+        {thumbUri ? (
+          <Image
+            source={{ uri: thumbUri }}
+            style={styles.thumbnail}
+            resizeMode="cover"
+            onLoadStart={() => setThumbLoading(true)}
+            onLoadEnd={() => setThumbLoading(false)}
+          />
+        ) : (
+          <View style={styles.emptyThumbWrap}>
+            <Ionicons name={isVideo ? "videocam-outline" : "image-outline"} size={24} color="#9CA3AF" />
+          </View>
+        )}
+
+        {thumbLoading && thumbUri ? (
+          <View style={styles.thumbLoadingOverlay}>
+            <ActivityIndicator size="small" color={COLORS.primary || '#EE1D24'} />
+          </View>
+        ) : null}
+
+        {isVideo && (
+          <View style={styles.videoBadge}>
+            <Ionicons name="play" size={10} color="#FFFFFF" />
+          </View>
+        )}
       </PressableScale>
 
       <View style={styles.cardBody}>
@@ -42,14 +68,6 @@ export default function DownloadCard({
           {formattedDate ? t('saved_on', { date: formattedDate }) : t('recently_saved')}
         </Text>
 
-        {item.editedText ? (
-          <View style={styles.editTag}>
-            <Text style={styles.editTagText} numberOfLines={1}>
-              {item.editedText}
-            </Text>
-          </View>
-        ) : null}
-
         {/* Actions Bar */}
         <View style={styles.actionRow}>
           <PressableScale
@@ -57,9 +75,16 @@ export default function DownloadCard({
             scaleTo={0.92}
             style={styles.actionBtnPrimary}
             contentStyle={styles.actionContent}
+            disabled={isRedownloading}
           >
-            <Ionicons name="download-outline" size={14} color={COLORS.white} />
-            <Text style={styles.actionTextPrimary}>{t('re_download')}</Text>
+            {isRedownloading ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <>
+                <Ionicons name="download-outline" size={14} color={COLORS.white} />
+                <Text style={styles.actionTextPrimary}>{t('re_download')}</Text>
+              </>
+            )}
           </PressableScale>
 
           <PressableScale
@@ -67,9 +92,16 @@ export default function DownloadCard({
             scaleTo={0.92}
             style={styles.actionBtnSecondary}
             contentStyle={styles.actionContent}
+            disabled={isSharing}
           >
-            <Ionicons name="share-social-outline" size={14} color={COLORS.ink} />
-            <Text style={styles.actionTextSecondary}>{t('share')}</Text>
+            {isSharing ? (
+              <ActivityIndicator size="small" color={COLORS.ink} />
+            ) : (
+              <>
+                <Ionicons name="share-social-outline" size={14} color={COLORS.ink} />
+                <Text style={styles.actionTextSecondary}>{t('share')}</Text>
+              </>
+            )}
           </PressableScale>
 
           <PressableScale

@@ -29,7 +29,9 @@ import PressableScale from '../../src/components/PressableScale';
 import Toast from '../../src/components/Toast';
 import ReelPersonalizationOverlay from '../../src/components/ReelPersonalizationOverlay';
 import LanguageModal from '../../src/components/LanguageModal';
+import PaidTemplateConfirmModal from '../../src/components/PaidTemplateConfirmModal';
 import AppVideo, { ResizeMode } from '../../src/components/AppVideo';
+import Skeleton from '../../src/components/Skeleton';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import { hapticTap, hapticImpact } from '../../src/utils/haptics';
@@ -41,7 +43,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   S3_BASE,
-  DEFAULT_REELS,
   FRAME_OPTIONS,
   CATEGORY_CHIPS,
   styles,
@@ -62,14 +63,29 @@ export default function HomeScreen() {
   const displayPhoto = user?.profilePhoto || storeUserPhotoUri || null;
 
   const [activeCategory, setActiveCategory] = useState('special');
-  const [reels, setReels] = useState(DEFAULT_REELS);
+  const [reels, setReels] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
-  const [selectedFrame, setSelectedFrame] = useState('durga_puja');
+  const [selectedFrames, setSelectedFrames] = useState({});
   const [isPlaying, setIsPlaying] = useState(true);
+  const [activeReelPlaybackReady, setActiveReelPlaybackReady] = useState(false);
+
+  // Synchronize playback: hold playback at frame 0 for a brief 350ms so background, footer, name & avatar all mount together before motion starts
+  useEffect(() => {
+    setActiveReelPlaybackReady(false);
+    const timer = setTimeout(() => {
+      setActiveReelPlaybackReady(true);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [currentReelIndex, activeCategory]);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
   const [framesList, setFramesList] = useState(FRAME_OPTIONS);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [paidConfirmState, setPaidConfirmState] = useState(null); // { item, action: 'download' | 'share' }
+  const [payingForTemplate, setPayingForTemplate] = useState(false);
+  const [unlockedIds, setUnlockedIds] = useState(new Set());
+  const viewedReelIds = useRef(new Set());
 
   const flatListRef = useRef(null);
   const [contentAreaHeight, setContentAreaHeight] = useState(0);
@@ -92,6 +108,23 @@ export default function HomeScreen() {
   }
 
   const controlsWidth = Math.max(cardWidth, Math.min(windowWidth * 0.92, 360));
+
+  const getSubscriptionLabel = () => {
+    const isVip = Boolean(
+      user &&
+      user.isPremium &&
+      (user.subscriptionStatus === 'active' || !user.subscriptionStatus) &&
+      (!user.subscriptionExpiresAt || new Date() <= new Date(user.subscriptionExpiresAt))
+    );
+    if (!isVip) {
+      return t('pro_badge') || 'PRO';
+    }
+    const plan = user.subscriptionPlan;
+    if (plan === '7days') return '7D VIP';
+    if (plan === '30days') return '30D VIP';
+    if (plan === '1year' || plan === 'annual') return '1Y VIP';
+    return t('vip') || 'VIP';
+  };
 
   // Animated bouncing down movement for scroll indicator arrows
   const arrowBounce = useRef(new Animated.Value(0)).current;
@@ -116,20 +149,12 @@ export default function HomeScreen() {
   }, [arrowBounce]);
 
   // Fetch backend templates
+  // Fetch backend templates
   useEffect(() => {
     API.get('/templates', { params: { limit: 100, sort: 'trending' } })
       .then((res) => {
         if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
           const apiReels = res.data.data.map((item, idx) => {
-            const nameLower = (item.name || '').toLowerCase();
-            let defFrame = 'durga_puja';
-            if (nameLower.includes('retro')) defFrame = 'rose_glow';
-            else if (nameLower.includes('couple') || nameLower.includes('sunset')) defFrame = 'romantic_floral';
-            else if (nameLower.includes('sunrise') || nameLower.includes('morning')) defFrame = 'sunrise_amber';
-            else if (nameLower.includes('bhakti') || nameLower.includes('mahadev') || nameLower.includes('ganesha')) defFrame = 'bhakti_om';
-            else if (nameLower.includes('diwali') || nameLower.includes('festive')) defFrame = 'mandala';
-            else if (nameLower.includes('moonlight') || nameLower.includes('night')) defFrame = 'moon_clouds';
-
             const catRaw =
               item.categoryId?.slug ||
               (typeof item.categoryId === 'string' ? item.categoryId : '') ||
@@ -137,72 +162,80 @@ export default function HomeScreen() {
               item.category ||
               'trending';
 
+            const contentSource = item.mainMedia || item.previewAsset || item.mediaUrl;
+            const thumbSource = item.thumbnail || contentSource;
+
+            const isVideo =
+              item.type === 'video' ||
+              (typeof contentSource === 'string' && Boolean(contentSource.match(/\.(mp4|webm|mov)(\?.*)?$/i))) ||
+              (typeof item.mediaUrl === 'string' && Boolean(item.mediaUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+
+            const templateFooters = (Array.isArray(item.footers) ? item.footers : [])
+              .filter((f) => f && (f.asset || f.videoAsset || f.thumbnail || f.name))
+              .map((f, fIdx) => {
+                const fId = f._id ? String(f._id) : (f.id ? String(f.id) : `footer_${item._id || idx}_${fIdx}`);
+                const fAsset = f.videoAsset || f.asset || '';
+                const fThumb = f.thumbnail || fAsset;
+                return {
+                  id: fId,
+                  name: f.name || `Footer ${fIdx + 1}`,
+                  asset: fAsset,
+                  videoAsset: f.videoAsset || '',
+                  thumb: fThumb,
+                  thumbnail: fThumb,
+                  heightPercent: typeof f.heightPercent === 'number' ? f.heightPercent : 40,
+                  objectFit: f.objectFit || 'contain',
+                  x: f.x,
+                  y: f.y,
+                  width: f.width,
+                  height: f.height,
+                  zIndex: f.zIndex || 10,
+                  userNamePosition: f.userNamePosition || null,
+                  isNone: false,
+                  isCustom: true,
+                };
+              });
+
+            const isPaid = ['premium', 'paid', 'vip'].includes(item.accessType) || Number(item.price) > 0;
+
             return {
               id: item._id || `tmpl_${idx}`,
               title: item.name,
+              nameTranslations: item.nameTranslations,
               category: catRaw,
-              mediaType: item.type === 'video' ? 'video' : 'image',
-              mediaUrl: item.previewAsset || item.mainMedia || item.thumbnail || DEFAULT_REELS[0].mediaUrl,
-              posterUrl: item.thumbnail || item.mainMedia || DEFAULT_REELS[0].posterUrl,
-              defaultFrame: defFrame,
-              footers: Array.isArray(item.footers) ? item.footers : [],
+              mediaType: isVideo ? 'video' : 'image',
+              contentUrl: resolveMediaUrl(contentSource),
+              mediaUrl: resolveMediaUrl(contentSource),
+              posterUrl: resolveMediaUrl(thumbSource),
+              thumbnailUrl: resolveMediaUrl(thumbSource),
+              defaultFrame: templateFooters.length > 0 ? templateFooters[0].id : 'none',
+              footers: templateFooters,
+              canvasConfig: item.canvasConfig || null,
+              accessType: item.accessType || 'free',
+              price: Number(item.price) || 0,
+              isPaid,
+              rawTemplate: item,
             };
           });
 
-          // Combine with default reels so all categories always have templates available
-          const combined = [...apiReels];
-          DEFAULT_REELS.forEach((def) => {
-            const exists = combined.some(
-              (c) => c.id === def.id || (c.title && def.title && c.title.toLowerCase() === def.title.toLowerCase())
-            );
-            if (!exists) {
-              combined.push(def);
-            }
-          });
-
-          setReels(combined);
+          setReels(apiReels);
         }
       })
       .catch((err) => {
-        console.log('Using default reels:', err?.message);
-      });
-
-    // Fetch dynamic footers / frames from backend
-    API.get('/frames')
-      .then((res) => {
-        if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-          const apiFrames = res.data.data.map((f) => {
-            const nameLower = (f.name || '').toLowerCase();
-            let frameId = 'rose_glow';
-            if (nameLower.includes('durga')) frameId = 'durga_puja';
-            else if (nameLower.includes('mandala') || nameLower.includes('diya')) frameId = 'mandala';
-            else if (nameLower.includes('royal') || nameLower.includes('crest')) frameId = 'royal_crest';
-            else if (nameLower.includes('sunrise') || nameLower.includes('amber')) frameId = 'sunrise_amber';
-            else if (nameLower.includes('floral') || nameLower.includes('love')) frameId = 'romantic_floral';
-            else if (nameLower.includes('om') || nameLower.includes('bhakti')) frameId = 'bhakti_om';
-            else if (nameLower.includes('moonlight') || nameLower.includes('silver') || nameLower.includes('cloud')) frameId = 'moon_clouds';
-
-            return {
-              id: frameId,
-              isNone: false,
-              thumb: f.thumbnail || f.asset,
-              asset: f.asset,
-              name: f.name,
-            };
-          });
-          setFramesList([FRAME_OPTIONS[0], ...apiFrames]);
-        }
+        console.log('Error fetching templates:', err?.message);
       })
-      .catch((e) => console.log('Using default frames:', e?.message));
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   // Filter reels based on active category
   const displayReels = useMemo(() => {
     if (activeCategory === 'all') {
-      return reels.length > 0 ? reels : DEFAULT_REELS;
+      return reels;
     }
     const normActive = normalizeCat(activeCategory);
-    const matched = reels.filter((r) => {
+    return reels.filter((r) => {
       const normR = normalizeCat(r.category);
       if (normR === normActive) return true;
       if (normActive === 'special' && (normR === 'durgapuja' || normR === 'festivals' || normR === 'trending')) {
@@ -210,16 +243,6 @@ export default function HomeScreen() {
       }
       return false;
     });
-
-    if (matched.length > 0) return matched;
-
-    const defaultMatched = DEFAULT_REELS.filter((r) => {
-      const normR = normalizeCat(r.category);
-      return normR === normActive || (normActive === 'special' && (normR === 'durgapuja' || normR === 'festivals'));
-    });
-
-    if (defaultMatched.length > 0) return defaultMatched;
-    return reels.length > 0 ? [reels[0]] : DEFAULT_REELS.slice(0, 1);
   }, [activeCategory, reels]);
 
   const activeReel = displayReels[currentReelIndex] || displayReels[0];
@@ -238,6 +261,20 @@ export default function HomeScreen() {
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
   }).current;
+
+  // View tracking for templates displayed in the feed
+  const recordReelView = useCallback((templateId) => {
+    if (!templateId || viewedReelIds.current.has(templateId)) return;
+    if (String(templateId).startsWith('durga_')) return;
+    viewedReelIds.current.add(templateId);
+    API.post(`/templates/${templateId}/view`).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (displayReels && displayReels[currentReelIndex]) {
+      recordReelView(displayReels[currentReelIndex].id);
+    }
+  }, [currentReelIndex, displayReels, recordReelView]);
 
   const handleNextReel = (currentIndex) => {
     const targetIdx = typeof currentIndex === 'number' ? currentIndex + 1 : currentReelIndex + 1;
@@ -263,9 +300,7 @@ export default function HomeScreen() {
     setIsPlaying((prev) => !prev);
   };
 
-  const handleDownload = async (reelItem) => {
-    hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
-    const target = reelItem || activeReel;
+  const executeDownload = async (target) => {
     const mediaSource = target?.mediaUrl;
     if (!mediaSource) {
       showToast(t('download_saved_msg') || 'Status saved successfully!');
@@ -297,27 +332,62 @@ export default function HomeScreen() {
       }
 
       // Add to Downloads store so it appears in the Downloads tab
+      const targetFrame = selectedFrames[target.id] !== undefined
+        ? selectedFrames[target.id]
+        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
+
+      const activeCustomFooter =
+        target.footers && target.footers.length > 0
+          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+          : null;
+
       const creationItem = {
         id: `reel_${Date.now()}`,
+        templateId: target.id,
         name: target.title || 'Personalized Status',
-        thumbnail: targetUri,
+        nameTranslations: target.nameTranslations,
+        thumbnail: target.thumbnailUrl || target.posterUrl || targetUri,
         localUri: targetUri,
+        image: resolved,
+        mediaUrl: resolved,
+        mediaType: target.mediaType || (isVideo ? 'video' : 'image'),
         editedText: displayName,
-        selectedFrame: selectedFrame !== 'none' ? selectedFrame : null,
+        userNameText: displayName,
+        userPhotoUri: displayPhoto || null,
+        selectedFrame: targetFrame !== 'none' ? targetFrame : null,
+        activeTemplate: target.rawTemplate || target,
+        template: target.rawTemplate || target,
+        footers: target.footers || [],
+        selectedFooter: activeCustomFooter,
+        canvasConfig: target.canvasConfig || null,
         createdAt: new Date().toISOString(),
+        downloadedAt: new Date().toISOString(),
+        isPaid: target.isPaid,
+        price: target.price,
       };
       useCreationStore.getState().addDownloadedCreation(creationItem);
 
-      // Save to backend if user is authenticated
-      if (user && target.id && !target.id.startsWith('durga_')) {
-        try {
-          await API.post('/creations/save-download', {
-            templateId: target.id,
-            imageUrl: resolved,
-            editedText: displayName,
-            customizationState: { selectedFrame },
-          });
-        } catch (e) {}
+      // Record usage on backend
+      if (target.id && !String(target.id).startsWith('durga_')) {
+        API.post(`/templates/${target.id}/use`, { action: 'download' }).catch(() => {});
+        if (user) {
+          try {
+            await API.post('/creations/save-download', {
+              templateId: target.id,
+              imageUrl: resolved,
+              editedText: displayName,
+              editedPhoto: displayPhoto || '',
+              customizationState: {
+                userNameText: displayName,
+                userPhotoUri: displayPhoto || null,
+                selectedFrame: targetFrame,
+                footers: target.footers || [],
+                canvasConfig: target.canvasConfig || null,
+                selectedFooter: activeCustomFooter,
+              },
+            });
+          } catch (e) {}
+        }
       }
 
       showToast(savedToGallery ? (t('download_saved_msg') || 'Status saved to gallery!') : 'Status downloaded!');
@@ -327,9 +397,22 @@ export default function HomeScreen() {
     }
   };
 
-  const handleShare = async (reelItem) => {
-    hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+  const handleDownload = async (reelItem) => {
+    hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
     const target = reelItem || activeReel;
+    if (!target) return;
+
+    // Check if paid template and not yet unlocked in current session
+    if (target.isPaid && !unlockedIds.has(target.id)) {
+      // Show confirmation popup for the money required
+      setPaidConfirmState({ item: target, action: 'download' });
+      return;
+    }
+
+    executeDownload(target);
+  };
+
+  const executeShare = async (target) => {
     const mediaSource = target?.mediaUrl;
     if (!mediaSource) {
       try {
@@ -353,6 +436,65 @@ export default function HomeScreen() {
         shareUri = downloaded.uri;
       }
 
+      // Save creation to Downloads store and backend as user shares
+      const targetFrame = selectedFrames[target.id] !== undefined
+        ? selectedFrames[target.id]
+        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
+
+      const activeCustomFooter =
+        target.footers && target.footers.length > 0
+          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+          : null;
+
+      const creationItem = {
+        id: `reel_${Date.now()}`,
+        templateId: target.id,
+        name: target.title || 'Personalized Status',
+        nameTranslations: target.nameTranslations,
+        thumbnail: target.thumbnailUrl || target.posterUrl || shareUri,
+        localUri: shareUri,
+        image: resolved,
+        mediaUrl: resolved,
+        mediaType: target.mediaType || (isVideo ? 'video' : 'image'),
+        editedText: displayName,
+        userNameText: displayName,
+        userPhotoUri: displayPhoto || null,
+        selectedFrame: targetFrame !== 'none' ? targetFrame : null,
+        activeTemplate: target.rawTemplate || target,
+        template: target.rawTemplate || target,
+        footers: target.footers || [],
+        selectedFooter: activeCustomFooter,
+        canvasConfig: target.canvasConfig || null,
+        createdAt: new Date().toISOString(),
+        downloadedAt: new Date().toISOString(),
+        isPaid: target.isPaid,
+        price: target.price,
+      };
+      useCreationStore.getState().addDownloadedCreation(creationItem);
+
+      // Record use on backend
+      if (target.id && !String(target.id).startsWith('durga_')) {
+        API.post(`/templates/${target.id}/use`, { action: 'share' }).catch(() => {});
+        if (user) {
+          try {
+            await API.post('/creations/save-download', {
+              templateId: target.id,
+              imageUrl: resolved,
+              editedText: displayName,
+              editedPhoto: displayPhoto || '',
+              customizationState: {
+                userNameText: displayName,
+                userPhotoUri: displayPhoto || null,
+                selectedFrame: targetFrame,
+                footers: target.footers || [],
+                canvasConfig: target.canvasConfig || null,
+                selectedFooter: activeCustomFooter,
+              },
+            });
+          } catch (e) {}
+        }
+      }
+
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(shareUri, {
           mimeType,
@@ -373,6 +515,61 @@ export default function HomeScreen() {
     }
   };
 
+  const handleShare = async (reelItem) => {
+    hapticImpact(Haptics.ImpactFeedbackStyle.Light);
+    const target = reelItem || activeReel;
+    if (!target) return;
+
+    // Check if paid template and not yet unlocked in current session
+    if (target.isPaid && !unlockedIds.has(target.id)) {
+      // Show confirmation popup for the money required
+      setPaidConfirmState({ item: target, action: 'share' });
+      return;
+    }
+
+    executeShare(target);
+  };
+
+  const handleConfirmPaidAction = async () => {
+    if (!paidConfirmState?.item) return;
+    const { item, action } = paidConfirmState;
+
+    if (!user) {
+      setPaidConfirmState(null);
+      showToast(t('login_required_to_purchase'));
+      router.push('/login');
+      return;
+    }
+
+    setPayingForTemplate(true);
+    try {
+      const res = await API.post('/payments/create', {
+        templateId: item.id,
+        amount: item.price || 49,
+      });
+
+      if (res.data?.success) {
+        hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+        setUnlockedIds((prev) => new Set(prev).add(item.id));
+        setPaidConfirmState(null);
+        showToast(t('payment_successful'));
+
+        if (action === 'share') {
+          executeShare(item);
+        } else {
+          executeDownload(item);
+        }
+      } else {
+        showToast(res.data?.message || 'Payment failed. Please try again.');
+      }
+    } catch (err) {
+      console.warn('Payment error:', err);
+      showToast(err.response?.data?.message || 'Payment failed. Please try again.');
+    } finally {
+      setPayingForTemplate(false);
+    }
+  };
+
   const handleEdit = () => {
     hapticTap();
     router.push('/edit-profile');
@@ -390,6 +587,13 @@ export default function HomeScreen() {
   const renderReelItem = ({ item, index }) => {
     const hasNext = index < displayReels.length - 1;
     const isCurrentActive = index === currentReelIndex;
+    const templateFooters = Array.isArray(item.footers) ? item.footers : [];
+    const defaultFrameId = templateFooters.length > 0 ? templateFooters[0].id : (item.defaultFrame || 'durga_puja');
+    const itemFrameId = selectedFrames[item.id] !== undefined
+      ? selectedFrames[item.id]
+      : defaultFrameId;
+    const selectedCustomFooter = templateFooters.find((f) => f.id === itemFrameId) || null;
+    const shouldPlayMedia = isPlaying && isCurrentActive && activeReelPlaybackReady;
 
     return (
       <View style={[styles.pageContainer, { height: availHeight }]}>
@@ -397,42 +601,135 @@ export default function HomeScreen() {
         <View style={styles.cardRowWrapper}>
           <View style={[styles.reelCard, { width: cardWidth, height: cardHeight }]}>
             {/* Background Media */}
-            {item.mediaType === 'video' ? (
-              <View style={StyleSheet.absoluteFillObject}>
-                {item.posterUrl ? (
-                  <Image
-                    source={{ uri: item.posterUrl }}
-                    style={StyleSheet.absoluteFillObject}
-                    resizeMode="cover"
-                  />
-                ) : null}
-                <AppVideo
-                  source={{ uri: item.mediaUrl }}
-                  style={StyleSheet.absoluteFillObject}
-                  resizeMode={ResizeMode.COVER}
-                  shouldPlay={isPlaying && isCurrentActive}
-                  isLooping
-                  isMuted
-                />
-              </View>
-            ) : (
-              <Image
-                source={{ uri: item.mediaUrl }}
-                style={StyleSheet.absoluteFillObject}
-                resizeMode="cover"
-              />
-            )}
+            {(() => {
+              const contentUri = item.contentUrl || item.mediaUrl;
 
-            {/* Personalized Golden Ring + Name Ribbon + Footer Plaque */}
-            {selectedFrame !== 'none' ? (
-              <ReelPersonalizationOverlay
-                frameId={selectedFrame}
-                userName={displayName}
-                userPhotoUri={displayPhoto}
-                cardWidth={cardWidth}
-                cardHeight={cardHeight}
-              />
-            ) : null}
+              return (
+                <View style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0, overflow: 'hidden', borderRadius: wp(0.045) }}>
+                  {item.thumbnailUrl && item.mediaType === 'video' ? (
+                    <Image
+                      source={{ uri: item.thumbnailUrl }}
+                      style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  {item.mediaType === 'video' ? (
+                    <AppVideo
+                      source={{ uri: contentUri }}
+                      style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
+                      resizeMode={ResizeMode.COVER}
+                      shouldPlay={shouldPlayMedia}
+                      isLooping
+                      isMuted
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: contentUri }}
+                      style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
+                      resizeMode="cover"
+                    />
+                  )}
+                </View>
+              );
+            })()}
+
+            {/* Custom Footer Overlay Layer: Directly visible on the main template content */}
+            {(() => {
+              if (!selectedCustomFooter || itemFrameId === 'none') return null;
+
+              const footerAsset = selectedCustomFooter.videoAsset || selectedCustomFooter.asset || '';
+              if (!footerAsset) return null;
+
+              const isVideoAsset = Boolean(
+                footerAsset && (
+                  footerAsset.endsWith('.mp4') ||
+                  footerAsset.endsWith('.webm') ||
+                  footerAsset.includes('.mp4?') ||
+                  footerAsset.includes('video')
+                )
+              );
+
+              const footerUri = resolveMediaUrl(footerAsset);
+              if (!footerUri) return null;
+
+              const heightNorm =
+                typeof selectedCustomFooter.height === 'number'
+                  ? (selectedCustomFooter.height > 1 ? selectedCustomFooter.height / 100 : selectedCustomFooter.height)
+                  : (typeof selectedCustomFooter.heightPercent === 'number' ? selectedCustomFooter.heightPercent / 100 : 0.4);
+
+              const widthNorm =
+                typeof selectedCustomFooter.width === 'number'
+                  ? (selectedCustomFooter.width > 1 ? selectedCustomFooter.width / 100 : selectedCustomFooter.width)
+                  : 1.0;
+
+              const fWidth = widthNorm * cardWidth;
+              const fHeight = heightNorm * cardHeight;
+
+              const xNorm = typeof selectedCustomFooter.x === 'number'
+                ? (selectedCustomFooter.x > 1 ? selectedCustomFooter.x / 100 : selectedCustomFooter.x)
+                : 0.5;
+
+              const yNorm = typeof selectedCustomFooter.y === 'number'
+                ? (selectedCustomFooter.y > 1 ? selectedCustomFooter.y / 100 : selectedCustomFooter.y)
+                : (1 - heightNorm / 2);
+
+              const fLeft = xNorm * cardWidth - fWidth / 2;
+              const fTop = yNorm * cardHeight - fHeight / 2;
+
+              const fitMode = selectedCustomFooter.objectFit === 'cover'
+                ? 'cover'
+                : selectedCustomFooter.objectFit === 'fill'
+                ? 'fill'
+                : 'contain';
+
+              return (
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: fLeft,
+                    top: fTop,
+                    width: fWidth,
+                    height: fHeight,
+                    overflow: 'hidden',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: selectedCustomFooter.zIndex || 10,
+                    elevation: 12,
+                  }}
+                  pointerEvents="none"
+                >
+                  {isVideoAsset ? (
+                    <AppVideo
+                      key={`footer_${selectedCustomFooter.id || 'curr'}_${item.id}`}
+                      source={{ uri: footerUri }}
+                      style={{ width: fWidth, height: fHeight }}
+                      resizeMode={fitMode === 'cover' ? ResizeMode.COVER : fitMode === 'fill' ? ResizeMode.STRETCH : ResizeMode.CONTAIN}
+                      shouldPlay={shouldPlayMedia}
+                      isLooping
+                      isMuted
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: footerUri }}
+                      style={{ width: fWidth, height: fHeight }}
+                      resizeMode={fitMode === 'fill' ? 'stretch' : fitMode}
+                    />
+                  )}
+                </View>
+              );
+            })()}
+
+            {/* Personalized Canvas Layers and/or Frame Overlay */}
+            <ReelPersonalizationOverlay
+              frameId={itemFrameId}
+              customFooter={selectedCustomFooter}
+              canvasConfig={item.canvasConfig}
+              userName={displayName}
+              userPhotoUri={displayPhoto}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              isPlaying={shouldPlayMedia}
+            />
 
             {/* Play/Pause Button - ONLY for Video */}
             {item.mediaType === 'video' ? (
@@ -529,52 +826,32 @@ export default function HomeScreen() {
           </PressableScale>
         </View>
 
-        {/* Frame Selector Thumbnails Row: directly added on template */}
-        <View style={[styles.frameSelectorWrap, { width: controlsWidth }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            nestedScrollEnabled={true}
-            directionalLockEnabled={true}
-            contentContainerStyle={styles.frameScrollContent}
-          >
-            {(() => {
-              const itemFooters = (Array.isArray(item.footers) && item.footers.length > 0)
-                ? item.footers.map((f, fIdx) => {
-                    const nameLower = (f.name || '').toLowerCase();
-                    let frameId = 'durga_puja';
-                    if (nameLower.includes('mandala') || nameLower.includes('diya')) frameId = 'mandala';
-                    else if (nameLower.includes('royal') || nameLower.includes('crest')) frameId = 'royal_crest';
-                    else if (nameLower.includes('sunrise') || nameLower.includes('amber')) frameId = 'sunrise_amber';
-                    else if (nameLower.includes('floral') || nameLower.includes('love')) frameId = 'romantic_floral';
-                    else if (nameLower.includes('om') || nameLower.includes('bhakti')) frameId = 'bhakti_om';
-                    else if (nameLower.includes('moonlight') || nameLower.includes('silver') || nameLower.includes('cloud')) frameId = 'moon_clouds';
-                    else if (nameLower.includes('rose') || nameLower.includes('lake')) frameId = 'rose_glow';
+        {/* Frame Selector Thumbnails Row: only when template has footers */}
+        {templateFooters.length > 0 ? (
+          <View style={[styles.frameSelectorWrap, { width: controlsWidth }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              directionalLockEnabled={true}
+              contentContainerStyle={styles.frameScrollContent}
+            >
+              {[FRAME_OPTIONS[0], ...templateFooters].map((frame, fIdx) => {
+                if (!frame) return null;
+                const isSelected = itemFrameId === frame.id;
+                const frameKey = frame.id ? `${frame.id}_${fIdx}` : `frame_${fIdx}`;
+                const resolvedThumb = frame.thumb ? resolveMediaUrl(frame.thumb) : null;
 
-                    return {
-                      id: frameId,
-                      isNone: false,
-                      thumb: f.thumbnail || f.asset || f.videoAsset,
-                      asset: f.asset || f.videoAsset,
-                      name: f.name,
-                    };
-                  })
-                : [];
-
-              const effectiveFrames = [
-                FRAME_OPTIONS[0],
-                ...(itemFooters.length > 0 ? itemFooters : framesList.slice(1)),
-              ];
-
-              return effectiveFrames.map((frame) => {
-                const isSelected = selectedFrame === frame.id;
                 return (
                   <TouchableOpacity
-                    key={frame.id}
-                    activeOpacity={0.8}
+                    key={frameKey}
+                    activeOpacity={0.75}
                     onPress={() => {
                       hapticTap();
-                      setSelectedFrame(frame.id);
+                      setSelectedFrames((prev) => ({
+                        ...prev,
+                        [item.id]: frame.id,
+                      }));
                     }}
                     style={[
                       styles.frameBox,
@@ -582,21 +859,21 @@ export default function HomeScreen() {
                       isSelected && styles.frameBoxActive,
                     ]}
                   >
-                    {frame.isNone ? (
+                    {frame.isNone || !resolvedThumb ? (
                       <Ionicons name="ban-outline" size={fontScale(20)} color="#78350F" />
                     ) : (
                       <Image
-                        source={{ uri: frame.thumb }}
+                        source={{ uri: resolvedThumb }}
                         style={styles.frameThumbImage}
                         resizeMode="cover"
                       />
                     )}
                   </TouchableOpacity>
                 );
-              });
-            })()}
-          </ScrollView>
-        </View>
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* Bottom Scroll Indicator: ONLY visible under the FIRST content template */}
         {index === 0 && displayReels.length > 1 ? (
@@ -678,8 +955,8 @@ export default function HomeScreen() {
             style={styles.proBtn}
             contentStyle={styles.proContent}
           >
-            <MaterialCommunityIcons name="crown" size={fontScale(14)} color="#F59E0B" />
-            <Text style={styles.proText}>{t('pro_badge')}</Text>
+            <MaterialCommunityIcons name="crown" size={fontScale(14)} color="#1E1B2E" />
+            <Text style={styles.proText}>{getSubscriptionLabel()}</Text>
           </PressableScale>
         </View>
       </View>
@@ -738,40 +1015,111 @@ export default function HomeScreen() {
           }
         }}
       >
-        <FlatList
-          ref={flatListRef}
-          data={displayReels}
-          keyExtractor={(item, index) => item.id || `reel_${index}`}
-          renderItem={renderReelItem}
-          pagingEnabled={Platform.OS === 'ios'}
-          snapToInterval={availHeight}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          disableIntervalMomentum={true}
-          directionalLockEnabled={true}
-          scrollEventThrottle={16}
-          onMomentumScrollEnd={(e) => {
-            const offsetY = e.nativeEvent.contentOffset.y;
-            const newIndex = Math.round(offsetY / availHeight);
-            if (newIndex >= 0 && newIndex < displayReels.length && newIndex !== currentReelIndex) {
-              setCurrentReelIndex(newIndex);
-            }
-          }}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          getItemLayout={(data, index) => ({
-            length: availHeight,
-            offset: availHeight * index,
-            index,
-          })}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          initialNumToRender={2}
-          maxToRenderPerBatch={3}
-          windowSize={5}
-          removeClippedSubviews={Platform.OS === 'android'}
-        />
+        {loading ? (
+          <View
+            style={[
+              styles.pageContainer,
+              { height: availHeight, justifyContent: 'center', alignItems: 'center' },
+            ]}
+          >
+            {/* Card Skeleton (9:16 aspect ratio matching reelCard) */}
+            <View style={styles.cardRowWrapper}>
+              <Skeleton
+                width={cardWidth}
+                height={cardHeight}
+                borderRadius={wp(0.045)}
+                style={{ backgroundColor: '#E2E8F0' }}
+              />
+            </View>
+
+            {/* Action Buttons Skeleton (Download, Share, Edit) */}
+            <View style={[styles.actionRow, { width: controlsWidth, marginTop: 8 }]}>
+              <Skeleton width="34%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width="32%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width="28%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
+            </View>
+
+            {/* Frame Selector Skeleton (4 boxes) */}
+            <View
+              style={[
+                styles.frameSelectorWrap,
+                { width: controlsWidth, marginTop: 8, flexDirection: 'row', gap: wp(0.02) },
+              ]}
+            >
+              <Skeleton width={44} height={44} borderRadius={10} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width={44} height={44} borderRadius={10} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width={44} height={44} borderRadius={10} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width={44} height={44} borderRadius={10} style={{ backgroundColor: '#F1F5F9' }} />
+            </View>
+
+            {/* Scroll Indicator Placeholder */}
+            <View style={{ marginTop: 12, alignItems: 'center' }}>
+              <Skeleton width={110} height={12} borderRadius={6} style={{ backgroundColor: '#F1F5F9' }} />
+            </View>
+          </View>
+        ) : displayReels.length === 0 ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <Ionicons name="images-outline" size={fontScale(44)} color="#CBD5E1" />
+            <Text
+              style={{
+                marginTop: 12,
+                color: '#94A3B8',
+                fontFamily: FONTS.medium,
+                fontSize: fontScale(13.5),
+                textAlign: 'center',
+              }}
+            >
+              {t('no_templates_found') || 'No templates found'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={displayReels}
+            extraData={i18n.language}
+            keyExtractor={(item, index) => item.id || `reel_${index}`}
+            renderItem={renderReelItem}
+            pagingEnabled={Platform.OS === 'ios'}
+            snapToInterval={availHeight}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum={true}
+            directionalLockEnabled={true}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={(e) => {
+              const offsetY = e.nativeEvent.contentOffset.y;
+              const newIndex = Math.round(offsetY / availHeight);
+              if (newIndex >= 0 && newIndex < displayReels.length && newIndex !== currentReelIndex) {
+                setCurrentReelIndex(newIndex);
+              }
+            }}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            getItemLayout={(data, index) => ({
+              length: availHeight,
+              offset: availHeight * index,
+              index,
+            })}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            initialNumToRender={3}
+            maxToRenderPerBatch={4}
+            windowSize={7}
+            removeClippedSubviews={false}
+          />
+        )}
       </View>
+
+      {/* Paid Template Confirmation Modal for Download/Share */}
+      <PaidTemplateConfirmModal
+        key={`paid_modal_${i18n.language}`}
+        visible={paidConfirmState !== null}
+        template={paidConfirmState?.item}
+        action={paidConfirmState?.action || 'download'}
+        loading={payingForTemplate}
+        onConfirm={handleConfirmPaidAction}
+        onCancel={() => setPaidConfirmState(null)}
+      />
 
       {/* Language Switcher Modal */}
       <LanguageModal

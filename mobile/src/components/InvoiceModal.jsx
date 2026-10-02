@@ -54,7 +54,7 @@ export default function InvoiceModal({ visible, purchase, user, onClose }) {
   const sgst = Math.round((gst - cgst) * 100) / 100;
 
   const template = purchase?.templateId;
-  const templateName = template?.name || 'Status Template';
+  const templateName = template?.name || purchase?.planName || (purchase?.purchaseType === 'ai_credits_pack' ? 'AI Credits Pack' : 'Status Template');
   const transactionId = purchase?.transactionId || '—';
   const invoiceNo = `INV/${transactionId}`;
   const rawPhone = user?.phoneNumber || (typeof purchase?.userId === 'object' ? purchase?.userId?.phoneNumber : null) || '—';

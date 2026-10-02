@@ -8,7 +8,7 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/durga_puja_reel.mp4`,
     posterUrl: `${S3_BASE}/frames/durga_puja_thumb.jpg`,
-    defaultFrame: 'durga_puja',
+    defaultFrame: 'none',
   },
   {
     id: 'retro_80s_1',
@@ -17,7 +17,7 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/retro_80s_reel.mp4`,
     posterUrl: `${S3_BASE}/reels/retro_80s.jpg`,
-    defaultFrame: 'rose_glow',
+    defaultFrame: 'none',
   },
   {
     id: 'vintage_couple_1',
@@ -26,7 +26,7 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/vintage_couple_reel.mp4`,
     posterUrl: `${S3_BASE}/reels/vintage_couple.jpg`,
-    defaultFrame: 'romantic_floral',
+    defaultFrame: 'none',
   },
   {
     id: 'good_morning_1',
@@ -35,7 +35,7 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/good_morning_reel.mp4`,
     posterUrl: `${S3_BASE}/frames/sunrise_thumb.jpg`,
-    defaultFrame: 'sunrise_amber',
+    defaultFrame: 'none',
   },
   {
     id: 'mahadev_bhakti_1',
@@ -44,7 +44,7 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/mahadev_bhakti_reel.mp4`,
     posterUrl: `${S3_BASE}/frames/diya_mandala_thumb.jpg`,
-    defaultFrame: 'bhakti_om',
+    defaultFrame: 'none',
   },
   {
     id: 'diwali_festive_1',
@@ -52,7 +52,7 @@ export const DEFAULT_REELS = [
     category: 'festivals',
     mediaType: 'image',
     mediaUrl: `${S3_BASE}/frames/diya_mandala_thumb.jpg`,
-    defaultFrame: 'mandala',
+    defaultFrame: 'none',
   },
   {
     id: 'tomorrow_1',
@@ -61,7 +61,7 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/good_morning_reel.mp4`,
     posterUrl: `${S3_BASE}/frames/sunrise_thumb.jpg`,
-    defaultFrame: 'sunrise_amber',
+    defaultFrame: 'none',
   },
   {
     id: 'trending_1',
@@ -70,20 +70,12 @@ export const DEFAULT_REELS = [
     mediaType: 'video',
     mediaUrl: `${S3_BASE}/reels/retro_80s_reel.mp4`,
     posterUrl: `${S3_BASE}/reels/retro_80s.jpg`,
-    defaultFrame: 'rose_glow',
+    defaultFrame: 'none',
   },
 ];
 
 export const FRAME_OPTIONS = [
   { id: 'none', isNone: true, thumb: null },
-  { id: 'durga_puja', isNone: false, thumb: `${S3_BASE}/frames/footer_durga_puja.png`, name: 'Durga Puja Golden Mandala' },
-  { id: 'mandala', isNone: false, thumb: `${S3_BASE}/frames/footer_mandala.png`, name: 'Diya Mandala Festive' },
-  { id: 'rose_glow', isNone: false, thumb: `${S3_BASE}/frames/footer_moon_lake.png`, name: 'Rose Glow Modern' },
-  { id: 'moon_clouds', isNone: false, thumb: `${S3_BASE}/frames/footer_moon_clouds.png`, name: 'Moonlight Silver Starlight' },
-  { id: 'royal_crest', isNone: false, thumb: `${S3_BASE}/frames/footer_royal_crest.png`, name: 'Imperial Royal Crest' },
-  { id: 'sunrise_amber', isNone: false, thumb: `${S3_BASE}/frames/footer_sunrise_amber.png`, name: 'Radiant Sunrise Temple' },
-  { id: 'romantic_floral', isNone: false, thumb: `${S3_BASE}/frames/footer_romantic_floral.png`, name: 'Romantic Floral Love' },
-  { id: 'bhakti_om', isNone: false, thumb: `${S3_BASE}/frames/footer_bhakti_om.png`, name: 'Sacred Devotional Om' },
 ];
 
 export const CATEGORY_CHIPS = [

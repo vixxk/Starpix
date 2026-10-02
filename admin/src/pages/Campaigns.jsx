@@ -130,7 +130,7 @@ export default function Campaigns() {
       setIsModalOpen(false);
       fetchCampaigns();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving campaign');
+      toast.error(err.response?.data?.message || 'Error Saving campaign');
     }
   };
 

@@ -40,7 +40,8 @@ export async function uploadUserMedia(uri, folder = 'user-profiles') {
       fileToUpload = tempPath;
     }
 
-    const uploadEndpoint = `${API.defaults.baseURL}/uploads`;
+    const base = API.defaults.baseURL ? API.defaults.baseURL.replace(/\/+$/, '') : 'http://localhost:5000/api';
+    const uploadEndpoint = `${base}/uploads`;
     const token = await AsyncStorage.getItem('starpix_user_token');
     const lang = await AsyncStorage.getItem('starpix_user_language');
 

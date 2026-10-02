@@ -79,26 +79,66 @@ export default function BuyCreditsScreen() {
   const [selectedPackId, setSelectedPackId] = useState('creator');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [purchasedPack, setPurchasedPack] = useState(null);
+  const lastTapRef = React.useRef({ id: null, time: 0 });
 
   const currentCredits = user?.credits !== undefined ? user.credits : 240;
   const selectedPack = creditPacks.find((p) => p.id === selectedPackId) || creditPacks[0] || CREDIT_PACKS[2];
 
   const handleSelectPack = (packId) => {
     hapticTap();
-    setSelectedPackId(packId);
+    const now = Date.now();
+    const isDoubleTap = lastTapRef.current.id === packId && now - lastTapRef.current.time < 500;
+    const isAlreadySelected = selectedPackId === packId;
+    lastTapRef.current = { id: packId, time: now };
+
+    if (isAlreadySelected || isDoubleTap) {
+      setSelectedPackId(packId);
+      // Double clicking on selected pack -> automatically continue!
+      setTimeout(() => {
+        handlePurchase(packId);
+      }, 50);
+    } else {
+      setSelectedPackId(packId);
+    }
   };
 
-  const handlePurchase = async () => {
+  const handlePurchase = async (overridePackId) => {
     hapticTap();
-    const pack = selectedPack;
+    const activePackId = typeof overridePackId === 'string' ? overridePackId : selectedPackId;
+    const pack = creditPacks.find((p) => p.id === activePackId) || selectedPack;
     try {
       const newTotal = (currentCredits || 0) + (pack?.credits || 0);
-      if (user) {
+      let serverUpdated = false;
+      let confirmedTotal = newTotal;
+
+      try {
+        const res = await API.post('/payments/buy-credits', {
+          packId: pack?.id,
+          credits: pack?.credits || 0,
+          price: pack?.priceNum || pack?.price || 0,
+        });
+        if (res.data?.success && res.data?.data) {
+          if (res.data.data.user) {
+            useAuthStore.getState().setUser(res.data.data.user);
+            confirmedTotal = res.data.data.user.credits !== undefined ? res.data.data.user.credits : newTotal;
+          } else if (res.data.data.totalCredits !== undefined) {
+            useAuthStore.getState().setUserCredits(res.data.data.totalCredits);
+            confirmedTotal = res.data.data.totalCredits;
+          }
+          serverUpdated = true;
+        }
+      } catch (apiErr) {
+        console.warn('API buy-credits fallback:', apiErr.message);
+      }
+
+      if (!serverUpdated && user) {
         await updateUserProfile({ credits: newTotal });
       }
+
       setPurchasedPack({
         name: (pack?.nameKey && t(pack.nameKey) !== pack.nameKey ? t(pack.nameKey) : '') || pack?.name || pack?.id,
         credits: pack?.credits || 0,
+        totalCredits: confirmedTotal,
         price: pack?.price || '',
       });
       setShowSuccessModal(true);
@@ -107,6 +147,7 @@ export default function BuyCreditsScreen() {
       setPurchasedPack({
         name: (pack?.nameKey && t(pack.nameKey) !== pack.nameKey ? t(pack.nameKey) : '') || pack?.name || pack?.id,
         credits: pack?.credits || 0,
+        totalCredits: (currentCredits || 0) + (pack?.credits || 0),
         price: pack?.price || '',
       });
       setShowSuccessModal(true);
@@ -385,10 +426,20 @@ export default function BuyCreditsScreen() {
       {/* Purchase Confirmation Modal */}
       <ConfirmModal
         visible={showSuccessModal}
-        title={purchasedPack ? `${purchasedPack.credits} Credits Added!` : 'Credits Added'}
+        title={purchasedPack ? `${purchasedPack.credits} ${t('credits_added') || 'Credits Added!'}` : t('credits_added') || 'Credits Added'}
         message={
           purchasedPack
-            ? `Your ${purchasedPack.name} (${purchasedPack.price}) has been processed successfully. You now have ${currentCredits + purchasedPack.credits} credits to create AI magic!`
+            ? (t('credits_purchased_success_desc', {
+                name: purchasedPack.name,
+                price: purchasedPack.price,
+                total: purchasedPack.totalCredits,
+              }) !== 'credits_purchased_success_desc'
+                ? t('credits_purchased_success_desc', {
+                    name: purchasedPack.name,
+                    price: purchasedPack.price,
+                    total: purchasedPack.totalCredits,
+                  })
+                : `Your ${purchasedPack.name} (${purchasedPack.price}) has been processed successfully. You now have ${purchasedPack.totalCredits} credits to create AI magic!`)
             : 'Credits updated successfully.'
         }
         confirmText={t('got_it')}

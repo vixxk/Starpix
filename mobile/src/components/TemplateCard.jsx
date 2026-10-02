@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { CARD_WIDTH, CARD_HEIGHT, CARD_SHADOW, SINGLE_CARD_SNAP_HEIGHT, hp, wp, fontScale } from '../utils/responsive';
 import { COLORS, FONTS } from '../constants/colors';
 import { hapticTap } from '../utils/haptics';
@@ -31,8 +32,6 @@ const getFooterThumbnail = (foot) => {
 
 const DEFAULT_FOOTERS = [];
 
-import { useTranslation } from 'react-i18next';
-
 export default function TemplateCard({
   template,
   onPress,
@@ -43,7 +42,7 @@ export default function TemplateCard({
   style,
   shouldPlay = true,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const storeUserPhotoUri = useCreationStore((s) => s.userPhotoUri || s.defaultUserPhotoUri);
   const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
@@ -53,6 +52,8 @@ export default function TemplateCard({
   const [selectedFooter, setSelectedFooter] = useState(null);
 
   if (!template) return null;
+
+  const isPaid = Boolean(template && (['premium', 'paid', 'vip'].includes(template.accessType) || Number(template.price) > 0));
 
   const cardWidth = width || CARD_WIDTH;
   const cardHeight = height || (width ? width * (16 / 9) : CARD_HEIGHT);
@@ -148,86 +149,88 @@ export default function TemplateCard({
         </PressableScale>
       </View>
 
-      {/* Footer Thumbnail Selector Row under the two buttons */}
-      <View style={[styles.footerSelectorRow, { width: actionContainerWidth }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          nestedScrollEnabled={true}
-          contentContainerStyle={styles.footerScrollContent}
-        >
-          {/* Box #1: None option (Default state: selectedFooter === null) */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => {
-              hapticTap();
-              setSelectedFooter(null);
-            }}
-            style={[
-              styles.footerBox,
-              selectedFooter === null && styles.footerBoxActive,
-            ]}
+      {/* Footer Thumbnail Selector Row under the two buttons: only if template has footers */}
+      {availableFooters.length > 0 ? (
+        <View style={[styles.footerSelectorRow, { width: actionContainerWidth }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            contentContainerStyle={styles.footerScrollContent}
           >
-            <Ionicons
-              name="ban-outline"
-              size={fontScale(17)}
-              color={selectedFooter === null ? COLORS.orange : '#64748B'}
-            />
-            {selectedFooter === null && (
-              <View style={styles.checkBadge}>
-                <Ionicons name="checkmark" size={8} color={COLORS.white} />
-              </View>
-            )}
-          </TouchableOpacity>
+            {/* Box #1: None option (Default state: selectedFooter === null) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                hapticTap();
+                setSelectedFooter(null);
+              }}
+              style={[
+                styles.footerBox,
+                selectedFooter === null && styles.footerBoxActive,
+              ]}
+            >
+              <Ionicons
+                name="ban-outline"
+                size={fontScale(17)}
+                color={selectedFooter === null ? COLORS.orange : '#64748B'}
+              />
+              {selectedFooter === null && (
+                <View style={styles.checkBadge}>
+                  <Ionicons name="checkmark" size={8} color={COLORS.white} />
+                </View>
+              )}
+            </TouchableOpacity>
 
-          {/* Admin Uploaded Footer Thumbnail Boxes */}
-          {availableFooters.map((foot, idx) => {
-            const isSelected = Boolean(
-              selectedFooter &&
-                ((selectedFooter._id && foot._id && selectedFooter._id === foot._id) ||
-                  selectedFooter.name === foot.name)
-            );
-            const thumbUri = getFooterThumbnail(foot);
+            {/* Admin Uploaded Footer Thumbnail Boxes */}
+            {availableFooters.map((foot, idx) => {
+              const isSelected = Boolean(
+                selectedFooter &&
+                  ((selectedFooter._id && foot._id && selectedFooter._id === foot._id) ||
+                    selectedFooter.name === foot.name)
+              );
+              const thumbUri = getFooterThumbnail(foot);
 
-            return (
-              <TouchableOpacity
-                key={foot._id || `foot_${idx}`}
-                activeOpacity={0.7}
-                onPress={() => {
-                  hapticTap();
-                  setSelectedFooter(foot);
-                }}
-                style={[
-                  styles.footerBox,
-                  isSelected && styles.footerBoxActive,
-                ]}
-              >
-                {thumbUri ? (
-                  <Image
-                    source={{ uri: thumbUri }}
-                    style={styles.footerBoxThumb}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.fallbackIconContainer}>
-                    <Ionicons
-                      name="sparkles"
-                      size={fontScale(16)}
-                      color={isSelected ? COLORS.orange : '#64748B'}
+              return (
+                <TouchableOpacity
+                  key={foot._id || `foot_${idx}`}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    hapticTap();
+                    setSelectedFooter(foot);
+                  }}
+                  style={[
+                    styles.footerBox,
+                    isSelected && styles.footerBoxActive,
+                  ]}
+                >
+                  {thumbUri ? (
+                    <Image
+                      source={{ uri: thumbUri }}
+                      style={styles.footerBoxThumb}
+                      resizeMode="cover"
                     />
-                  </View>
-                )}
+                  ) : (
+                    <View style={styles.fallbackIconContainer}>
+                      <Ionicons
+                        name="sparkles"
+                        size={fontScale(16)}
+                        color={isSelected ? COLORS.orange : '#64748B'}
+                      />
+                    </View>
+                  )}
 
-                {isSelected && (
-                  <View style={styles.checkBadge}>
-                    <Ionicons name="checkmark" size={8} color={COLORS.white} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+                  {isSelected && (
+                    <View style={styles.checkBadge}>
+                      <Ionicons name="checkmark" size={8} color={COLORS.white} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -365,5 +368,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#FFFFFF',
+  },
+  cardPaidBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+    zIndex: 25,
+    elevation: 6,
+  },
+  cardPaidBadgeCrownWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'android' ? 1.2 : 0.6,
+  },
+  cardPaidBadgeText: {
+    fontFamily: FONTS.bold,
+    fontSize: fontScale(9.5),
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: fontScale(13),
   },
 });

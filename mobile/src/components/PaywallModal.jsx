@@ -10,11 +10,12 @@ import AppButton from './AppButton';
 import PressableScale from './PressableScale';
 
 import { useTranslation } from 'react-i18next';
+import { getLocalizedName } from '../utils/localized';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function PaywallModal({ visible, template, onClose, onSuccess }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const router = useRouter();
@@ -96,7 +97,7 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
             </View>
             <Text style={styles.title}>{t('pay_to_unlock')}</Text>
             <Text style={styles.subtitle}>
-              "{template.name}"
+              "{getLocalizedName(template, i18n.language) || template.name}"
             </Text>
           </View>
 

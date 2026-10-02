@@ -49,6 +49,12 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     downloadedAt: new Date(),
   });
 
+  if (template) {
+    template.uses = (template.uses || 0) + 1;
+    template.trendingScore = (template.views || 0) * 0.2 + template.uses * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
+    await template.save();
+  }
+
   try {
     await Analytics.create({ eventType: 'template_download', userId, templateId: templateId || null });
     if (editedPhoto || customizationState?.userPhotoUri) {
@@ -56,7 +62,7 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     }
   } catch (e) {}
 
-  const populated = await Creation.findById(creation._id).populate('templateId', 'name thumbnail previewAsset mainMedia canvasConfig layers categoryId type accessType price');
+  const populated = await Creation.findById(creation._id).populate('templateId', 'name nameTranslations thumbnail previewAsset mainMedia canvasConfig layers categoryId type accessType price footers');
 
   res.status(201).json({
     success: true,
@@ -73,7 +79,7 @@ const getUserDownloads = asyncHandler(async (req, res) => {
   const downloads = await Creation.find({ userId })
     .populate({
       path: 'templateId',
-      select: 'name thumbnail previewAsset mainMedia canvasConfig layers categoryId type accessType price',
+      select: 'name nameTranslations thumbnail previewAsset mainMedia canvasConfig layers categoryId type accessType price footers',
       populate: {
         path: 'categoryId',
         select: 'name icon',

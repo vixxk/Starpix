@@ -137,39 +137,50 @@ export default function TemplateEditModal({
                 </div>
               </div>
 
-              {/* Upload media files to S3 */}
+              {/* Template Media Asset & Thumbnail Uploads */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MediaUploadZone
-                  label="Template Media Asset (Image / Video)"
-                  value={formData.mainMedia || formData.previewAsset}
-                  onChange={(url) =>
-                    setFormData((prev) => {
-                      const isVid = isVideoUrl(url);
-                      return {
-                        ...prev,
-                        mainMedia: url,
-                        previewAsset: url,
-                        thumbnail: isVid
-                          ? (isVideoUrl(prev.thumbnail) ? '' : prev.thumbnail)
-                          : (prev.thumbnail || url),
-                        canvasConfig: {
-                          ...prev.canvasConfig,
-                          backgroundImage: url || prev.canvasConfig?.backgroundImage || '',
-                        },
-                      };
-                    })
-                  }
-                  folder="templates"
-                  accept="image/*,video/mp4,video/webm"
-                />
+                <div>
+                  <MediaUploadZone
+                    label="Template Media Asset (Image / Video) *"
+                    value={formData.mainMedia || formData.previewAsset}
+                    onChange={(url) =>
+                      setFormData((prev) => {
+                        const isVid = isVideoUrl(url);
+                        return {
+                          ...prev,
+                          mainMedia: url,
+                          previewAsset: url,
+                          thumbnail: prev.thumbnail || (isVid ? '' : url),
+                          type: isVid ? 'video' : prev.type,
+                          canvasConfig: {
+                            ...prev.canvasConfig,
+                            backgroundImage: url || prev.canvasConfig?.backgroundImage || '',
+                          },
+                        };
+                      })
+                    }
+                    folder="templates"
+                    accept="image/*,video/mp4,video/webm"
+                  />
+                </div>
 
-                <MediaUploadZone
-                  label="Card Thumbnail Image (Required *)"
-                  value={formData.thumbnail}
-                  onChange={(url) => setFormData((prev) => ({ ...prev, thumbnail: url }))}
-                  folder="templates"
-                  accept="image/*"
-                />
+                <div>
+                  <MediaUploadZone
+                    label="Template Thumbnail (Image)"
+                    value={formData.thumbnail}
+                    onChange={(url) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        thumbnail: url,
+                      }))
+                    }
+                    folder="templates"
+                    accept="image/*"
+                  />
+                  <p className="text-xs text-ink-muted mt-1 font-mono">
+                    Shown on the mobile Downloads page and in the Admin panel.
+                  </p>
+                </div>
               </div>
 
               {/* Canvas Configuration Block */}
@@ -256,10 +267,14 @@ export default function TemplateEditModal({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <MediaUploadZone
                             label="Footer Overlay Asset (.png / .mp4)"
-                            value={footerItem.videoAsset}
+                            value={footerItem.videoAsset || footerItem.asset}
                             onChange={(url) => {
                               const next = [...formData.footers];
                               next[idx].videoAsset = url;
+                              next[idx].asset = url;
+                              if (!next[idx].thumbnail && !isVideoUrl(url)) {
+                                next[idx].thumbnail = url;
+                              }
                               setFormData({ ...formData, footers: next });
                             }}
                             folder="footers"

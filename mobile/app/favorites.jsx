@@ -199,11 +199,11 @@ export default function FavoritesScreen() {
                           </View>
                         ) : isPaid ? (
                           <View style={[styles.accessBadge, styles.paidBadge]}>
-                            <Text style={styles.accessBadgeText}>₹{item.price || 49}</Text>
+                            <Text style={styles.accessBadgeText}>{t('paid_badge', { defaultValue: 'PAID' })} · ₹{item.price || 49}</Text>
                           </View>
                         ) : (
                           <View style={[styles.accessBadge, styles.freeBadge]}>
-                            <Text style={styles.accessBadgeText}>FREE</Text>
+                            <Text style={styles.accessBadgeText}>{t('free', { defaultValue: 'FREE' })}</Text>
                           </View>
                         )}
                       </View>

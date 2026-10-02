@@ -124,7 +124,7 @@ export default function Categories() {
       setIsModalOpen(false);
       fetchCategories();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving category');
+      toast.error(err.response?.data?.message || 'Error Saving category');
     }
   };
 

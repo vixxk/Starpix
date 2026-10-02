@@ -15,7 +15,7 @@ const purchaseSchema = new mongoose.Schema(
     },
     purchaseType: {
       type: String,
-      enum: ['template_unlock', 'vip_subscription'],
+      enum: ['template_unlock', 'vip_subscription', 'ai_credits_pack'],
       default: 'template_unlock',
     },
     planId: {

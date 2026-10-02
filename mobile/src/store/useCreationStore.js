@@ -25,13 +25,29 @@ export const hydrateDownloadedCreations = async () => {
         useCreationStore.setState({ downloadedCreations: parsed });
       }
     }
-    const defaultPhoto = await AsyncStorage.getItem(DEFAULT_PHOTO_KEY);
-    if (defaultPhoto) {
-      useCreationStore.setState({ defaultUserPhotoUri: defaultPhoto });
-    }
-    const defaultName = await AsyncStorage.getItem(DEFAULT_NAME_KEY);
-    if (defaultName) {
-      useCreationStore.setState({ defaultUserNameText: defaultName, userNameText: defaultName });
+    const savedUserRaw = await AsyncStorage.getItem('starpix_user_data');
+    if (savedUserRaw) {
+      try {
+        const savedUser = JSON.parse(savedUserRaw);
+        const photo = savedUser?.profilePhoto || null;
+        const name = savedUser?.name || '';
+        useCreationStore.setState({
+          defaultUserPhotoUri: photo,
+          userPhotoUri: photo,
+          defaultUserNameText: name,
+          userNameText: name,
+        });
+      } catch (err) {}
+    } else {
+      // No logged-in user: clear any legacy device-level defaults
+      useCreationStore.setState({
+        defaultUserPhotoUri: null,
+        userPhotoUri: null,
+        defaultUserNameText: '',
+        userNameText: '',
+      });
+      AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch(() => {});
+      AsyncStorage.removeItem(DEFAULT_NAME_KEY).catch(() => {});
     }
   } catch (e) {
     console.error('Failed to hydrate store state:', e);
@@ -63,19 +79,33 @@ export const useCreationStore = create((set, get) => ({
   downloadedCreations: [],
   isRestoredSession: false,
 
+  resetUserSession: () => {
+    AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch(() => {});
+    AsyncStorage.removeItem(DEFAULT_NAME_KEY).catch(() => {});
+    set({
+      defaultUserPhotoUri: null,
+      userPhotoUri: null,
+      defaultUserNameText: '',
+      userNameText: '',
+      activeTemplate: null,
+    });
+  },
+
   setDefaultUserPhotoUri: (uri) => {
-    set({ defaultUserPhotoUri: uri, userPhotoUri: uri || get().userPhotoUri });
-    if (uri) {
-      AsyncStorage.setItem(DEFAULT_PHOTO_KEY, uri).catch((e) => console.error(e));
+    const cleanUri = uri || null;
+    set({ defaultUserPhotoUri: cleanUri, userPhotoUri: cleanUri });
+    if (cleanUri) {
+      AsyncStorage.setItem(DEFAULT_PHOTO_KEY, cleanUri).catch((e) => console.error(e));
     } else {
       AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch((e) => console.error(e));
     }
   },
 
   setDefaultUserNameText: (name) => {
-    set({ defaultUserNameText: name, userNameText: name || get().userNameText });
-    if (name) {
-      AsyncStorage.setItem(DEFAULT_NAME_KEY, name).catch((e) => console.error(e));
+    const cleanName = name || '';
+    set({ defaultUserNameText: cleanName, userNameText: cleanName });
+    if (cleanName) {
+      AsyncStorage.setItem(DEFAULT_NAME_KEY, cleanName).catch((e) => console.error(e));
     } else {
       AsyncStorage.removeItem(DEFAULT_NAME_KEY).catch((e) => console.error(e));
     }

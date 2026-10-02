@@ -10,6 +10,7 @@ import PressableScale from '../../src/components/PressableScale';
 import TemplateRenderer from '../../src/components/TemplateRenderer';
 import PaywallModal from '../../src/components/PaywallModal';
 import ConfirmModal from '../../src/components/ConfirmModal';
+import PaidTemplateConfirmModal from '../../src/components/PaidTemplateConfirmModal';
 import Skeleton from '../../src/components/Skeleton';
 import BackButton from '../../src/components/BackButton';
 import { COLORS, FONTS } from '../../src/constants/colors';
@@ -17,6 +18,7 @@ import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
 import { hapticSuccess } from '../../src/utils/haptics';
 import { useCreationStore } from '../../src/store/useCreationStore';
+import { useAuthStore } from '../../src/store/useAuthStore';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,15 +30,18 @@ const CANVAS_HEIGHT = CANVAS_WIDTH * (16 / 9);
 
 export default function PreviewScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams();
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [isEntitled, setIsEntitled] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [alertInfo, setAlertInfo] = useState(null); // { kind: 'saved' | 'failed', message? }
+  const [paidConfirmInfo, setPaidConfirmInfo] = useState(null); // { action: 'download' | 'share' }
+  const [payingPaid, setPayingPaid] = useState(false);
 
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
 
   const {
     activeTemplate,
@@ -56,10 +61,15 @@ export default function PreviewScreen() {
     addDownloadedCreation,
   } = useCreationStore();
 
-  // Check initial entitlement status
+  // Check initial entitlement status and record template view
   useEffect(() => {
     const checkStatus = async () => {
       if (!activeTemplate) return;
+      const targetId = activeTemplate._id || id;
+      if (targetId) {
+        API.post(`/templates/${targetId}/view`).catch(() => {});
+      }
+
       if (activeTemplate.accessType === 'free') {
         setIsEntitled(true);
         return;
@@ -72,11 +82,11 @@ export default function PreviewScreen() {
       }
     };
     checkStatus();
-  }, [activeTemplate]);
+  }, [activeTemplate, id]);
 
   const handleDownloadHD = async () => {
     if (!isEntitled) {
-      setPaywallVisible(true);
+      setPaidConfirmInfo({ action: 'download' });
       return;
     }
 
@@ -215,7 +225,7 @@ export default function PreviewScreen() {
 
   const handleShareDirect = async () => {
     if (!isEntitled) {
-      setPaywallVisible(true);
+      setPaidConfirmInfo({ action: 'share' });
       return;
     }
 
@@ -229,6 +239,11 @@ export default function PreviewScreen() {
       const ext = isVideo ? 'mp4' : 'jpg';
       const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       let targetUri = downloadUrl;
+
+      // Record use count on backend
+      if (activeTemplate?._id) {
+        API.post(`/templates/${activeTemplate._id}/use`, { action: 'share' }).catch(() => {});
+      }
 
       if (Platform.OS === 'web') {
         if (typeof navigator !== 'undefined' && navigator.share) {
@@ -263,10 +278,123 @@ export default function PreviewScreen() {
           });
         }
       }
+
+      // Save to Downloads store and backend as user shares
+      const customizationState = {
+        activeTemplate,
+        userPhotoUri,
+        userNameText,
+        userQuoteText,
+        selectedFrame,
+        selectedEffect,
+        photoScale,
+        photoOffsetX,
+        photoOffsetY,
+        photoRotation,
+        nameOffsetX,
+        nameOffsetY,
+        nameFontSizeScale,
+        footers: activeTemplate?.footers || [],
+        canvasConfig: activeTemplate?.canvasConfig || null,
+        selectedFooter: selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null,
+      };
+
+      let backendId = null;
+      try {
+        const res = await API.post('/creations/save-download', {
+          templateId: activeTemplate._id,
+          imageUrl: downloadUrl || targetUri,
+          editedText: userNameText || userQuoteText || '',
+          editedPhoto: userPhotoUri || '',
+          customizationState,
+        });
+        if (res.data && res.data.data && res.data.data._id) {
+          backendId = String(res.data.data._id);
+        }
+      } catch (saveErr) {}
+
+      addDownloadedCreation({
+        id: backendId || `creation_${Date.now()}`,
+        templateId: activeTemplate._id,
+        name: activeTemplate.name,
+        nameTranslations: activeTemplate.nameTranslations,
+        thumbnail: activeTemplate.thumbnail || activeTemplate.previewAsset || targetUri,
+        localUri: targetUri,
+        image: downloadUrl || targetUri,
+        mediaUrl: downloadUrl || targetUri,
+        editedText: userNameText || userQuoteText || '',
+        editedPhoto: userPhotoUri || '',
+        customizationState,
+        activeTemplate,
+        template: activeTemplate,
+        footers: activeTemplate?.footers || [],
+        selectedFooter: selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null,
+        canvasConfig: activeTemplate?.canvasConfig || null,
+        userPhotoUri,
+        userNameText,
+        userQuoteText,
+        selectedFrame,
+        selectedEffect,
+        photoScale,
+        photoOffsetX,
+        photoOffsetY,
+        photoRotation,
+        nameOffsetX,
+        nameOffsetY,
+        nameFontSizeScale,
+        createdAt: new Date().toISOString(),
+        downloadedAt: new Date().toISOString(),
+        isPaid: ['premium', 'paid', 'vip'].includes(activeTemplate.accessType),
+        price: activeTemplate.price || 49,
+      });
     } catch (e) {
       console.log('Direct share error:', e);
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleConfirmPaid = async () => {
+    if (!activeTemplate) return;
+    if (!user) {
+      setPaidConfirmInfo(null);
+      router.push('/login');
+      return;
+    }
+
+    setPayingPaid(true);
+    try {
+      const res = await API.post('/payments/create', {
+        templateId: activeTemplate._id,
+        amount: activeTemplate.price || 49,
+      });
+
+      if (res.data?.success) {
+        hapticSuccess();
+        setIsEntitled(true);
+        setEntitlementStatus(true);
+        const pendingAction = paidConfirmInfo?.action;
+        setPaidConfirmInfo(null);
+
+        if (pendingAction === 'share') {
+          handleShareDirect();
+        } else {
+          handleDownloadHD();
+        }
+      } else {
+        setAlertInfo({
+          kind: 'failed',
+          message: res.data?.message || 'Payment failed. Please try again.',
+        });
+      }
+    } catch (err) {
+      console.warn('Payment error in preview:', err);
+      setAlertInfo({
+        kind: 'failed',
+        message: err.response?.data?.message || 'Payment failed. Please try again.',
+      });
+    } finally {
+      setPayingPaid(false);
     }
   };
 
@@ -411,6 +539,16 @@ export default function PreviewScreen() {
             </View>
           )}
         </View>
+
+        <PaidTemplateConfirmModal
+          key={`paid_confirm_${i18n.language}`}
+          visible={paidConfirmInfo !== null}
+          template={activeTemplate}
+          action={paidConfirmInfo?.action || 'download'}
+          loading={payingPaid}
+          onConfirm={handleConfirmPaid}
+          onCancel={() => setPaidConfirmInfo(null)}
+        />
 
         <PaywallModal
           visible={paywallVisible}

@@ -440,13 +440,13 @@ export default function CanvasEditor({
         </div>
 
         {/* Interactive Canvas Preview */}
-        <div className="flex-1 bg-night-950/[0.6] p-6 flex flex-col items-center justify-center overflow-auto relative order-1 lg:order-2 min-h-[440px] select-none">
-          <div className="relative">
+        <div className="flex-1 bg-night-950/[0.6] p-3 sm:p-4 flex flex-col items-center justify-center relative order-1 lg:order-2 select-none overflow-visible min-h-[460px]">
+          <div className="relative flex flex-col items-center">
             {/* Phone frame container */}
-            <span className="absolute -inset-3 rounded-[2px] bg-flame-500/10 -z-10" />
+            <span className="absolute -inset-2.5 rounded-[4px] bg-flame-500/15 -z-10 shadow-lg" />
             <div
               ref={canvasRef}
-              className="w-[240px] sm:w-[280px] aspect-[9/16] bg-night-900 rounded-[2px] border-2 border-flame-500/60 overflow-hidden relative"
+              className="h-[420px] sm:h-[450px] max-h-[58vh] aspect-[9/16] w-auto bg-night-900 rounded-[2px] border-2 border-flame-500/60 overflow-hidden relative shadow-2xl"
             >
               {/* Uploaded Template Background Asset */}
               {templateMedia && (

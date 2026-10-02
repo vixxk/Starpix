@@ -148,15 +148,41 @@ export default function EntitlementsScreen() {
             <View style={styles.list}>
               {purchases.map((p) => {
                 const tmpl = p.templateId;
+                const isCreditPack = p.purchaseType === 'ai_credits_pack';
+                const isVip = p.purchaseType === 'vip_subscription';
+                const cardTitle = isCreditPack
+                  ? (p.planName || t('buy_ai_credits') || 'AI Credits Pack')
+                  : isVip
+                  ? (p.planName || t('vip') || 'VIP Subscription')
+                  : (tmpl ? tmpl.name : 'Purchased Template');
+
+                const handleCardPress = () => {
+                  if (isCreditPack) {
+                    router.push('/buy-credits');
+                  } else if (isVip) {
+                    router.push('/vip');
+                  } else if (tmpl) {
+                    handleTemplatePress(tmpl);
+                  }
+                };
+
                 return (
                   <View key={p._id} style={styles.card}>
                     <View style={styles.cardContent}>
                       <PressableScale
-                        onPress={() => handleTemplatePress(tmpl)}
+                        onPress={handleCardPress}
                         scaleTo={0.97}
                         style={styles.thumbWrap}
                       >
-                        {tmpl && (tmpl.thumbnail || tmpl.mainMedia) ? (
+                        {isCreditPack ? (
+                          <View style={[styles.thumbPlaceholder, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+                            <Ionicons name="sparkles" size={24} color="#D97706" />
+                          </View>
+                        ) : isVip ? (
+                          <View style={[styles.thumbPlaceholder, { backgroundColor: '#F3E8FF', borderColor: '#A855F7' }]}>
+                            <Ionicons name="trophy" size={24} color="#7E22CE" />
+                          </View>
+                        ) : tmpl && (tmpl.thumbnail || tmpl.mainMedia) ? (
                           <Image source={{ uri: tmpl.thumbnail || tmpl.mainMedia }} style={styles.thumb} resizeMode="cover" />
                         ) : (
                           <View style={styles.thumbPlaceholder}>
@@ -166,11 +192,11 @@ export default function EntitlementsScreen() {
                       </PressableScale>
 
                       <PressableScale
-                        onPress={() => handleTemplatePress(tmpl)}
+                        onPress={handleCardPress}
                         scaleTo={0.98}
                         style={styles.cardBody}
                       >
-                        <Text style={styles.cardTitle} numberOfLines={1}>{tmpl ? tmpl.name : 'Purchased Template'}</Text>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{cardTitle}</Text>
                         <Text style={styles.cardSub}>
                           ₹{p.amount || 49} · {formatDate(p.createdAt)}
                         </Text>

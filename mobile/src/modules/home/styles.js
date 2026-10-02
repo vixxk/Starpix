@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions, Platform } from 'react-native';
 import { COLORS, FONTS } from '../../constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../utils/responsive';
 
@@ -78,10 +78,10 @@ export const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   proBtn: {
-    backgroundColor: '#1E1B2E',
+    backgroundColor: '#F59E0B',
     borderRadius: 16,
     borderWidth: 1.2,
-    borderColor: '#F59E0B',
+    borderColor: '#D97706',
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -97,7 +97,7 @@ export const styles = StyleSheet.create({
   proText: {
     fontSize: fontScale(11.5),
     fontFamily: FONTS.black,
-    color: '#FBBF24',
+    color: '#1E1B2E',
     letterSpacing: 0.5,
     includeFontPadding: false,
     textAlignVertical: 'center',
@@ -180,6 +180,39 @@ export const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
+  paidReelBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    gap: 4,
+    zIndex: 35,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+  },
+  paidBadgeCrownWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'android' ? 1.5 : 0.8,
+  },
+  paidReelBadgeText: {
+    fontFamily: FONTS.bold,
+    fontSize: fontScale(10.5),
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: fontScale(14),
+  },
   playPauseBtn: {
     position: 'absolute',
     right: wp(0.035),
@@ -197,7 +230,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1.2,
     borderColor: '#FDA4AF',
-    borderRadius: 20,
+    borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     zIndex: 40,
@@ -214,7 +247,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1.2,
     borderColor: '#FDA4AF',
-    borderRadius: 20,
+    borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     zIndex: 40,
@@ -322,7 +355,7 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -333,6 +366,12 @@ export const styles = StyleSheet.create({
   frameBoxActive: {
     borderColor: '#E11D48',
     borderWidth: 2.2,
+  },
+  frameBoxContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   frameThumbImage: {
     width: '100%',

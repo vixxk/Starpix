@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, FONTS, BRUTAL } from '../constants/colors';
 import { wp, hp, fontScale } from '../utils/responsive';
 import PressableScale from './PressableScale';
-import { SUPPORTED_LANGUAGES } from '../i18n';
+import { SUPPORTED_LANGUAGES, changeAppLanguage } from '../i18n';
 import { hapticTap } from '../utils/haptics';
 
 export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
@@ -29,7 +29,7 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
 
   const handleSelect = (code) => {
     hapticTap();
-    i18n.changeLanguage(code);
+    changeAppLanguage(code);
     if (onSelectLanguage) {
       onSelectLanguage(code);
     }
@@ -107,10 +107,10 @@ export default function LanguageModal({ visible, onClose, onSelectLanguage }) {
                 const ch = Math.round(h);
                 if (ch > 0) setContentHeight(ch);
               }}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: true }
-              )}
+              onScroll={(e) => {
+                const y = e.nativeEvent?.contentOffset?.y ?? 0;
+                scrollY.setValue(y);
+              }}
             >
               {SUPPORTED_LANGUAGES.map((lang) => {
                 const isSelected = currentLang === lang.code;

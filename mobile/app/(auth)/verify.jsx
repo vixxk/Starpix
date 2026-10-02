@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { hapticTap } from '../../src/utils/haptics';
 
 export default function VerifyScreen() {
-  const { phone = '9876543210', countryCode = '+91', name = '', isNewUser = 'false' } = useLocalSearchParams();
+  const { phone = '9876543210', countryCode = '+91', name = '', email = '', isNewUser = 'false' } = useLocalSearchParams();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -115,9 +115,9 @@ export default function VerifyScreen() {
     }
 
     try {
-      const user = await verifyOtp(phone, countryCode, otpCode, name, isNewUser);
+      const user = await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
       // If user has not completed profile setup yet, navigate to Create Profile
-      const needsProfile = !user?.name || user?.name.startsWith('Starpix User') || user?.isNewUser;
+      const needsProfile = !name && (!user?.name || user?.name.startsWith('Starpix User'));
       if (needsProfile) {
         router.replace({
           pathname: '/signup',
@@ -139,26 +139,28 @@ export default function VerifyScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="light" translucent backgroundColor="transparent" />
 
-      {/* Top Red Fluid Gradient Header with Back Arrow */}
-      <AuthHeader showBack={true} onBack={() => router.back()} />
-
-      {/* White Bottom Sheet Card */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoid}
       >
         <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: Math.max(insets.bottom, hp(0.025)) + hp(0.02) },
-          ]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           bounces={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.card}>
+          {/* Top Red Fluid Gradient Header with Back Arrow */}
+          <AuthHeader showBack={true} onBack={() => router.back()} />
+
+          {/* White Bottom Sheet Card */}
+          <View
+            style={[
+              styles.card,
+              { paddingBottom: Math.max(insets.bottom, 24) + hp(0.02) },
+            ]}
+          >
             {/* Title & Subtitle */}
             <Text style={styles.title}>{t('auth_verify_title')}</Text>
             <Text style={styles.subtitle}>{t('auth_verify_subtitle')}</Text>
@@ -232,9 +234,11 @@ export default function VerifyScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Security Note */}
+            {/* Security Note - Lock Icon and Text Aligned */}
             <View style={styles.securityRow}>
-              <Ionicons name="lock-closed" size={fontScale(14)} color="#6B7280" />
+              <View style={styles.securityIconBox}>
+                <Ionicons name="lock-closed" size={fontScale(13)} color="#6B7280" />
+              </View>
               <Text style={styles.securityText}>{t('auth_verify_secure_note')}</Text>
             </View>
 
@@ -283,22 +287,24 @@ export default function VerifyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EE1D24',
+    backgroundColor: '#FFFFFF',
   },
   keyboardAvoid: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
+    backgroundColor: '#FFFFFF',
   },
   card: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: wp(0.08),
     borderTopRightRadius: wp(0.08),
-    marginTop: -hp(0.04),
+    marginTop: -hp(0.032),
     paddingHorizontal: wp(0.065),
-    paddingTop: hp(0.038),
+    paddingTop: hp(0.036),
   },
   title: {
     fontSize: fontScale(24),
@@ -429,13 +435,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: wp(0.02),
-    marginTop: hp(0.02),
+    marginTop: hp(0.016),
+  },
+  securityIconBox: {
+    width: fontScale(16),
+    height: fontScale(16),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: wp(0.018),
   },
   securityText: {
     fontSize: fontScale(11.5),
     fontFamily: FONTS.medium,
     color: '#6B7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   divider: {
     height: 1,

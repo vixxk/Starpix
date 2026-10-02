@@ -23,7 +23,7 @@ export const getCreationId = (item) => {
 };
 
 export const getCardThumbnail = (item) => {
-  if (!item) return resolveMediaUrl(null);
+  if (!item) return '';
 
   // 1. Check AI Template or Standard Template object first
   const tObj =
@@ -40,15 +40,19 @@ export const getCardThumbnail = (item) => {
     }
   }
 
-  // 2. Check if item.image or item.localUri or item.editedPhoto is a static image fallback
-  const candidates = [item.image, item.localUri, item.editedPhoto];
+  // 2. Check if item.image or item.localUri or item.editedPhoto or userPhotoUri is a static image fallback
+  const candidates = [item.image, item.localUri, item.editedPhoto, item.userPhotoUri];
   for (const cand of candidates) {
     if (cand && typeof cand === 'string' && !isVideoMedia(cand)) {
       return resolveMediaUrl(cand);
     }
   }
 
-  return resolveMediaUrl(null);
+  if (tObj?.sampleSourceImageUrl && typeof tObj.sampleSourceImageUrl === 'string') {
+    return resolveMediaUrl(tObj.sampleSourceImageUrl);
+  }
+
+  return '';
 };
 
 export const formatDownloadDate = (dateStr, language = 'en') => {

@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 
 export default function TrendingScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeIndexRef = useRef(0);
   const [disableVerticalInterval, setDisableVerticalInterval] = useState(true);
   const dragStartY = useRef(0);
@@ -99,6 +99,7 @@ export default function TrendingScreen() {
         ) : (
           <FlatList
             data={trending}
+            extraData={i18n.language}
             numColumns={1}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.gridContent}

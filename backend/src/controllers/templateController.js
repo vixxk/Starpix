@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const Template = require('../models/Template');
 const Category = require('../models/Category');
+const Analytics = require('../models/Analytics');
 
 // @desc    Get all templates with filtering, search, pagination
 // @route   GET /api/templates
@@ -184,8 +185,15 @@ const getTemplateById = asyncHandler(async (req, res) => {
 const createTemplate = asyncHandler(async (req, res) => {
   const templateData = req.body;
 
-  if (!templateData.name || !templateData.categoryId || !templateData.thumbnail || !templateData.mainMedia) {
-    return res.status(400).json({ success: false, message: 'Missing required template fields' });
+  if (!templateData.thumbnail) {
+    templateData.thumbnail = templateData.mainMedia || templateData.previewAsset || '';
+  }
+  if (!templateData.previewAsset) {
+    templateData.previewAsset = templateData.mainMedia || templateData.thumbnail || '';
+  }
+
+  if (!templateData.name || !templateData.categoryId || !templateData.mainMedia) {
+    return res.status(400).json({ success: false, message: 'Template name, category and main media are required' });
   }
 
   const categoryExists = await Category.findById(templateData.categoryId);
@@ -292,6 +300,67 @@ const toggleFavorite = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Record template view
+// @route   POST /api/templates/:id/view
+// @access  Public
+const recordTemplateView = asyncHandler(async (req, res) => {
+  const template = await Template.findById(req.params.id);
+  if (!template) {
+    return res.status(404).json({ success: false, message: 'Template not found' });
+  }
+
+  template.views = (template.views || 0) + 1;
+  template.trendingScore = template.views * 0.2 + (template.uses || 0) * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
+  await template.save();
+
+  try {
+    await Analytics.create({
+      eventType: 'template_view',
+      userId: req.user?._id || null,
+      templateId: template._id,
+    });
+  } catch (e) {}
+
+  res.status(200).json({
+    success: true,
+    data: {
+      views: template.views,
+      uses: template.uses,
+    },
+  });
+});
+
+// @desc    Record template usage (download or share)
+// @route   POST /api/templates/:id/use
+// @access  Public
+const recordTemplateUse = asyncHandler(async (req, res) => {
+  const { action = 'download' } = req.body || {};
+  const template = await Template.findById(req.params.id);
+  if (!template) {
+    return res.status(404).json({ success: false, message: 'Template not found' });
+  }
+
+  template.uses = (template.uses || 0) + 1;
+  template.trendingScore = (template.views || 0) * 0.2 + template.uses * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
+  await template.save();
+
+  try {
+    await Analytics.create({
+      eventType: action === 'share' ? 'template_share' : 'template_download',
+      userId: req.user?._id || null,
+      templateId: template._id,
+    });
+  } catch (e) {}
+
+  res.status(200).json({
+    success: true,
+    data: {
+      uses: template.uses,
+      views: template.views,
+    },
+  });
+});
+
 module.exports = {
   getTemplates,
   getTrendingTemplates,
@@ -301,4 +370,6 @@ module.exports = {
   updateTemplate,
   deleteTemplate,
   toggleFavorite,
+  recordTemplateView,
+  recordTemplateUse,
 };

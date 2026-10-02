@@ -30,7 +30,7 @@ import { resolveMediaUrl } from '../../src/utils/media';
 import { SUPPORTED_LANGUAGES } from '../../src/i18n';
 import API from '../../src/utils/api';
 
-function SettingItem({ icon, label, sublabel, onPress, isLast = false, isDestructive = false }) {
+function SettingItem({ icon, label, sublabel, badge, onPress, isLast = false, isDestructive = false }) {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -53,6 +53,12 @@ function SettingItem({ icon, label, sublabel, onPress, isLast = false, isDestruc
         </Text>
         {sublabel ? <Text style={styles.itemSublabel}>{sublabel}</Text> : null}
       </View>
+      {badge ? (
+        <View style={styles.creditItemBadge}>
+          <Ionicons name="sparkles" size={11} color="#D97706" style={{ marginRight: 4 }} />
+          <Text style={styles.creditItemBadgeText}>{badge}</Text>
+        </View>
+      ) : null}
       <Ionicons name="chevron-forward" size={fontScale(16)} color="#9CA3AF" />
     </TouchableOpacity>
   );
@@ -76,7 +82,7 @@ export default function SettingsScreen() {
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
 
-  const effectivePhotoUri = defaultUserPhotoUri || user?.profilePhoto || null;
+  const effectivePhotoUri = user?.profilePhoto || defaultUserPhotoUri || null;
   const currentLangCode = i18n.language || 'en';
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentLangCode) || SUPPORTED_LANGUAGES[0];
 
@@ -233,18 +239,13 @@ export default function SettingsScreen() {
             <SettingItem
               icon="download-outline"
               label={t('settings_downloads') || 'Downloads'}
-              onPress={() => router.push('/(tabs)/downloads')}
+              onPress={() => router.push({ pathname: '/(tabs)/downloads', params: { from: 'settings' } })}
             />
             <SettingItem
               icon="globe-outline"
               label={t('settings_preferred_language') || 'Preferred Language'}
               sublabel={currentLangObj.nativeName || currentLangObj.name}
               onPress={() => setShowLanguageModal(true)}
-            />
-            <SettingItem
-              icon="notifications-outline"
-              label={t('settings_notifications') || 'Notifications'}
-              onPress={() => showToast(t('settings_notifications_enabled') || 'Notifications are enabled')}
               isLast={true}
             />
           </View>
@@ -282,6 +283,11 @@ export default function SettingsScreen() {
               icon="sparkles-outline"
               label={t('settings_buy_ai_credits') || 'Buy AI Credits'}
               onPress={() => router.push('/buy-credits')}
+            />
+            <SettingItem
+              icon="receipt-outline"
+              label={t('settings_transaction_history') || 'Transaction History'}
+              onPress={() => router.push('/transaction-history')}
             />
             <SettingItem
               icon="trash-outline"
@@ -322,7 +328,7 @@ export default function SettingsScreen() {
         visible={showLogoutModal}
         title={t('confirm_logout')}
         message={t('confirm_logout_msg')}
-        confirmText={t('log_out_account')}
+        confirmText={t('settings_logout') || t('log_out_account') || 'Logout'}
         cancelText={t('cancel')}
         icon="log-out-outline"
         iconColor={COLORS.orange}
@@ -537,6 +543,22 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     color: '#9CA3AF',
     marginTop: 1,
+  },
+  creditItemBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginRight: 8,
+  },
+  creditItemBadgeText: {
+    fontSize: fontScale(12),
+    fontFamily: FONTS.extrabold,
+    color: '#92400E',
   },
 
   /* Red Pill Logout Button */

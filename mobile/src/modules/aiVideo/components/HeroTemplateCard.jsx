@@ -5,6 +5,9 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Animated,
+  Easing,
+  StyleSheet,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
@@ -33,6 +36,96 @@ export default function HeroTemplateCard({
   handleTriggerCreate,
   t,
 }) {
+  const [resultMediaLoading, setResultMediaLoading] = React.useState(true);
+  const [loadingStage, setLoadingStage] = React.useState(0);
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  const progressAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (!generating) {
+      setLoadingStage(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setLoadingStage((prev) => (prev + 1) % 4);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [generating]);
+
+  React.useEffect(() => {
+    if (generatedResult?.resultUrl) {
+      setResultMediaLoading(true);
+      const timer = setTimeout(() => {
+        setResultMediaLoading(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [generatedResult?.resultUrl]);
+
+  const hasAllUserFaces = Array.from({ length: requiredPhotosCount }).every((_, i) => Boolean(userFaces[i]));
+  const hasAnyUserFace = Boolean(userFaces[0] || userFaces[1]);
+  const isPhotoUploadedWaiting = hasAnyUserFace && !generatedResult?.resultUrl;
+  const showLoadingOverlay = generating || (resultMediaLoading && Boolean(generatedResult?.resultUrl)) || isPhotoUploadedWaiting;
+
+  // Pulse & Progress Bar Animations for generating / media buffering / photo uploaded states
+  React.useEffect(() => {
+    const isBufferingOrGenerating = showLoadingOverlay;
+    if (isBufferingOrGenerating) {
+      const pulseLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.15,
+            duration: 1100,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1100,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+
+      const progressLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(progressAnim, {
+            toValue: 1,
+            duration: 2200,
+            easing: Easing.bezier(0.4, 0, 0.2, 1),
+            useNativeDriver: false,
+          }),
+          Animated.timing(progressAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+
+      pulseLoop.start();
+      progressLoop.start();
+
+      return () => {
+        pulseLoop.stop();
+        progressLoop.stop();
+      };
+    }
+  }, [generating, resultMediaLoading, generatedResult?.resultUrl, showLoadingOverlay]);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 0.6, 1],
+    outputRange: ['15%', '72%', '100%'],
+  });
+
+  const stageMessages = [
+    t('generating_ai_magic') || 'Generating AI Magic...',
+    t('generating_content_title') || 'Processing Face Features...',
+    t('generating_content_sub') || 'Generating in background (~15-30s)...',
+    t('please_wait_moment') || 'Please wait a moment (~15-30s)...',
+  ];
+
   if (loading) {
     return (
       <View style={styles.heroCard}>
@@ -83,8 +176,43 @@ export default function HeroTemplateCard({
 
   if (!selectedTemplate) return null;
 
-  const hasAllUserFaces = Array.from({ length: requiredPhotosCount }).every((_, i) => Boolean(userFaces[i]));
-  const hasAnyUserFace = Boolean(userFaces[0] || userFaces[1]);
+  const cleanText = (val, fallback) => {
+    if (!val || typeof val !== 'string') return fallback || '';
+    if (val.includes('_')) return fallback || val.replace(/_/g, ' ');
+    return val;
+  };
+
+  const isMulti = requiredPhotosCount > 1;
+  const uploadedCount = userFaces.filter(Boolean).length;
+
+  let uploadTitle = '';
+  let uploadSubtitle = '';
+
+  if (hasAllUserFaces) {
+    uploadTitle = isMulti
+      ? cleanText(t('all_photos_ready'), 'Photos Ready')
+      : cleanText(t('photo_ready'), 'Photo Ready');
+    uploadSubtitle = cleanText(t('tap_to_change_photo'), 'Tap to change photo');
+  } else if (hasAnyUserFace && isMulti) {
+    uploadTitle = cleanText(t('add_second_photo'), 'Add 2nd Photo');
+    uploadSubtitle = `${uploadedCount}/${requiredPhotosCount} ${cleanText(t('all_photos_ready'), 'photos added')}`;
+  } else {
+    uploadTitle = isMulti
+      ? cleanText(t('upload_2_photos'), 'Upload 2 Photos')
+      : cleanText(t('upload_1_photo'), 'Upload 1 Photo');
+    uploadSubtitle = isMulti
+      ? cleanText(t('add_1_or_2_photos'), 'Add 2 face photos')
+      : cleanText(t('add_1_photo'), 'Add 1 face photo');
+  }
+
+  const isResultVideo = generatedResult?.mediaType
+    ? generatedResult.mediaType === 'video'
+    : Boolean(
+        generatedResult?.resultUrl &&
+        generatedResult.resultUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) &&
+        !generatedResult.resultUrl.match(/\.(jpg|jpeg|png|webp)(\?.*)?$/i)
+      );
+  const showVideoPlayer = generatedResult?.resultUrl ? isResultVideo : isCurrentVideo;
 
   return (
     <View style={styles.heroCard}>
@@ -101,11 +229,19 @@ export default function HeroTemplateCard({
             {Array.from({ length: requiredPhotosCount }).map((_, idx) => {
               const uri = getSlotImageUri(selectedTemplate, idx);
               const isUserUploaded = Boolean(userFaces[idx]);
+              const slotLabel = isMulti
+                ? (idx === 0 ? cleanText(t('face_slot_1'), 'Face 1') : cleanText(t('face_slot_2'), 'Face 2'))
+                : cleanText(t('before'), 'Your Face');
+
               return (
                 <TouchableOpacity
                   key={idx}
-                  style={styles.beforePhotoWrap}
+                  style={[
+                    styles.beforePhotoWrap,
+                    isMulti && { width: wp(0.20), height: wp(0.20) },
+                  ]}
                   onPress={() => handlePickFaceImage(idx)}
+                  disabled={generating}
                   activeOpacity={0.85}
                 >
                   {uri ? (
@@ -116,9 +252,17 @@ export default function HeroTemplateCard({
                     />
                   ) : (
                     <View style={styles.emptyBeforePhoto}>
-                      <Ionicons name="person" size={fontScale(24)} color="#9CA3AF" />
+                      <Ionicons name="person" size={fontScale(22)} color="#9CA3AF" />
                     </View>
                   )}
+
+                  {/* Slot Number/Tag only when empty */}
+                  {!isUserUploaded && (
+                    <View style={styles.slotTag}>
+                      <Text style={styles.slotTagText}>{slotLabel}</Text>
+                    </View>
+                  )}
+
                   {isUserUploaded ? (
                     <TouchableOpacity
                       style={styles.removeFaceBtn}
@@ -126,6 +270,7 @@ export default function HeroTemplateCard({
                         e.stopPropagation();
                         handleRemoveFace(idx);
                       }}
+                      disabled={generating}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Ionicons name="close" size={fontScale(11)} color="#FFFFFF" />
@@ -140,12 +285,21 @@ export default function HeroTemplateCard({
             })}
           </View>
 
-          {/* Curved Arrow pointer */}
-          <View style={styles.curvedArrowWrap}>
-            <Svg width={wp(0.06)} height={hp(0.035)} viewBox="0 0 24 24">
+          {/* Transformation Curved Arrow Connector from Before Box to After */}
+          <View style={styles.arrowConnectorWrap} pointerEvents="none">
+            <Svg width={22} height={26} viewBox="0 0 22 26" fill="none">
               <Path
-                d="M 4 2 Q 4 16 16 16 L 16 19 L 21 14 L 16 9 L 16 12 Q 7 12 7 2 Z"
-                fill="#EE1D24"
+                d="M 2 2 C 7 3, 11 9, 11 17"
+                stroke="#E11D48"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+              />
+              <Path
+                d="M 5.5 15 L 11 23 L 16.5 15"
+                stroke="#E11D48"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </Svg>
           </View>
@@ -155,27 +309,39 @@ export default function HeroTemplateCard({
         <TouchableOpacity
           style={[
             styles.uploadCard,
-            hasAnyUserFace && styles.uploadCardActive,
+            hasAllUserFaces && styles.uploadCardActive,
+            (!hasAllUserFaces && hasAnyUserFace) && styles.uploadCardHalfActive,
           ]}
           onPress={handleUploadCardPress}
+          disabled={generating}
           activeOpacity={0.8}
         >
-          <View style={[styles.uploadIconBadge, hasAnyUserFace && styles.uploadIconBadgeActive]}>
+          <View
+            style={[
+              styles.uploadIconBadge,
+              hasAllUserFaces && styles.uploadIconBadgeActive,
+              (!hasAllUserFaces && hasAnyUserFace) && styles.uploadIconBadgeHalfActive,
+            ]}
+          >
             <MaterialCommunityIcons
-              name={hasAllUserFaces ? 'check-decagram' : 'account-plus-outline'}
+              name={
+                hasAllUserFaces
+                  ? 'check-decagram'
+                  : hasAnyUserFace
+                  ? 'account-plus'
+                  : isMulti
+                  ? 'account-multiple-plus-outline'
+                  : 'account-plus-outline'
+              }
               size={fontScale(22)}
-              color={hasAllUserFaces ? '#16A34A' : '#EE1D24'}
+              color={hasAllUserFaces ? '#16A34A' : hasAnyUserFace ? '#F59E0B' : '#EE1D24'}
             />
           </View>
           <Text style={styles.uploadTitle} numberOfLines={1}>
-            {hasAllUserFaces
-              ? (requiredPhotosCount > 1 ? (t('change_photos') || t('change_photo_gallery')) : (t('change_photo') || t('change_photo_gallery')))
-              : (requiredPhotosCount > 1 ? t('upload_your_photos') : t('upload_your_photo'))}
+            {uploadTitle}
           </Text>
           <Text style={styles.uploadSubtitle} numberOfLines={1}>
-            {hasAllUserFaces
-              ? (t('photo_ready') || 'Tap to change photo')
-              : (requiredPhotosCount > 1 ? t('add_1_or_2_photos') : t('add_1_photo'))}
+            {uploadSubtitle}
           </Text>
         </TouchableOpacity>
       </View>
@@ -189,13 +355,13 @@ export default function HeroTemplateCard({
 
           <View style={styles.mediaTypeBadge}>
             <Ionicons
-              name={isCurrentVideo ? 'videocam' : 'image'}
+              name={showVideoPlayer ? 'videocam' : 'image'}
               size={fontScale(12)}
               color="#EE1D24"
               style={{ marginRight: wp(0.01) }}
             />
             <Text style={styles.mediaTypeBadgeText}>
-              {isCurrentVideo ? 'Video' : 'Image'}
+              {showVideoPlayer ? (t('media_video') || 'Video') : (t('media_image') || 'Image')}
             </Text>
           </View>
         </View>
@@ -203,19 +369,25 @@ export default function HeroTemplateCard({
         {/* Main Media Preview */}
         <View style={styles.mediaContainer}>
           {generatedResult?.resultUrl ? (
-            isCurrentVideo ? (
+            showVideoPlayer ? (
               <AppVideo
                 source={{ uri: resolveMediaUrl(generatedResult.resultUrl) }}
                 style={styles.mainMedia}
                 resizeMode={ResizeMode.COVER}
                 shouldPlay
                 isLooping
+                onReadyForDisplay={() => setResultMediaLoading(false)}
+                onLoad={() => setResultMediaLoading(false)}
+                onError={() => setResultMediaLoading(false)}
               />
             ) : (
               <Image
                 source={{ uri: resolveMediaUrl(generatedResult.resultUrl) }}
                 style={styles.mainMedia}
                 resizeMode="cover"
+                onLoadStart={() => setResultMediaLoading(true)}
+                onLoadEnd={() => setResultMediaLoading(false)}
+                onError={() => setResultMediaLoading(false)}
               />
             )
           ) : (
@@ -251,10 +423,73 @@ export default function HeroTemplateCard({
             </View>
           )}
 
-          {generating && (
-            <View style={styles.generatingOverlay}>
-              <ActivityIndicator size="large" color="#EE1D24" />
-              <Text style={styles.generatingText}>Generating AI Magic...</Text>
+          {/* Premium Animated AI Loading Screen for Generating, Buffering, or Photo Uploaded */}
+          {showLoadingOverlay && (
+            <View style={styles.loadingOverlayContainer}>
+              {/* Ambient Blurred Background (Prevents ugly black box) */}
+              <Image
+                source={{
+                  uri: resolveMediaUrl(
+                    userFaces[0] || selectedTemplate.thumbnailUrl || selectedTemplate.videoUrl
+                  ),
+                }}
+                style={styles.loadingBlurredBackdrop}
+                blurRadius={20}
+                resizeMode="cover"
+              />
+              <View style={styles.loadingDimmerOverlay} />
+
+              {/* Glowing Status Pill */}
+              <View style={styles.loadingTopBadge}>
+                <MaterialCommunityIcons name="star-four-points" size={fontScale(10)} color="#F59E0B" />
+                <Text style={styles.loadingTopBadgeText}>
+                  {generating
+                    ? (t('ai_rendering_badge') || 'AI RENDERING')
+                    : isPhotoUploadedWaiting
+                    ? (t('ai_ready_badge') || 'AI READY')
+                    : (t('ai_rendering_badge') || 'AI RENDERING')}
+                </Text>
+              </View>
+
+              {/* Central Pulsing Emblem */}
+              <Animated.View
+                style={[
+                  styles.loadingPulseOuterRing,
+                  { transform: [{ scale: pulseAnim }] },
+                ]}
+              >
+                <View style={styles.loadingPulseInnerBadge}>
+                  <MaterialCommunityIcons
+                    name={isCurrentVideo ? 'movie-filter-outline' : 'image-filter-vintage'}
+                    size={fontScale(24)}
+                    color="#FFFFFF"
+                  />
+                </View>
+              </Animated.View>
+
+              {/* Spinner */}
+              <ActivityIndicator size="small" color="#F59E0B" style={styles.loadingSpinner} />
+
+              {/* Dynamic Stage Copy */}
+              <Text style={styles.loadingPrimaryTitle} numberOfLines={1}>
+                {generating
+                  ? (stageMessages[loadingStage] || stageMessages[0])
+                  : isPhotoUploadedWaiting
+                  ? (hasAllUserFaces ? (t('photo_uploaded_ready') || 'Photos Ready') : (t('add_second_photo') || 'Add 2nd Photo'))
+                  : (t('finalizing_ai_creation') || 'Finalizing AI Creation...')}
+              </Text>
+              <Text style={styles.loadingSecondarySubtitle} numberOfLines={2}>
+                {generating
+                  ? (t('please_wait_moment') || 'Please wait a moment (~15-30s)...')
+                  : isPhotoUploadedWaiting
+                  ? (hasAllUserFaces ? (t('tap_create_to_start') || 'Tap Create below to generate your AI magic') : (t('add_1_or_2_photos') || 'Add face photo to start'))
+                  : (t('preparing_media_preview') || 'Preparing high quality preview...')}
+              </Text>
+
+              {/* Glowing Animated Progress Bar */}
+              <View style={styles.loadingProgressTrack}>
+                <Animated.View style={[styles.loadingProgressFill, { width: progressWidth }]} />
+              </View>
             </View>
           )}
         </View>
@@ -262,7 +497,7 @@ export default function HeroTemplateCard({
         {/* Info Row: Title & Credits */}
         <View style={styles.cardInfoRow}>
           <Text style={styles.templateTitle} numberOfLines={1}>
-            {selectedTemplate.title}
+            {cleanText(selectedTemplate.title)}
           </Text>
 
           <View style={styles.templateDetailsRight}>
@@ -274,13 +509,15 @@ export default function HeroTemplateCard({
                 style={{ marginRight: wp(0.01) }}
               />
               <Text style={styles.uploadCountText}>
-                {requiredPhotosCount > 1
-                  ? t('upload_2_photos')
-                  : t('upload_1_photo')}
+                {cleanText(
+                  requiredPhotosCount > 1
+                    ? t('upload_2_photos')
+                    : t('upload_1_photo')
+                )}
               </Text>
             </View>
             <Text style={styles.creditText}>
-              {t('required_credit', { credit: selectedTemplate.creditsRequired || 25 })}
+              {cleanText(t('required_credit', { credit: selectedTemplate.creditsRequired || 25 }))}
             </Text>
           </View>
         </View>
@@ -289,63 +526,92 @@ export default function HeroTemplateCard({
         {generatedResult ? (
           <View style={styles.resultActionsRow}>
             <TouchableOpacity
-              style={[styles.resultActionBtn, styles.downloadBtn]}
+              style={[
+                styles.resultActionBtn,
+                styles.downloadBtn,
+                resultMediaLoading && styles.resultActionBtnDisabled,
+              ]}
               onPress={handleDownloadResult}
-              disabled={downloading}
+              disabled={downloading || resultMediaLoading}
               activeOpacity={0.85}
             >
               {downloading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="download-outline" size={fontScale(16)} color="#FFFFFF" />
-                  <Text style={styles.resultActionBtnText}>{t('download') || 'Download'}</Text>
+                  <Ionicons name="download-outline" size={fontScale(14)} color="#FFFFFF" />
+                  <Text style={styles.resultActionBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                    {cleanText(t('download'), 'Download')}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.resultActionBtn, styles.shareBtn]}
+              style={[
+                styles.resultActionBtn,
+                styles.shareBtn,
+                resultMediaLoading && styles.resultActionBtnDisabled,
+              ]}
               onPress={handleShareResult}
-              disabled={sharing}
+              disabled={sharing || resultMediaLoading}
               activeOpacity={0.85}
             >
               {sharing ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="share-social-outline" size={fontScale(16)} color="#FFFFFF" />
-                  <Text style={styles.resultActionBtnText}>{t('share') || 'Share'}</Text>
+                  <Ionicons name="share-social-outline" size={fontScale(14)} color="#FFFFFF" />
+                  <Text style={styles.resultActionBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                    {cleanText(t('share'), 'Share')}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.resultActionBtn, styles.createAgainBtn]}
+              style={[
+                styles.resultActionBtn,
+                styles.createAgainBtn,
+                resultMediaLoading && styles.resultActionBtnDisabled,
+              ]}
               onPress={handleTriggerCreate}
-              disabled={generating}
+              disabled={generating || resultMediaLoading}
               activeOpacity={0.85}
             >
-              <Ionicons name="refresh" size={fontScale(16)} color="#EE1D24" />
-              <Text style={styles.createAgainBtnText}>{t('create_again') || 'Create Again'}</Text>
+              <Ionicons name="refresh" size={fontScale(14)} color="#EE1D24" />
+              <Text style={styles.createAgainBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                {cleanText(t('create_again'), 'Create Again')}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
-            style={styles.createButton}
+            style={[styles.createButton, generating && styles.createButtonDisabled]}
             onPress={handleTriggerCreate}
             disabled={generating}
             activeOpacity={0.88}
           >
-            <MaterialCommunityIcons
-              name="star-four-points"
-              size={fontScale(18)}
-              color="#FFFFFF"
-              style={{ marginRight: wp(0.015) }}
-            />
-            <Text style={styles.createButtonText}>
-              {isCurrentVideo ? t('create_video') : t('create_image')}
-            </Text>
+            {generating ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: wp(0.02) }} />
+                <Text style={styles.createButtonText}>
+                  {t('generating_video') || (isCurrentVideo ? 'Generating AI Video...' : 'Generating AI Photo...')}
+                </Text>
+              </>
+            ) : (
+              <>
+                <MaterialCommunityIcons
+                  name="star-four-points"
+                  size={fontScale(18)}
+                  color="#FFFFFF"
+                  style={{ marginRight: wp(0.015) }}
+                />
+                <Text style={styles.createButtonText}>
+                  {isCurrentVideo ? t('create_video') : t('create_image')}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
       </View>

@@ -21,16 +21,6 @@ const createPayment = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  // Free templates never need a purchase
-  if (template.accessType === 'free') {
-    return res.status(400).json({ success: false, message: 'This template is free — no unlock needed' });
-  }
-
-  // VIP-only templates can't be unlocked individually — they require the VIP pass
-  if (template.accessType === 'vip') {
-    return res.status(400).json({ success: false, message: 'VIP-only template — subscribe to the VIP Pass to unlock' });
-  }
-
   const transactionId = `txn_dev_${uuidv4().substring(0, 8)}`;
 
   // TODO: Replace development payment success logic with real payment verification before production.
@@ -127,18 +117,7 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
     });
   }
 
-  // premium / paid — unlocked by the VIP Pass or an individual purchase
-  if (isVip) {
-    return res.status(200).json({
-      success: true,
-      data: {
-        isUnlocked: true,
-        reason: 'user_subscription',
-      },
-    });
-  }
-
-  // Check specific template purchase
+  // Check specific template direct purchase first
   const purchase = await Purchase.findOne({
     userId,
     templateId,
@@ -153,6 +132,17 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
         transactionId: purchase.transactionId,
         purchaseDate: purchase.createdAt,
         reason: 'individual_purchase',
+      },
+    });
+  }
+
+  // VIP Pass unlocks 'premium' and 'vip' templates, but individually 'paid' templates require direct purchase
+  if (isVip && template.accessType !== 'paid') {
+    return res.status(200).json({
+      success: true,
+      data: {
+        isUnlocked: true,
+        reason: 'user_subscription',
       },
     });
   }
@@ -211,6 +201,47 @@ const subscribeVip = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid or inactive VIP plan selected' });
   }
 
+  // Enforce: Prevent purchasing same or lower subscription plan if user already has an active plan
+  const user = await User.findById(userId);
+  const now = new Date();
+  const hasActiveSub = Boolean(
+    user &&
+    user.isPremium &&
+    user.subscriptionStatus === 'active' &&
+    user.subscriptionExpiresAt &&
+    new Date(user.subscriptionExpiresAt) > now
+  );
+
+  const getPlanTier = (pid) => {
+    if (!pid) return 0;
+    const s = String(pid).toLowerCase();
+    if (s.includes('year') || s.includes('annual') || s.includes('365')) return 3;
+    if (s.includes('30') || s.includes('month')) return 2;
+    if (s.includes('7') || s.includes('week')) return 1;
+    return 1;
+  };
+
+  if (hasActiveSub && user.subscriptionPlan) {
+    const currentTier = getPlanTier(user.subscriptionPlan);
+    const newTier = getPlanTier(plan.id);
+
+    if (newTier <= currentTier) {
+      if (newTier === currentTier) {
+        return res.status(400).json({
+          success: false,
+          code: 'SAME_PLAN_ACTIVE',
+          message: 'You already have an active subscription for this plan.',
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          code: 'LOWER_PLAN_NOT_ALLOWED',
+          message: 'You cannot downgrade to a lower subscription while your current plan is active.',
+        });
+      }
+    }
+  }
+
   const durationDays = Number(plan.durationDays) || 30;
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + durationDays);
@@ -231,7 +262,6 @@ const subscribeVip = asyncHandler(async (req, res) => {
     transactionId,
   });
 
-  const user = await User.findById(userId);
   if (user) {
     user.isPremium = true;
     user.subscriptionStatus = 'active';
@@ -263,9 +293,151 @@ const subscribeVip = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Purchase AI Credits Pack
+// @route   POST /api/payments/buy-credits
+// @access  Private (User)
+const buyCredits = asyncHandler(async (req, res) => {
+  const { packId, credits, price } = req.body;
+  const userId = req.user._id;
+
+  const creditsToAdd = Number(credits);
+  if (!creditsToAdd || creditsToAdd <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid credits amount' });
+  }
+
+  const transactionId = `txn_credit_${uuidv4().substring(0, 8)}`;
+
+  const purchase = await Purchase.create({
+    userId,
+    templateId: null,
+    purchaseType: 'ai_credits_pack',
+    planId: packId || 'custom_credits',
+    planName: `${creditsToAdd} AI Credits Pack`,
+    productId: `credits_${packId || creditsToAdd}`,
+    amount: Number(price) || 0,
+    currency: 'INR',
+    status: 'successful',
+    paymentProvider: 'development',
+    transactionId,
+  });
+
+  const user = await User.findById(userId);
+  if (user) {
+    const currentCredits = (user.credits !== undefined && user.credits !== null) ? Number(user.credits) : 240;
+    user.credits = currentCredits + creditsToAdd;
+    await user.save();
+
+    try {
+      const CreditTransaction = require('../models/CreditTransaction');
+      await CreditTransaction.create({
+        userId,
+        type: 'credit',
+        amount: creditsToAdd,
+        balanceAfter: user.credits,
+        reason: 'purchase',
+        title: `${creditsToAdd} AI Credits`,
+        description: `${creditsToAdd} AI Credits Pack Purchased (₹${Number(price) || 0})`,
+        metadata: {
+          packId: packId || 'custom',
+          pricePaid: Number(price) || 0,
+          transactionId,
+        },
+      });
+    } catch (txErr) {
+      console.error('[Payment] Error logging credit transaction:', txErr.message);
+    }
+
+    // Broadcast updated balance to SSE clients
+    try {
+      const { broadcastBalanceUpdate } = require('../utils/balanceSSE');
+      broadcastBalanceUpdate(userId, { credits: user.credits, reason: 'purchase' });
+    } catch (sseErr) {
+      console.warn('[Payment] SSE broadcast error:', sseErr.message);
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `${creditsToAdd} AI Credits added successfully`,
+    data: {
+      transactionId: purchase.transactionId,
+      purchaseId: purchase._id,
+      creditsAdded: creditsToAdd,
+      totalCredits: user?.credits || 0,
+      user,
+    },
+  });
+});
+
+// @desc    Get credit transaction history (bought and spent)
+// @route   GET /api/payments/credit-transactions
+// @access  Private (User)
+const getCreditTransactions = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const CreditTransaction = require('../models/CreditTransaction');
+  const User = require('../models/User');
+
+  const user = await User.findById(userId);
+  let transactions = await CreditTransaction.find({ userId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // If user has past purchases not yet logged
+  if (transactions.length === 0) {
+    const pastCreditPurchases = await Purchase.find({
+      userId,
+      purchaseType: 'ai_credits_pack',
+      status: 'successful',
+    }).lean();
+
+    for (const p of pastCreditPurchases) {
+      const match = (p.planName || '').match(/(\d+)\s*AI Credits/i);
+      const creditsNum = match ? parseInt(match[1], 10) : 50;
+      await CreditTransaction.create({
+        userId,
+        type: 'credit',
+        amount: creditsNum,
+        balanceAfter: user?.credits || 240,
+        reason: 'purchase',
+        title: p.planName || `${creditsNum} AI Credits`,
+        description: `Purchased for ₹${p.amount}`,
+        metadata: {
+          packId: p.planId,
+          pricePaid: p.amount,
+          transactionId: p.transactionId,
+        },
+        createdAt: p.createdAt,
+      });
+    }
+
+    if (pastCreditPurchases.length > 0) {
+      transactions = await CreditTransaction.find({ userId }).sort({ createdAt: -1 }).lean();
+    }
+  }
+
+  const totalBought = transactions
+    .filter((t) => t.type === 'credit')
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const totalSpent = transactions
+    .filter((t) => t.type === 'debit')
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      currentBalance: user?.credits !== undefined ? user.credits : 240,
+      totalBought,
+      totalSpent,
+      transactions,
+    },
+  });
+});
+
 module.exports = {
   createPayment,
   verifyEntitlement,
   getMyPurchases,
   subscribeVip,
+  buyCredits,
+  getCreditTransactions,
 };
