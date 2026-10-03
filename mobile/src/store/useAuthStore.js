@@ -59,6 +59,8 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  clearError: () => set({ error: null }),
+
   requestOtp: async (phoneNumber, countryCode = '+91', isNewUser = false) => {
     set({ isAuthenticating: true, error: null });
     try {
@@ -67,8 +69,14 @@ export const useAuthStore = create((set, get) => ({
       return res.data;
     } catch (err) {
       const msg = (err.response && err.response.data && err.response.data.message) || 'Failed to send OTP';
-      set({ isAuthenticating: false, error: msg });
-      throw new Error(msg);
+      const code = err.response && err.response.data && err.response.data.code;
+      // Do not populate global banner error for flows handled gracefully by interactive prompt modals
+      const isHandledByModal = code === 'USER_NOT_FOUND' || code === 'USER_ALREADY_EXISTS' || err.response?.status === 404 || err.response?.status === 409;
+      set({ isAuthenticating: false, error: isHandledByModal ? null : msg });
+      const errorObj = new Error(msg);
+      errorObj.code = code;
+      errorObj.response = err.response;
+      throw errorObj;
     }
   },
 
@@ -93,8 +101,12 @@ export const useAuthStore = create((set, get) => ({
       return user;
     } catch (err) {
       const msg = (err.response && err.response.data && err.response.data.message) || 'Invalid OTP code';
+      const code = err.response && err.response.data && err.response.data.code;
       set({ isAuthenticating: false, error: msg });
-      throw new Error(msg);
+      const errorObj = new Error(msg);
+      errorObj.code = code;
+      errorObj.response = err.response;
+      throw errorObj;
     }
   },
 

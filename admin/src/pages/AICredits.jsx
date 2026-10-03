@@ -9,7 +9,6 @@ import {
   ArrowClockwise,
   Plus,
   Trash,
-  Sparkle,
   Image as ImageIcon,
   VideoCamera,
   Crown,
@@ -207,18 +206,6 @@ export default function AICredits() {
         >
           <Coins className="w-4 h-4" weight={activeTab === 'packs' ? 'fill' : 'bold'} />
           Credit Packs ({packs.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('banner')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-[2px] ${
-            activeTab === 'banner'
-              ? 'bg-ink text-paper-50 shadow-hard'
-              : 'text-ink-mute hover:text-ink hover:bg-paper-200/50'
-          }`}
-        >
-          <Sparkle className="w-4 h-4" weight={activeTab === 'banner' ? 'fill' : 'bold'} />
-          Hero Banner & Visuals
         </button>
         <button
           type="button"
@@ -424,107 +411,6 @@ export default function AICredits() {
         </div>
       )}
 
-      {/* Tab 2: Hero Visual & Banners */}
-      {activeTab === 'banner' && (
-        <div className="panel p-5 border-2 border-ink bg-white space-y-5">
-          <div>
-            <h3 className="font-bold text-sm text-ink uppercase tracking-wide">Top Visual Banner Content</h3>
-            <p className="text-xs text-ink-mute">Edit headline, copy, and before/after sample images showcased in the header.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[11px] font-bold text-ink-mute uppercase tracking-wider block mb-1">
-                Main Headline (e.g. Create Amazing)
-              </label>
-              <input
-                type="text"
-                value={heroBanner.headline || ''}
-                onChange={(e) => setHeroBanner({ ...heroBanner, headline: e.target.value })}
-                className="input-field text-sm font-bold w-full"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold text-ink-mute uppercase tracking-wider block mb-1">
-                Sub-Headline (e.g. AI Photos & Videos)
-              </label>
-              <input
-                type="text"
-                value={heroBanner.subheadline || ''}
-                onChange={(e) => setHeroBanner({ ...heroBanner, subheadline: e.target.value })}
-                className="input-field text-sm font-bold text-flame-600 w-full"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-ink-mute uppercase tracking-wider block mb-1">
-              Banner Description Text
-            </label>
-            <textarea
-              rows={2}
-              value={heroBanner.description || ''}
-              onChange={(e) => setHeroBanner({ ...heroBanner, description: e.target.value })}
-              className="input-field text-xs w-full"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-ink-mute uppercase tracking-wider block mb-1">
-              Calligraphy Script Overlay (e.g. Turn photos into magic)
-            </label>
-            <input
-              type="text"
-              value={heroBanner.magicScript || ''}
-              onChange={(e) => setHeroBanner({ ...heroBanner, magicScript: e.target.value })}
-              className="input-field text-xs w-full"
-            />
-          </div>
-
-          {/* Banner Images Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-paper-200">
-            <div>
-              <label className="text-[11px] font-bold text-ink-mute uppercase tracking-wider block mb-1">
-                Sample Image (Before Swap)
-              </label>
-              <input
-                type="text"
-                value={heroBanner.heroGirlBeforeImage || ''}
-                onChange={(e) => setHeroBanner({ ...heroBanner, heroGirlBeforeImage: e.target.value })}
-                placeholder="https://..."
-                className="input-field text-xs w-full mb-2"
-              />
-              <MediaUploadZone
-                folder="ai-credits"
-                accept="image"
-                currentUrl={heroBanner.heroGirlBeforeImage}
-                onUploadComplete={(url) => setHeroBanner({ ...heroBanner, heroGirlBeforeImage: url })}
-                label="Upload Before Photo"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-ink-mute uppercase tracking-wider block mb-1">
-                Featured AI Result Image (After Swap)
-              </label>
-              <input
-                type="text"
-                value={heroBanner.heroGirlImage || ''}
-                onChange={(e) => setHeroBanner({ ...heroBanner, heroGirlImage: e.target.value })}
-                placeholder="https://..."
-                className="input-field text-xs w-full mb-2"
-              />
-              <MediaUploadZone
-                folder="ai-credits"
-                accept="image"
-                currentUrl={heroBanner.heroGirlImage}
-                onUploadComplete={(url) => setHeroBanner({ ...heroBanner, heroGirlImage: url })}
-                label="Upload After Photo"
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tab 3: Usage Guide */}
       {activeTab === 'guide' && (

@@ -271,6 +271,10 @@ nav_search_status: "സ്റ്റാറ്റസ് തിരയുക",
       auth_signup_subtitle: 'നിങ്ങളുടെ നിമിഷങ്ങൾ സൃഷ്ടിക്കാൻ സൈൻ അപ്പ് ചെയ്യുക.',
       auth_mobile_step_title: 'മൊബൈൽ നമ്പർ നൽകുക',
       auth_mobile_step_subtitle: 'ആരംഭിക്കാൻ നിങ്ങളുടെ മൊബൈൽ നമ്പർ നൽകുക.',
+      auth_account_not_found_title: 'അക്കൗണ്ട് കണ്ടെത്തിയില്ല',
+      auth_user_not_found: 'ഈ മൊബൈൽ നമ്പറിൽ അക്കൗണ്ടൊന്നും കണ്ടെത്തിയില്ല. ദയവായി ആദ്യം സൈൻ അപ്പ് ചെയ്യുക.',
+      auth_account_exists_title: 'അക്കൗണ്ട് നിലവിലുണ്ട്',
+      auth_user_already_exists: 'ഈ മൊബൈൽ നമ്പറിൽ ഇതിനകം അക്കൗണ്ട് ഉണ്ട്. ദയവായി ലോഗിൻ ചെയ്യുക.',
 
       // Settings Screen
       settings_title: 'ക്രമീകരണങ്ങൾ',

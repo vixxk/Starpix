@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -7,7 +7,16 @@ import { Anton_400Regular } from '@expo-google-fonts/anton';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { hydrateDownloadedCreations } from '../src/store/useCreationStore';
 import { BRUTAL } from '../src/constants/colors';
+import * as SplashScreen from 'expo-splash-screen';
+import SplashScreenAnimation from '../src/components/SplashScreenAnimation';
 import '../src/i18n';
+
+// Keep native splash screen active until our animated splash takes over
+try {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+} catch (e) {}
+
+let hasAppSplashFinished = false;
 
 /**
  * Central auth guard for every route.
@@ -34,27 +43,16 @@ function AuthGate({ children }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const isNewUserNeedingProfile = user && (!user.name || user.name.startsWith('Starpix User') || user.isNewUser);
-    const isSignupScreen = pathname.includes('signup');
-
     if (!user && !isAuthRoute) {
       router.replace('/(auth)/login');
     } else if (user && isAuthRoute) {
-      if (isNewUserNeedingProfile && isSignupScreen) {
-        // Allow user to finish "Create Your Profile"
-        return;
-      }
-      if (isNewUserNeedingProfile) {
-        router.replace('/(auth)/signup');
-        return;
-      }
       router.replace('/(tabs)');
     }
   }, [isLoading, isAuthRoute, user, pathname, router]);
 
   if (isLoading || (!user && !isAuthRoute)) {
-    // Auth state restoring or redirecting — render blank background to avoid UI flashes
-    return <View style={{ flex: 1, backgroundColor: BRUTAL.bone }} />;
+    // Auth state restoring or redirecting — white background matching splash
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
   return children;
@@ -62,6 +60,9 @@ function AuthGate({ children }) {
 
 export default function RootLayout() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const user = useAuthStore((state) => state.user);
+  const [isSplashDone, setIsSplashDone] = useState(() => hasAppSplashFinished);
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -78,8 +79,22 @@ export default function RootLayout() {
     hydrateDownloadedCreations();
   }, []);
 
-  if (!fontsLoaded) {
-    return <View style={{ flex: 1, backgroundColor: BRUTAL.bone }} />;
+  const isAppReady = Boolean(fontsLoaded && !isLoading);
+
+  // Exclusively display the animated splash screen BEFORE any app screens mount
+  if (!isSplashDone && !hasAppSplashFinished) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+        <StatusBar style="dark" backgroundColor="#FFFFFF" />
+        <SplashScreenAnimation
+          isReady={isAppReady}
+          onFinish={() => {
+            hasAppSplashFinished = true;
+            setIsSplashDone(true);
+          }}
+        />
+      </View>
+    );
   }
 
   return (
@@ -87,6 +102,7 @@ export default function RootLayout() {
       <React.Fragment>
         <StatusBar style="dark" backgroundColor={BRUTAL.bone} />
         <Stack
+          initialRouteName={user ? "(tabs)" : "(auth)"}
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: BRUTAL.bone },

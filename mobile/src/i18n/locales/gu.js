@@ -261,6 +261,10 @@ nav_search_status: "સ્ટેટસ શોધો",
       auth_signup_subtitle: 'તમારી ક્ષણો બનાવવાનું શરૂ કરવા માટે સાઇન અપ કરો.',
       auth_mobile_step_title: 'મોબાઇલ નંબર દાખલ કરો',
       auth_mobile_step_subtitle: 'શરૂ કરવા માટે તમારો મોબાઇલ નંબર દાખલ કરો.',
+      auth_account_not_found_title: 'ખાતું મળ્યું નથી',
+      auth_user_not_found: 'આ મોબાઇલ નંબર સાથે કોઈ ખાતું મળ્યું નથી. કૃપા કરીને પહેલાં સાઇન અપ કરો.',
+      auth_account_exists_title: 'ખાતું પહેલેથી જ છે',
+      auth_user_already_exists: 'આ મોબાઇલ નંબર સાથે પહેલેથી જ એક ખાતું છે. કૃપા કરીને લૉગિન કરો.',
 
       // Settings Screen
       settings_title: 'સેટિંગ્સ',

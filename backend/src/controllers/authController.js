@@ -16,7 +16,29 @@ const requestOtp = asyncHandler(async (req, res) => {
   }
 
   const fullPhone = `${countryCode}${phoneNumber}`.replace(/\s+/g, '');
-  const existingUser = await User.findOne({ phoneNumber: fullPhone });
+  const existingUser = await User.findOne({ phoneNumber: fullPhone, isDeleted: { $ne: true } });
+
+  // If logging in, block user if account does not exist
+  if (isNewUser === false || isNewUser === 'false') {
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        code: 'USER_NOT_FOUND',
+        message: 'No account found with this phone number. Please sign up first.',
+      });
+    }
+  }
+
+  // If signing up, check if account already exists
+  if (isNewUser === true || isNewUser === 'true') {
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        code: 'USER_ALREADY_EXISTS',
+        message: 'An account already exists with this phone number. Please log in instead.',
+      });
+    }
+  }
 
   console.log(`[OTP] Sent OTP request to ${countryCode} ${phoneNumber} (exists: ${Boolean(existingUser)})`);
 
@@ -45,30 +67,96 @@ const verifyOtp = asyncHandler(async (req, res) => {
   const fullPhone = `${countryCode}${phoneNumber}`.replace(/\s+/g, '');
   let user = await User.findOne({ phoneNumber: fullPhone });
 
-  const isSigningUp = isNewUser === true || isNewUser === 'true' || Boolean(name && name.trim());
+  const isSigningUp = isNewUser === true || isNewUser === 'true';
 
-  let isBrandNew = false;
-  if (!user || user.isDeleted) {
-    // If user record existed as soft-deleted, remove old document before fresh creation
-    if (user && user.isDeleted) {
-      await User.deleteOne({ _id: user._id });
+  if (!isSigningUp) {
+    if (!user || user.isDeleted) {
+      return res.status(404).json({
+        success: false,
+        code: 'USER_NOT_FOUND',
+        message: 'No account found with this phone number. Please sign up first.',
+      });
     }
 
-    // Create a brand-new user account
-    user = await User.create({
-      phoneNumber: fullPhone,
-      countryCode,
-      name: name && name.trim() ? name.trim() : `Starpix User ${fullPhone.slice(-4)}`,
-      email: email && email.trim() ? email.trim().toLowerCase() : '',
-      lastLoginAt: new Date(),
-    });
-    isBrandNew = true;
-  } else {
+    // Existing user logging in: only update last login timestamp, do not create
     user.lastLoginAt = new Date();
-    if (name && name.trim()) user.name = name.trim();
-    if (email !== undefined) user.email = email.trim().toLowerCase();
     await user.save();
+
+    const token = generateToken(user._id, 'user', '3650d');
+    return res.status(200).json({
+      success: true,
+      message: 'Authentication successful',
+      data: {
+        user: {
+          id: user._id,
+          phoneNumber: user.phoneNumber,
+          name: user.name,
+          email: user.email || '',
+          profilePhoto: user.profilePhoto,
+          isPremium: user.isPremium,
+          credits: user.credits !== undefined ? user.credits : 240,
+          subscriptionStatus: user.subscriptionStatus,
+          subscriptionPlan: user.subscriptionPlan,
+          subscriptionExpiresAt: user.subscriptionExpiresAt,
+          vipGrantedBy: user.vipGrantedBy,
+          favorites: user.favorites,
+          isNewUser: false,
+        },
+        token,
+      },
+    });
   }
+
+  // Signing up: strictly require complete profile and valid OTP before saving anything to DB
+  if (user && !user.isDeleted) {
+    return res.status(409).json({
+      success: false,
+      code: 'USER_ALREADY_EXISTS',
+      message: 'An account already exists with this phone number. Please log in instead.',
+    });
+  }
+
+  // Validate required full name
+  const trimmedName = name ? name.trim() : '';
+  if (!trimmedName) {
+    return res.status(400).json({
+      success: false,
+      message: 'Full name is required to complete sign up.',
+    });
+  }
+
+  // Validate OTP code
+  if (!otp || String(otp).trim().length !== 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please enter a valid 6-digit OTP code',
+    });
+  }
+
+  // Validate email format if provided
+  const trimmedEmail = email ? email.trim().toLowerCase() : '';
+  if (trimmedEmail) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid email address.',
+      });
+    }
+  }
+
+  // All validation passed and OTP verified: only now create and save user in database
+  if (user && user.isDeleted) {
+    await User.deleteOne({ _id: user._id });
+  }
+
+  user = await User.create({
+    phoneNumber: fullPhone,
+    countryCode,
+    name: trimmedName,
+    email: trimmedEmail,
+    lastLoginAt: new Date(),
+  });
 
   const token = generateToken(user._id, 'user', '3650d');
 
@@ -89,7 +177,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         subscriptionExpiresAt: user.subscriptionExpiresAt,
         vipGrantedBy: user.vipGrantedBy,
         favorites: user.favorites,
-        isNewUser: isBrandNew || !user.name || user.name.startsWith('Starpix User'),
+        isNewUser: true,
       },
       token,
     },

@@ -271,6 +271,10 @@ nav_search_status: "ಸ್ಟೇಟಸ್ ಹುಡುಕಿ",
       auth_signup_subtitle: 'ನಿಮ್ಮ ಕ್ಷಣಗಳನ್ನು ರಚಿಸಲು ಪ್ರಾರಂಭಿಸಲು ಸೈನ್ ಅಪ್ ಮಾಡಿ.',
       auth_mobile_step_title: 'ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ',
       auth_mobile_step_subtitle: 'ಪ್ರಾರಂಭಿಸಲು ನಿಮ್ಮ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ.',
+      auth_account_not_found_title: 'ಖಾತೆ ಕಂಡುಬಂದಿಲ್ಲ',
+      auth_user_not_found: 'ಈ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯೊಂದಿಗೆ ಯಾವುದೇ ಖಾತೆ ಕಂಡುಬಂದಿಲ್ಲ. ದಯವಿಟ್ಟು ಮೊದಲು ಸೈನ್ ಅಪ್ ಮಾಡಿ.',
+      auth_account_exists_title: 'ಖಾತೆ ಈಗಾಗಲೇ ಅಸ್ತಿತ್ವದಲ್ಲಿದೆ',
+      auth_user_already_exists: 'ಈ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯೊಂದಿಗೆ ಈಗಾಗಲೇ ಖಾತೆ ಇದೆ. ದಯವಿಟ್ಟು ಲಾಗಿನ್ ಮಾಡಿ.',
 
       // Settings Screen
       settings_title: 'ಸೆಟ್ಟಿಂಗ್‌ಗಳು',

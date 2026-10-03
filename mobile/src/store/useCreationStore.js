@@ -18,36 +18,43 @@ const persistDownloads = (creations) => {
  */
 export const hydrateDownloadedCreations = async () => {
   try {
-    const raw = await AsyncStorage.getItem(DOWNLOADS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        useCreationStore.setState({ downloadedCreations: parsed });
-      }
-    }
     const savedUserRaw = await AsyncStorage.getItem('starpix_user_data');
     if (savedUserRaw) {
       try {
         const savedUser = JSON.parse(savedUserRaw);
         const photo = savedUser?.profilePhoto || null;
         const name = savedUser?.name || '';
+        const currentUserId = String(savedUser?._id || savedUser?.id || '');
+
+        let userDownloads = [];
+        const raw = await AsyncStorage.getItem(DOWNLOADS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            userDownloads = parsed.filter((c) => !c.userId || String(c.userId) === currentUserId);
+          }
+        }
+
         useCreationStore.setState({
           defaultUserPhotoUri: photo,
           userPhotoUri: photo,
           defaultUserNameText: name,
           userNameText: name,
+          downloadedCreations: userDownloads,
         });
       } catch (err) {}
     } else {
-      // No logged-in user: clear any legacy device-level defaults
+      // No logged-in user: clear any legacy device-level defaults & downloads
       useCreationStore.setState({
         defaultUserPhotoUri: null,
         userPhotoUri: null,
         defaultUserNameText: '',
         userNameText: '',
+        downloadedCreations: [],
       });
       AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch(() => {});
       AsyncStorage.removeItem(DEFAULT_NAME_KEY).catch(() => {});
+      AsyncStorage.removeItem(DOWNLOADS_KEY).catch(() => {});
     }
   } catch (e) {
     console.error('Failed to hydrate store state:', e);
@@ -82,12 +89,14 @@ export const useCreationStore = create((set, get) => ({
   resetUserSession: () => {
     AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch(() => {});
     AsyncStorage.removeItem(DEFAULT_NAME_KEY).catch(() => {});
+    AsyncStorage.removeItem(DOWNLOADS_KEY).catch(() => {});
     set({
       defaultUserPhotoUri: null,
       userPhotoUri: null,
       defaultUserNameText: '',
       userNameText: '',
       activeTemplate: null,
+      downloadedCreations: [],
     });
   },
 
@@ -178,9 +187,23 @@ export const useCreationStore = create((set, get) => ({
 
   addDownloadedCreation: (creation) =>
     set((state) => {
-      const exists = state.downloadedCreations.some((item) => item.id === creation.id || item.creationId === creation.creationId);
+      let currentUserId = null;
+      try {
+        const { useAuthStore } = require('./useAuthStore');
+        const authUser = useAuthStore.getState().user;
+        currentUserId = authUser?._id || authUser?.id || null;
+      } catch (e) {}
+
+      const creationWithUser = {
+        ...creation,
+        userId: creation.userId || currentUserId,
+      };
+
+      const exists = state.downloadedCreations.some(
+        (item) => item.id === creationWithUser.id || item.creationId === creationWithUser.creationId
+      );
       if (exists) return state;
-      const updated = [creation, ...state.downloadedCreations];
+      const updated = [creationWithUser, ...state.downloadedCreations];
       persistDownloads(updated);
       return { downloadedCreations: updated };
     }),

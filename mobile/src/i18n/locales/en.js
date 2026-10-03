@@ -292,6 +292,10 @@ nav_search_status: "Search Status",
       auth_signup_subtitle: 'Sign up to start creating your moments.',
       auth_mobile_step_title: 'Enter Mobile Number',
       auth_mobile_step_subtitle: 'Enter your mobile number to get started.',
+      auth_account_not_found_title: 'Account Not Found',
+      auth_user_not_found: 'No account found with this mobile number. Please sign up first.',
+      auth_account_exists_title: 'Account Already Exists',
+      auth_user_already_exists: 'An account with this mobile number already exists. Please log in instead.',
 
       // Settings Screen
       settings_title: 'Settings',

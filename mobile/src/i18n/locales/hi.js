@@ -271,6 +271,10 @@ nav_search_status: "स्टेटस खोजें",
       auth_signup_subtitle: 'अपने पल बनाना शुरू करने के लिए साइन अप करें।',
       auth_mobile_step_title: 'मोबाइल नंबर दर्ज करें',
       auth_mobile_step_subtitle: 'शुरू करने के लिए अपना मोबाइल नंबर दर्ज करें।',
+      auth_account_not_found_title: 'खाता नहीं मिला',
+      auth_user_not_found: 'इस मोबाइल नंबर से कोई खाता नहीं मिला। कृपया पहले साइन अप करें।',
+      auth_account_exists_title: 'खाता पहले से मौजूद है',
+      auth_user_already_exists: 'इस मोबाइल नंबर से खाता पहले से मौजूद है। कृपया लॉगिन करें।',
 
       // Settings Screen
       settings_title: 'सेटिंग्स',

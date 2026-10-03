@@ -397,20 +397,6 @@ export default function Pricing() {
           })}
         </div>
 
-        {/* Global Free Limit setting */}
-        <div className="panel p-4 sm:p-5 max-w-md bg-paper-50 border-2 border-ink shadow-hard-sm">
-          <label className="field-label text-xs uppercase font-mono">Free Template Limit</label>
-          <p className="text-[11px] text-ink-mute mb-2">
-            Number of free template unlocks allowed for standard users before paywall. (0 = unlimited free templates)
-          </p>
-          <input
-            type="number"
-            min={0}
-            value={freeTemplateLimit}
-            onChange={(e) => setFreeTemplateLimit(parseInt(e.target.value, 10) || 0)}
-            className="input font-mono font-bold"
-          />
-        </div>
 
         {/* Action Button */}
         <div className="pt-2">

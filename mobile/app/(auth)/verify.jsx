@@ -98,7 +98,7 @@ export default function VerifyScreen() {
     if (!canResend) return;
     hapticTap();
     try {
-      await requestOtp(phone, countryCode);
+      await requestOtp(phone, countryCode, isNewUser === 'true');
       setResendTimer(24);
       setCanResend(false);
     } catch (err) {
@@ -115,17 +115,8 @@ export default function VerifyScreen() {
     }
 
     try {
-      const user = await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
-      // If user has not completed profile setup yet, navigate to Create Profile
-      const needsProfile = !name && (!user?.name || user?.name.startsWith('Starpix User'));
-      if (needsProfile) {
-        router.replace({
-          pathname: '/signup',
-          params: { phone, countryCode },
-        });
-      } else {
-        router.replace('/(tabs)');
-      }
+      await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
+      router.replace('/(tabs)');
     } catch (e) {
       // Error handled in store
     }

@@ -271,6 +271,10 @@ nav_search_status: "স্ট্যাটাস খুঁজুন",
       auth_signup_subtitle: 'আপনার মুহূর্ত তৈরি শুরু করতে সাইন আপ করুন।',
       auth_mobile_step_title: 'মোবাইল নম্বর লিখুন',
       auth_mobile_step_subtitle: 'শুরু করতে আপনার মোবাইল নম্বর লিখুন।',
+      auth_account_not_found_title: 'অ্যাকাউন্ট পাওয়া যায়নি',
+      auth_user_not_found: 'এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে প্রথমে সাইন আপ করুন।',
+      auth_account_exists_title: 'অ্যাকাউন্ট ইতিমধ্যেই বিদ্যমান',
+      auth_user_already_exists: 'এই মোবাইল নম্বরে ইতিমধ্যেই একটি অ্যাকাউন্ট আছে। অনুগ্রহ করে লগইন করুন।',
 
       // Settings Screen
       settings_title: 'সেটিংস',

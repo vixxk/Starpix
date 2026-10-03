@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#07140B"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": false,
@@ -33,7 +33,8 @@
       "expo-sharing",
       "expo-status-bar",
       "expo-video",
-      "expo-audio"
+      "expo-audio",
+      "expo-splash-screen"
     ],
     "extra": {
       "router": {},

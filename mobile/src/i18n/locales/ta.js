@@ -271,6 +271,10 @@ nav_search_status: "நிலை தேடுக",
       auth_signup_subtitle: 'உங்கள் தருணங்களை உருவாக்கத் தொடங்க பதிவு செய்யவும்.',
       auth_mobile_step_title: 'மொபைல் எண்ணை உள்ளிடவும்',
       auth_mobile_step_subtitle: 'தொடங்க உங்கள் மொபைல் எண்ணை உள்ளிடவும்.',
+      auth_account_not_found_title: 'கணக்கு காணப்படவில்லை',
+      auth_user_not_found: 'இந்த மொபைல் எண்ணுடன் எந்த கணக்கும் கிடைக்கவில்லை. தயவுசெய்து முதலில் பதிவு செய்யவும்.',
+      auth_account_exists_title: 'கணக்கு ஏற்கனவே உள்ளது',
+      auth_user_already_exists: 'இந்த மொபைல் எண்ணுடன் ஏற்கனவே கணக்கு உள்ளது. தயவுசெய்து உள்நுழையவும்.',
 
       // Settings Screen
       settings_title: 'அமைப்புகள்',

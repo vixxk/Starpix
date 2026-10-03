@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -35,11 +35,17 @@ export default function LoginScreen() {
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [alertMessage, setAlertMessage] = useState(null);
+  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
 
-  const { requestOtp, isAuthenticating, error } = useAuthStore();
+  const { requestOtp, isAuthenticating, error, clearError } = useAuthStore();
+
+  useEffect(() => {
+    if (clearError) clearError();
+  }, [clearError]);
 
   const handleLogin = async () => {
     hapticTap();
+    if (clearError) clearError();
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const minLen = selectedCountry.minLen || 8;
     if (cleanPhone.length < minLen) {
@@ -48,7 +54,7 @@ export default function LoginScreen() {
     }
 
     try {
-      await requestOtp(cleanPhone, selectedCountry.dialCode);
+      await requestOtp(cleanPhone, selectedCountry.dialCode, false);
       router.push({
         pathname: '/verify',
         params: {
@@ -58,13 +64,22 @@ export default function LoginScreen() {
         },
       });
     } catch (e) {
-      // Error is set in store
+      if (e.code === 'USER_NOT_FOUND' || (e.response && e.response.status === 404)) {
+        if (clearError) clearError();
+        setShowSignUpPrompt(true);
+      }
     }
   };
 
   const openLink = (url) => {
     Linking.openURL(url).catch(() => {});
   };
+
+  const isUserNotFoundError = error && (
+    error.includes('No account found') ||
+    error.includes('sign up first') ||
+    error.includes('USER_NOT_FOUND')
+  );
 
   return (
     <View style={styles.container}>
@@ -95,8 +110,8 @@ export default function LoginScreen() {
             <Text style={styles.title}>{t('auth_welcome_title')}</Text>
             <Text style={styles.subtitle}>{t('auth_welcome_subtitle')}</Text>
 
-            {/* Error Banner */}
-            {error && (
+            {/* Error Banner - only show for other errors, not for account not found which is handled by popup */}
+            {error && !isUserNotFoundError && !showSignUpPrompt && (
               <View style={styles.errorBox}>
                 <Ionicons name="alert-circle" size={fontScale(16)} color="#EF4444" />
                 <Text style={styles.errorText}>{error}</Text>
@@ -225,6 +240,28 @@ export default function LoginScreen() {
         hideCancel
         onCancel={() => setAlertMessage(null)}
         onConfirm={() => setAlertMessage(null)}
+      />
+
+      {/* Account Not Found Modal */}
+      <ConfirmModal
+        visible={showSignUpPrompt}
+        title={t('auth_account_not_found_title')}
+        message={t('auth_user_not_found')}
+        confirmText={t('auth_sign_up_link')}
+        cancelText={t('cancel')}
+        icon="person-add-outline"
+        iconColor={COLORS.orange}
+        onCancel={() => setShowSignUpPrompt(false)}
+        onConfirm={() => {
+          setShowSignUpPrompt(false);
+          router.push({
+            pathname: '/(auth)/signup',
+            params: {
+              initialPhone: phone.replace(/[^0-9]/g, ''),
+              countryCode: selectedCountry.dialCode,
+            },
+          });
+        }}
       />
     </View>
   );

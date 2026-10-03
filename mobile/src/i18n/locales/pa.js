@@ -271,6 +271,10 @@ nav_search_status: "ਸਟੇਟਸ ਖੋਜੋ",
       auth_signup_subtitle: 'ਆਪਣੇ ਪਲ ਬਣਾਉਣਾ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਸਾਈਨ ਅੱਪ ਕਰੋ।',
       auth_mobile_step_title: 'ਮੋਬਾਈਲ ਨੰਬਰ ਦਰਜ ਕਰੋ',
       auth_mobile_step_subtitle: 'ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਆਪਣਾ ਮੋਬਾਈਲ ਨੰਬਰ ਦਰਜ ਕਰੋ।',
+      auth_account_not_found_title: 'ਖਾਤਾ ਨਹੀਂ ਮਿਲਿਆ',
+      auth_user_not_found: 'ਇਸ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਕੋਈ ਖਾਤਾ ਨਹੀਂ ਮਿਲਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਪਹਿਲਾਂ ਸਾਈਨ ਅੱਪ ਕਰੋ।',
+      auth_account_exists_title: 'ਖਾਤਾ ਪਹਿਲਾਂ ਹੀ ਮੌਜੂਦ ਹੈ',
+      auth_user_already_exists: 'ਇਸ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਪਹਿਲਾਂ ਹੀ ਖਾਤਾ ਮੌਜੂਦ ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਲੌਗਇਨ ਕਰੋ।',
 
       // Settings Screen
       settings_title: 'ਸੈਟਿੰਗਾਂ',

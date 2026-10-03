@@ -271,6 +271,10 @@ nav_search_status: "స్టేటస్ శోధించండి",
       auth_signup_subtitle: 'మీ క్షణాలను సృష్టించడం ప్రారంభించడానికి సైన్ అప్ చేయండి.',
       auth_mobile_step_title: 'మొబైల్ నంబర్‌ను నమోదు చేయండి',
       auth_mobile_step_subtitle: 'ప్రారంభించడానికి మీ మొబైల్ నంబర్‌ను నమోదు చేయండి.',
+      auth_account_not_found_title: 'ఖాతా కనుగొనబడలేదు',
+      auth_user_not_found: 'ఈ మొబైల్ నంబర్‌తో ఎలాంటి ఖాతా కనుగొనబడలేదు. దయచేసి ముందుగా సైన్ అప్ చేయండి.',
+      auth_account_exists_title: 'ఖాతా ఇప్పటికే ఉంది',
+      auth_user_already_exists: 'ఈ మొబైల్ నంబర్‌తో ఇప్పటికే ఖాతా ఉంది. దయచేసి లాగిన్ అవ్వండి.',
 
       // Settings Screen
       settings_title: 'సెట్టింగ్‌లు',

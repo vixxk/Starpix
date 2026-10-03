@@ -12,7 +12,6 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
 import SectionHeader from '../../src/components/SectionHeader';
-import BackButton from '../../src/components/BackButton';
 import Skeleton from '../../src/components/Skeleton';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
 import ConfirmModal from '../../src/components/ConfirmModal';
@@ -180,7 +179,14 @@ export default function DownloadsScreen() {
     });
   });
 
-  downloadedCreations.forEach((item) => {
+  const userLocalCreations = downloadedCreations.filter((item) => {
+    if (!user) return false;
+    const currentUserId = String(user._id || user.id || '');
+    if (!item.userId) return true;
+    return String(item.userId) === currentUserId;
+  });
+
+  userLocalCreations.forEach((item) => {
     const cId = getCreationId(item);
     const tId = getTemplateId(item);
     const text = item.editedText || item.userNameText || item.customizationState?.userNameText || '';
@@ -348,24 +354,15 @@ export default function DownloadsScreen() {
     <AppBackground>
       <StatusBar style="dark" />
       <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {fromScreen ? (
-            <View style={{ paddingLeft: SCREEN_PAD, paddingTop: hp(0.01) }}>
-              <BackButton onBack={handleBack} />
-            </View>
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <SectionHeader
-              icon="📥"
-              title={t('my_creations')}
-              subtitle={t('downloads_subtitle')}
-              style={[styles.header, fromScreen && { marginTop: 0 }]}
-            />
-          </View>
-        </View>
+        <SectionHeader
+          icon="📥"
+          title={t('my_creations')}
+          subtitle={t('downloads_subtitle')}
+          style={styles.header}
+        />
 
         {/* Clear All Toolbar */}
-        {allCreations.length > 0 && (
+        {!loading && allCreations.length > 0 && (
           <View style={styles.clearRow}>
             <Text style={styles.clearHint}>
               {allCreations.length} saved {allCreations.length === 1 ? 'creation' : 'creations'}
@@ -382,7 +379,7 @@ export default function DownloadsScreen() {
           </View>
         )}
 
-        {loading && allCreations.length === 0 ? (
+        {loading ? (
           <View style={styles.loadingContainer}>
             <View style={styles.downloadSkeletonCard}>
               <Skeleton height={130} width={90} borderRadius={14} />
@@ -403,6 +400,19 @@ export default function DownloadsScreen() {
                 <View>
                   <Skeleton height={18} width="65%" borderRadius={6} />
                   <Skeleton height={13} width="40%" borderRadius={4} style={{ marginTop: 6 }} />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Skeleton height={36} width="46%" borderRadius={10} />
+                  <Skeleton height={36} width="46%" borderRadius={10} />
+                </View>
+              </View>
+            </View>
+            <View style={[styles.downloadSkeletonCard, { marginTop: 12 }]}>
+              <Skeleton height={130} width={90} borderRadius={14} />
+              <View style={{ flex: 1, marginLeft: 12, justifyContent: 'space-between', paddingVertical: 4 }}>
+                <View>
+                  <Skeleton height={18} width="55%" borderRadius={6} />
+                  <Skeleton height={13} width="35%" borderRadius={4} style={{ marginTop: 6 }} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <Skeleton height={36} width="46%" borderRadius={10} />

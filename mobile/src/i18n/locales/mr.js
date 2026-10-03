@@ -308,6 +308,10 @@ nav_search_status: "स्टेटस शोधा",
       auth_signup_subtitle: 'आपले क्षण तयार करणे सुरू करण्यासाठी साइन अप करा.',
       auth_mobile_step_title: 'मोबाईल नंबर प्रविष्ट करा',
       auth_mobile_step_subtitle: 'सुरू करण्यासाठी आपला मोबाईल नंबर प्रविष्ट करा.',
+      auth_account_not_found_title: 'खाते सापडले नाही',
+      auth_user_not_found: 'या मोबाईल क्रमांकासह कोणतेही खाते सापडले नाही. कृपया आधी साइन अप करा.',
+      auth_account_exists_title: 'खाते आधीच अस्तित्वात आहे',
+      auth_user_already_exists: 'या मोबाईल क्रमांकासह आधीच खाते अस्तित्वात आहे. कृपया लॉगिन करा.',
 
       // Settings Screen
       settings_title: 'सेटिंग्ज',

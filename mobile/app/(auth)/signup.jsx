@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   ScrollView,
   Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,6 +28,7 @@ export default function SignupScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { initialPhone, countryCode: initialCountryCode } = useLocalSearchParams();
 
   // Step 1: 'profile' (Name, Email), Step 2: 'phone' (Mobile Number)
   const [step, setStep] = useState('profile');
@@ -38,17 +39,29 @@ export default function SignupScreen() {
   const [focusedInput, setFocusedInput] = useState(null);
 
   // Step 2 fields
-  const [phone, setPhone] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
+  const [phone, setPhone] = useState(initialPhone || '');
+  const [selectedCountry, setSelectedCountry] = useState(() => {
+    if (initialCountryCode) {
+      const found = COUNTRIES.find((c) => c.dialCode === initialCountryCode);
+      if (found) return found;
+    }
+    return COUNTRIES[0];
+  });
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [isPhoneFocused, setIsPhoneFocused] = useState(false);
 
   const [alertMessage, setAlertMessage] = useState(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
-  const { requestOtp, isAuthenticating, error } = useAuthStore();
+  const { requestOtp, isAuthenticating, error, clearError } = useAuthStore();
+
+  useEffect(() => {
+    if (clearError) clearError();
+  }, [clearError]);
 
   const handleContinueProfile = () => {
     hapticTap();
+    if (clearError) clearError();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
 
@@ -71,6 +84,7 @@ export default function SignupScreen() {
 
   const handleRequestOtp = async () => {
     hapticTap();
+    if (clearError) clearError();
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const minLen = selectedCountry.minLen || 8;
     if (cleanPhone.length < minLen) {
@@ -79,7 +93,7 @@ export default function SignupScreen() {
     }
 
     try {
-      await requestOtp(cleanPhone, selectedCountry.dialCode);
+      await requestOtp(cleanPhone, selectedCountry.dialCode, true);
       router.push({
         pathname: '/verify',
         params: {
@@ -91,7 +105,10 @@ export default function SignupScreen() {
         },
       });
     } catch (e) {
-      // Error is set in store
+      if (e.code === 'USER_ALREADY_EXISTS' || (e.response && e.response.status === 409)) {
+        if (clearError) clearError();
+        setShowLoginPrompt(true);
+      }
     }
   };
 
@@ -215,7 +232,7 @@ export default function SignupScreen() {
                 <Text style={styles.subtitle}>{t('auth_mobile_step_subtitle')}</Text>
 
                 {/* Error Banner */}
-                {error && (
+                {error && !error.includes('already exists') && !showLoginPrompt && (
                   <View style={styles.errorBox}>
                     <Ionicons name="alert-circle" size={fontScale(16)} color="#EF4444" />
                     <Text style={styles.errorText}>{error}</Text>
@@ -347,6 +364,22 @@ export default function SignupScreen() {
         hideCancel
         onCancel={() => setAlertMessage(null)}
         onConfirm={() => setAlertMessage(null)}
+      />
+
+      {/* Account Already Exists Modal */}
+      <ConfirmModal
+        visible={showLoginPrompt}
+        title={t('auth_account_exists_title')}
+        message={t('auth_user_already_exists')}
+        confirmText={t('auth_login_link')}
+        cancelText={t('cancel')}
+        icon="log-in-outline"
+        iconColor={COLORS.orange}
+        onCancel={() => setShowLoginPrompt(false)}
+        onConfirm={() => {
+          setShowLoginPrompt(false);
+          router.push('/(auth)/login');
+        }}
       />
     </View>
   );
