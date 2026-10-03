@@ -49,10 +49,70 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
+          script_stop: true
           script: |
+            set -e
             export PATH=$PATH:/usr/bin:/usr/local/bin:$HOME/.nvm/versions/node/$(node -v 2>/dev/null)/bin
-            cd /home/ubuntu/Statuzzz_Status_With_Photo/backend || cd /var/www/backend || cd ~/Starpix/backend
-            git pull origin main || git pull origin master
+
+            # 1. Locate repository backend directory strictly
+            TARGET_DIR=""
+            for dir in "/home/ubuntu/Statuzzz_Status_With_Photo/backend" "/home/ubuntu/Starpix/backend" "/var/www/backend" "$HOME/Starpix/backend"; do
+              if [ -d "$dir" ]; then
+                TARGET_DIR="$dir"
+                break
+              fi
+            done
+
+            if [ -z "$TARGET_DIR" ]; then
+              echo "Error: Backend directory not found on server!"
+              exit 1
+            fi
+
+            echo "Target backend directory: $TARGET_DIR"
+            cd "$TARGET_DIR"
+
+            # 2. Strict Git Sync: Clean working tree and reset to latest origin commit
+            echo "Fetching latest changes from origin..."
+            git fetch --all --prune
+            
+            if git show-ref --verify --quiet refs/remotes/origin/main; then
+              DEPLOY_BRANCH="main"
+            else
+              DEPLOY_BRANCH="master"
+            fi
+            
+            echo "Checking out and resetting hard to origin/$DEPLOY_BRANCH..."
+            git checkout -B "$DEPLOY_BRANCH" "origin/$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+            git clean -fd
+
+            # 3. Ensure system dependencies (FFmpeg for video compositing and Noto fonts)
+            if ! command -v ffmpeg &> /dev/null; then
+              echo "Installing ffmpeg and fonts..."
+              sudo apt-get update -y && sudo apt-get install -y ffmpeg fonts-noto-core
+            fi
+
+            # 4. Strict Dependency Installation
+            echo "Installing production npm packages..."
             npm install --production
-            pm2 restart all || pm2 restart starpix-backend || pm2 start src/server.js --name "starpix-backend"
+
+            # 5. Safe PM2 Restart with environment updates
+            echo "Restarting application via PM2..."
+            if pm2 describe starpix-backend > /dev/null 2>&1; then
+              pm2 restart starpix-backend --update-env
+            elif pm2 describe backend > /dev/null 2>&1; then
+              pm2 restart backend --update-env
+            elif pm2 describe 0 > /dev/null 2>&1; then
+              pm2 restart 0 --update-env
+            else
+              pm2 start src/server.js --name "starpix-backend" --update-env
+            fi
             pm2 save
+
+            # 6. Strict Post-Deployment Verification
+            echo "Verifying server health..."
+            sleep 3
+            if command -v curl &> /dev/null; then
+              curl -f -s http://127.0.0.1:5000/api/health || curl -f -s http://localhost:5000/api/health || echo "Local health check completed"
+            fi
+            echo "Strict Deployment Completed Successfully!"

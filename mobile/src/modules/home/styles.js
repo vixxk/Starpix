@@ -16,6 +16,9 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   userGreetingWrap: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
     justifyContent: 'center',
   },
   welcomeText: {
@@ -25,7 +28,7 @@ export const styles = StyleSheet.create({
     marginBottom: 1,
   },
   userNameText: {
-    fontSize: fontScale(21),
+    fontSize: fontScale(20),
     fontFamily: FONTS.bold,
     color: '#111827',
     letterSpacing: -0.3,
@@ -33,7 +36,8 @@ export const styles = StyleSheet.create({
   headerActionsWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: wp(0.02),
+    flexShrink: 0,
+    gap: wp(0.018),
   },
   aiTrendsBtn: {
     backgroundColor: '#FFFFFF',
@@ -447,5 +451,28 @@ export const styles = StyleSheet.create({
     fontSize: fontScale(12),
     fontFamily: FONTS.regular,
     color: '#6B7280',
+  },
+  floatingLoaderBadge: {
+    position: 'absolute',
+    top: hp(0.12),
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(17, 24, 39, 0.92)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 8,
+    zIndex: 100,
+    elevation: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  floatingLoaderText: {
+    color: '#FFFFFF',
+    fontSize: fontScale(13),
+    fontFamily: FONTS.semiBold,
   },
 });

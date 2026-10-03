@@ -13,6 +13,7 @@ import {
   Dimensions,
   Animated,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -62,6 +63,21 @@ export default function HomeScreen() {
 
   const displayName = user?.name || user?.fullName || storeUserNameText || 'Uika';
   const displayPhoto = user?.profilePhoto || storeUserPhotoUri || null;
+
+  // Header Greeting: Use first name only, and if multi-word or long, append '...'
+  const greetingName = useMemo(() => {
+    if (!displayName) return 'User';
+    const trimmed = displayName.trim();
+    const parts = trimmed.split(/\s+/);
+    const firstName = parts[0] || trimmed;
+    if (parts.length > 1 || firstName.length > 10) {
+      const truncated = firstName.length > 10 ? firstName.slice(0, 9) : firstName;
+      return `${truncated}...`;
+    }
+    return firstName;
+  }, [displayName]);
+
+  const [actionLoading, setActionLoading] = useState(null); // { type: 'download' | 'share', id: string }
 
   const [activeCategory, setActiveCategory] = useState('special');
   const [reels, setReels] = useState([]);
@@ -308,6 +324,8 @@ export default function HomeScreen() {
       return;
     }
 
+    setActionLoading({ type: 'download', id: target.id });
+
     try {
       const targetFrame = selectedFrames[target.id] !== undefined
         ? selectedFrames[target.id]
@@ -346,7 +364,7 @@ export default function HomeScreen() {
               canvasConfig: target.canvasConfig || null,
               selectedFooter: activeCustomFooter,
             },
-          });
+          }, { timeout: 60000 });
           if (res.data?.data?.downloadUrl) {
             resolved = res.data.data.downloadUrl;
             if (typeof res.data.data.isVideo === 'boolean') {
@@ -433,10 +451,13 @@ export default function HomeScreen() {
     } catch (err) {
       console.warn('Home download error:', err);
       showToast(t('download_saved_msg') || 'Status saved successfully!');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDownload = async (reelItem) => {
+    if (actionLoading) return;
     hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
     const target = reelItem || activeReel;
     if (!target) return;
@@ -448,7 +469,7 @@ export default function HomeScreen() {
       return;
     }
 
-    executeDownload(target);
+    await executeDownload(target);
   };
 
   const executeShare = async (target) => {
@@ -461,6 +482,8 @@ export default function HomeScreen() {
       } catch (e) {}
       return;
     }
+
+    setActionLoading({ type: 'share', id: target.id });
 
     try {
       const targetFrame = selectedFrames[target.id] !== undefined
@@ -500,7 +523,7 @@ export default function HomeScreen() {
               canvasConfig: target.canvasConfig || null,
               selectedFooter: activeCustomFooter,
             },
-          });
+          }, { timeout: 60000 });
           const link = res.data?.data?.shareUrl || res.data?.data?.downloadUrl;
           if (link) {
             resolved = link;
@@ -587,10 +610,13 @@ export default function HomeScreen() {
           message: `${target?.title || 'Happy Durga Puja'} - Created on StarPix! Check out trending AI statuses.`,
         });
       } catch (err) {}
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleShare = async (reelItem) => {
+    if (actionLoading) return;
     hapticImpact(Haptics.ImpactFeedbackStyle.Light);
     const target = reelItem || activeReel;
     if (!target) return;
@@ -602,7 +628,7 @@ export default function HomeScreen() {
       return;
     }
 
-    executeShare(target);
+    await executeShare(target);
   };
 
   const handleConfirmPaidAction = async () => {
@@ -848,37 +874,57 @@ export default function HomeScreen() {
         <View style={[styles.actionRow, { width: controlsWidth }]}>
           {/* Download Button */}
           <PressableScale
-            onPress={() => handleDownload(item)}
+            onPress={() => !actionLoading && handleDownload(item)}
             scaleTo={0.95}
-            style={styles.downloadActionBtn}
+            disabled={Boolean(actionLoading)}
+            style={[
+              styles.downloadActionBtn,
+              actionLoading?.id === item.id && actionLoading?.type === 'download' && { opacity: 0.85 },
+            ]}
             contentStyle={styles.actionBtnContent}
           >
-            <Ionicons name="download-outline" size={fontScale(16)} color="#FFFFFF" />
+            {actionLoading?.id === item.id && actionLoading?.type === 'download' ? (
+              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 4 }} />
+            ) : (
+              <Ionicons name="download-outline" size={fontScale(16)} color="#FFFFFF" />
+            )}
             <Text
               style={styles.downloadActionText}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.8}
             >
-              {t('download')}
+              {actionLoading?.id === item.id && actionLoading?.type === 'download'
+                ? (t('downloading') || 'Downloading...')
+                : t('download')}
             </Text>
           </PressableScale>
 
           {/* Share Button */}
           <PressableScale
-            onPress={() => handleShare(item)}
+            onPress={() => !actionLoading && handleShare(item)}
             scaleTo={0.95}
-            style={styles.shareActionBtn}
+            disabled={Boolean(actionLoading)}
+            style={[
+              styles.shareActionBtn,
+              actionLoading?.id === item.id && actionLoading?.type === 'share' && { opacity: 0.85 },
+            ]}
             contentStyle={styles.actionBtnContent}
           >
-            <Ionicons name="share-outline" size={fontScale(16)} color="#FFFFFF" />
+            {actionLoading?.id === item.id && actionLoading?.type === 'share' ? (
+              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 4 }} />
+            ) : (
+              <Ionicons name="share-outline" size={fontScale(16)} color="#FFFFFF" />
+            )}
             <Text
               style={styles.shareActionText}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.8}
             >
-              {t('share')}
+              {actionLoading?.id === item.id && actionLoading?.type === 'share'
+                ? (t('sharing') || 'Sharing...')
+                : t('share')}
             </Text>
           </PressableScale>
 
@@ -886,6 +932,7 @@ export default function HomeScreen() {
           <PressableScale
             onPress={handleEdit}
             scaleTo={0.95}
+            disabled={Boolean(actionLoading)}
             style={styles.editActionBtn}
             contentStyle={styles.actionBtnContent}
           >
@@ -986,8 +1033,8 @@ export default function HomeScreen() {
         {/* Left: Welcome & User Name */}
         <View style={styles.userGreetingWrap}>
           <Text style={styles.welcomeText}>{t('welcome')}</Text>
-          <Text style={styles.userNameText} numberOfLines={1}>
-            {displayName}
+          <Text style={styles.userNameText} numberOfLines={1} ellipsizeMode="tail">
+            {greetingName}
           </Text>
         </View>
 
@@ -1202,6 +1249,18 @@ export default function HomeScreen() {
         onClose={() => setShowLanguageModal(false)}
         onSelectLanguage={handleChangeLanguage}
       />
+
+      {/* Floating HUD loader when processing download or share */}
+      {actionLoading ? (
+        <View style={styles.floatingLoaderBadge}>
+          <ActivityIndicator size="small" color="#FFFFFF" />
+          <Text style={styles.floatingLoaderText}>
+            {actionLoading.type === 'download'
+              ? (t('downloading') || 'Downloading...')
+              : (t('sharing') || 'Sharing...')}
+          </Text>
+        </View>
+      ) : null}
 
       <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
     </View>

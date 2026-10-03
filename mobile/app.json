@@ -9,7 +9,7 @@
     "scheme": "starpix",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/adaptive-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
@@ -23,7 +23,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "splash": {
-        "image": "./assets/icon.png",
+        "image": "./assets/adaptive-icon.png",
         "resizeMode": "contain",
         "backgroundColor": "#FFFFFF"
       },
@@ -39,7 +39,15 @@
       "expo-status-bar",
       "expo-video",
       "expo-audio",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
     ],
     "extra": {
       "router": {},
