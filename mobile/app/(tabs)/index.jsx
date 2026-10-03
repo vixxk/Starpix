@@ -64,17 +64,12 @@ export default function HomeScreen() {
   const displayName = user?.name || user?.fullName || storeUserNameText || 'Uika';
   const displayPhoto = user?.profilePhoto || storeUserPhotoUri || null;
 
-  // Header Greeting: Use first name only, and if multi-word or long, append '...'
+  // Header Greeting: Show first name only; ellipsis (...) is applied dynamically by Text ellipsizeMode only if it overflows
   const greetingName = useMemo(() => {
     if (!displayName) return 'User';
     const trimmed = displayName.trim();
     const parts = trimmed.split(/\s+/);
-    const firstName = parts[0] || trimmed;
-    if (parts.length > 1 || firstName.length > 10) {
-      const truncated = firstName.length > 10 ? firstName.slice(0, 9) : firstName;
-      return `${truncated}...`;
-    }
-    return firstName;
+    return parts[0] || trimmed || 'User';
   }, [displayName]);
 
   const [actionLoading, setActionLoading] = useState(null); // { type: 'download' | 'share', id: string }
@@ -510,10 +505,10 @@ export default function HomeScreen() {
       let resolved = resolveMediaUrl(mediaSource);
       let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
 
-      // Request personalized share link with footers, user photo, and user name
+      // Request server-side personalized render with footers, user photo, and user name (using proven compositing endpoint)
       if (target.id && !String(target.id).startsWith('durga_')) {
         try {
-          const res = await API.post(`/creations/${target.id}/share`, {
+          const res = await API.post(`/creations/${target.id}/download`, {
             userNameText: displayName,
             userPhotoUri: remoteUserPhoto || displayPhoto,
             selectedFooter: activeCustomFooter,
@@ -526,12 +521,37 @@ export default function HomeScreen() {
               selectedFooter: activeCustomFooter,
             },
           }, { timeout: 60000 });
-          const link = res.data?.data?.shareUrl || res.data?.data?.downloadUrl;
+          const link = res.data?.data?.downloadUrl || res.data?.data?.shareUrl;
           if (link) {
             resolved = link;
+            if (typeof res.data?.data?.isVideo === 'boolean') {
+              isVideo = res.data.data.isVideo;
+            }
           }
         } catch (errApi) {
-          console.warn('Personalized share endpoint notice:', errApi?.message);
+          console.warn('Personalized share /download endpoint notice:', errApi?.message);
+          try {
+            const fallbackRes = await API.post(`/creations/${target.id}/share`, {
+              userNameText: displayName,
+              userPhotoUri: remoteUserPhoto || displayPhoto,
+              selectedFooter: activeCustomFooter,
+              customizationState: {
+                userNameText: displayName,
+                userPhotoUri: remoteUserPhoto || displayPhoto,
+                selectedFrame: targetFrame,
+                footers: target.footers || [],
+                canvasConfig: target.canvasConfig || null,
+                selectedFooter: activeCustomFooter,
+              },
+            }, { timeout: 30000 });
+            const link = fallbackRes.data?.data?.shareUrl || fallbackRes.data?.data?.downloadUrl;
+            if (link) {
+              resolved = link;
+              if (typeof fallbackRes.data?.data?.isVideo === 'boolean') {
+                isVideo = fallbackRes.data.data.isVideo;
+              }
+            }
+          } catch (fallbackErr) {}
         }
       }
 
@@ -886,20 +906,20 @@ export default function HomeScreen() {
             contentStyle={styles.actionBtnContent}
           >
             {actionLoading?.id === item.id && actionLoading?.type === 'download' ? (
-              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 4 }} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Ionicons name="download-outline" size={fontScale(16)} color="#FFFFFF" />
+              <>
+                <Ionicons name="download-outline" size={fontScale(16)} color="#FFFFFF" />
+                <Text
+                  style={styles.downloadActionText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('download')}
+                </Text>
+              </>
             )}
-            <Text
-              style={styles.downloadActionText}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
-              {actionLoading?.id === item.id && actionLoading?.type === 'download'
-                ? (t('downloading') || 'Downloading...')
-                : t('download')}
-            </Text>
           </PressableScale>
 
           {/* Share Button */}
@@ -914,20 +934,20 @@ export default function HomeScreen() {
             contentStyle={styles.actionBtnContent}
           >
             {actionLoading?.id === item.id && actionLoading?.type === 'share' ? (
-              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 4 }} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Ionicons name="share-outline" size={fontScale(16)} color="#FFFFFF" />
+              <>
+                <Ionicons name="share-outline" size={fontScale(16)} color="#FFFFFF" />
+                <Text
+                  style={styles.shareActionText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('share')}
+                </Text>
+              </>
             )}
-            <Text
-              style={styles.shareActionText}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
-              {actionLoading?.id === item.id && actionLoading?.type === 'share'
-                ? (t('sharing') || 'Sharing...')
-                : t('share')}
-            </Text>
           </PressableScale>
 
           {/* Edit Button */}
@@ -1033,12 +1053,19 @@ export default function HomeScreen() {
       {/* Top Header Bar */}
       <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 10) }]}>
         {/* Left: Welcome & User Name */}
-        <View style={styles.userGreetingWrap}>
+        <TouchableOpacity
+          style={styles.userGreetingWrap}
+          onPress={() => {
+            hapticTap();
+            router.push('/profile');
+          }}
+          activeOpacity={0.8}
+        >
           <Text style={styles.welcomeText}>{t('welcome')}</Text>
           <Text style={styles.userNameText} numberOfLines={1} ellipsizeMode="tail">
             {greetingName}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Right Action Icons & Buttons */}
         <View style={styles.headerActionsWrap}>
@@ -1252,17 +1279,6 @@ export default function HomeScreen() {
         onSelectLanguage={handleChangeLanguage}
       />
 
-      {/* Floating HUD loader when processing download or share */}
-      {actionLoading ? (
-        <View style={styles.floatingLoaderBadge}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
-          <Text style={styles.floatingLoaderText}>
-            {actionLoading.type === 'download'
-              ? (t('downloading') || 'Downloading...')
-              : (t('sharing') || 'Sharing...')}
-          </Text>
-        </View>
-      ) : null}
 
       <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
     </View>

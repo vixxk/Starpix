@@ -323,7 +323,7 @@ export default function PreviewScreen() {
       }
 
       try {
-        const res = await API.post(`/creations/${activeTemplate._id}/share`, {
+        const res = await API.post(`/creations/${activeTemplate._id}/download`, {
           userNameText,
           userQuoteText,
           userPhotoUri: remoteUserPhoto || userPhotoUri,
@@ -343,11 +343,41 @@ export default function PreviewScreen() {
         }, { timeout: 60000 });
 
         if (res.data && res.data.data) {
-          const link = res.data.data.shareUrl || res.data.data.downloadUrl;
+          const link = res.data.data.downloadUrl || res.data.data.shareUrl;
           if (link) downloadUrl = link;
+          if (typeof res.data.data.isVideo === 'boolean') {
+            isVideo = res.data.data.isVideo;
+          }
         }
       } catch (shareErrApi) {
         console.warn('Personalized share endpoint notice:', shareErrApi?.message);
+        try {
+          const fallbackRes = await API.post(`/creations/${activeTemplate._id}/share`, {
+            userNameText,
+            userQuoteText,
+            userPhotoUri: remoteUserPhoto || userPhotoUri,
+            selectedFooter: effectiveFooter,
+            photoTransform: {
+              scale: photoScale,
+              rotation: photoRotation,
+              offsetX: photoOffsetX,
+              offsetY: photoOffsetY,
+            },
+            nameTransform: {
+              offsetX: nameOffsetX,
+              offsetY: nameOffsetY,
+              fontSizeScale: nameFontSizeScale,
+            },
+            customizationState,
+          }, { timeout: 30000 });
+          if (fallbackRes.data && fallbackRes.data.data) {
+            const link = fallbackRes.data.data.shareUrl || fallbackRes.data.data.downloadUrl;
+            if (link) downloadUrl = link;
+            if (typeof fallbackRes.data.data.isVideo === 'boolean') {
+              isVideo = fallbackRes.data.data.isVideo;
+            }
+          }
+        } catch (e2) {}
       }
 
       const ext = isVideo ? 'mp4' : 'jpg';
@@ -595,10 +625,7 @@ export default function PreviewScreen() {
                 contentStyle={styles.actionContent}
               >
                 {sharing ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color={COLORS.orange} />
-                    <Text style={styles.shareText}>{t('share')}…</Text>
-                  </View>
+                  <ActivityIndicator size="small" color={COLORS.orange} />
                 ) : (
                   <React.Fragment>
                     <Ionicons name="share-social-outline" size={19} color={COLORS.orange} />
@@ -616,10 +643,7 @@ export default function PreviewScreen() {
                 contentStyle={styles.actionContent}
               >
                 {downloading ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                    <Text style={styles.downloadText}>{t('download')}…</Text>
-                  </View>
+                  <ActivityIndicator size="small" color={COLORS.white} />
                 ) : (
                   <React.Fragment>
                     <Ionicons name="download-outline" size={20} color={COLORS.white} />

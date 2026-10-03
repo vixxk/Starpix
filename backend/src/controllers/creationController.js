@@ -216,10 +216,12 @@ const downloadCreation = asyncHandler(async (req, res) => {
     success: true,
     data: {
       downloadUrl,
+      shareUrl: downloadUrl,
       expiresInSeconds: 300,
       format: outputFormat,
       isVideo: isVideoResult,
       watermarkRemoved: true,
+      message: 'Check out my personalized status creation on Starpix!',
     },
   });
 });
@@ -228,82 +230,8 @@ const downloadCreation = asyncHandler(async (req, res) => {
 // @route   POST /api/creations/:templateId/share
 // @access  Public (free) / Private (User)
 const shareCreation = asyncHandler(async (req, res) => {
-  const { templateId } = req.params;
-  const userId = req.user ? req.user._id : null;
-
-  const template = await Template.findById(templateId);
-  if (!template) {
-    return res.status(404).json({ success: false, message: 'Template not found' });
-  }
-
-  let isAuthorized = false;
-  if (template.accessType === 'free') {
-    isAuthorized = true;
-  } else if (userId) {
-    const purchase = await Purchase.findOne({
-      userId,
-      templateId,
-      status: 'successful',
-    });
-    if (purchase) isAuthorized = true;
-  }
-
-  if (!isAuthorized) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. Unlock creation before sharing.',
-      errorCode: 'ENTITLEMENT_REQUIRED',
-    });
-  }
-
-  const {
-    userNameText,
-    userQuoteText,
-    userPhotoUri,
-    selectedFooter,
-    photoTransform,
-    nameTransform,
-    customizationState,
-  } = { ...(req.query || {}), ...(req.body || {}) };
-
-  const customState = customizationState || {};
-  const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
-  const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
-  const effectiveFooter = selectedFooter !== undefined ? selectedFooter : (customState.selectedFooter !== undefined ? customState.selectedFooter : (template.footers && template.footers.length > 0 ? template.footers[0] : null));
-
-  let shareUrl = null;
-
-  try {
-    const rendered = await renderPersonalizedTemplate({
-      template,
-      userNameText: effectiveUserName,
-      userQuoteText: userQuoteText || customState.userQuoteText || '',
-      userPhotoUri: effectiveUserPhoto,
-      selectedFooter: effectiveFooter,
-      photoTransform: photoTransform || customState.photoTransform || {},
-      nameTransform: nameTransform || customState.nameTransform || {},
-      req,
-    });
-
-    if (rendered && rendered.downloadUrl) {
-      shareUrl = rendered.downloadUrl;
-    }
-  } catch (renderErr) {
-    console.warn('[CreationController] Error in personalized share render:', renderErr.message);
-  }
-
-  if (!shareUrl) {
-    shareUrl = await getSignedDownloadUrl(template.mainMedia, 600);
-  }
-
-  res.status(200).json({
-    success: true,
-    data: {
-      shareUrl,
-      downloadUrl: shareUrl,
-      message: `Check out my personalized status creation on Starpix!`,
-    },
-  });
+  // Sharing requires the exact same personalized compositing and entitlement check as download
+  return downloadCreation(req, res);
 });
 
 module.exports = {

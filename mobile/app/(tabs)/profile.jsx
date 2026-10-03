@@ -204,7 +204,7 @@ export default function SettingsScreen() {
                 </View>
 
                 <View style={styles.identity}>
-                  <Text style={styles.userName} numberOfLines={1}>
+                  <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
                     {user.name || 'Starpix User'}
                   </Text>
                   <Text style={styles.userPhone}>{user.phoneNumber || '+91'}</Text>
