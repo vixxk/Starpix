@@ -291,9 +291,27 @@ export default function DownloadsScreen() {
 
   const handleRedownload = async (item) => {
     try {
-      const uri = item.image || item.localUri;
+      let uri = item.mediaUrl || item.image || item.localUri;
       if (!uri) return;
       setDownloadingId(item._id);
+
+      const tId = getTemplateId(item);
+      // If legacy item that does not have rendered composed video URL yet
+      if (tId && (!isVideoMedia(uri)) && (item.mediaType === 'video' || item.template?.type === 'video' || item.activeTemplate?.type === 'video')) {
+        try {
+          const res = await API.post(`/creations/${tId}/download`, {
+            userNameText: item.userNameText || item.editedText,
+            userPhotoUri: item.userPhotoUri || item.editedPhoto,
+            selectedFooter: item.selectedFooter,
+            customizationState: item.customizationState,
+          });
+          if (res.data?.data?.downloadUrl) {
+            uri = res.data.data.downloadUrl;
+          }
+        } catch (e) {
+          console.warn('Legacy re-compose fallback notice:', e?.message);
+        }
+      }
 
       const isVideo = isVideoMedia(uri);
       const ext = isVideo ? 'mp4' : 'jpg';
@@ -317,7 +335,7 @@ export default function DownloadsScreen() {
       setRedownloadSuccessAlert(true);
     } catch (err) {
       console.error('Re-download error:', err);
-      handleShare(item.image, item._id);
+      handleShare(item.mediaUrl || item.image, item._id);
     } finally {
       setDownloadingId(null);
     }

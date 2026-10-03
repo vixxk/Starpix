@@ -8,14 +8,17 @@ const {
   downloadCreation,
   shareCreation,
 } = require('../controllers/creationController');
-const { protectUser } = require('../middleware/authMiddleware');
+const { protectUser, optionalProtectUser } = require('../middleware/authMiddleware');
 
 router.post('/save-download', protectUser, saveCreationDownload);
 router.get('/my-downloads', protectUser, getUserDownloads);
 router.delete('/clear-all', protectUser, clearAllDownloads);
 router.delete('/:id', protectUser, deleteCreation);
 
-router.get('/:templateId/download', protectUser, downloadCreation);
-router.post('/:templateId/share', protectUser, shareCreation);
+router.route('/:templateId/download')
+  .get(optionalProtectUser, downloadCreation)
+  .post(optionalProtectUser, downloadCreation);
+
+router.post('/:templateId/share', optionalProtectUser, shareCreation);
 
 module.exports = router;

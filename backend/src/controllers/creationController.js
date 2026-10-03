@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Creation = require('../models/Creation');
 const Analytics = require('../models/Analytics');
 const { uploadToS3, getSignedDownloadUrl } = require('../services/s3Service');
+const { renderPersonalizedTemplate } = require('../services/videoRenderingService');
 
 // @desc    Record a new download/creation (uploads image to AWS S3 & saves Creation document)
 // @route   POST /api/creations/save-download
@@ -127,11 +128,11 @@ const clearAllDownloads = asyncHandler(async (req, res) => {
 });
 
 // @desc    Download final high quality personalized creation
-// @route   GET /api/creations/:templateId/download
-// @access  Private (User)
+// @route   GET or POST /api/creations/:templateId/download
+// @access  Public (free) / Private (User)
 const downloadCreation = asyncHandler(async (req, res) => {
   const { templateId } = req.params;
-  const userId = req.user._id;
+  const userId = req.user ? req.user._id : null;
 
   const template = await Template.findById(templateId);
   if (!template) {
@@ -143,7 +144,7 @@ const downloadCreation = asyncHandler(async (req, res) => {
 
   if (template.accessType === 'free') {
     isAuthorized = true;
-  } else {
+  } else if (userId) {
     const user = await User.findById(userId);
     if (user && user.isPremium && user.subscriptionStatus === 'active') {
       isAuthorized = true;
@@ -167,15 +168,57 @@ const downloadCreation = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate short-lived signed URL (300 seconds)
-  const downloadUrl = await getSignedDownloadUrl(template.mainMedia, 300);
+  const {
+    userNameText,
+    userQuoteText,
+    userPhotoUri,
+    selectedFooter,
+    photoTransform,
+    nameTransform,
+    customizationState,
+  } = { ...(req.query || {}), ...(req.body || {}) };
+
+  const customState = customizationState || {};
+  const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
+  const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
+  const effectiveFooter = selectedFooter || customState.selectedFooter || (template.footers && template.footers.length > 0 ? template.footers[0] : null);
+
+  let downloadUrl = null;
+  let isVideoResult = Boolean(template.type === 'video');
+  let outputFormat = isVideoResult ? 'mp4' : 'jpg';
+
+  try {
+    const rendered = await renderPersonalizedTemplate({
+      template,
+      userNameText: effectiveUserName,
+      userQuoteText: userQuoteText || customState.userQuoteText || '',
+      userPhotoUri: effectiveUserPhoto,
+      selectedFooter: effectiveFooter,
+      photoTransform: photoTransform || customState.photoTransform || {},
+      nameTransform: nameTransform || customState.nameTransform || {},
+      req,
+    });
+
+    if (rendered && rendered.downloadUrl) {
+      downloadUrl = rendered.downloadUrl;
+      isVideoResult = rendered.isVideo;
+      outputFormat = rendered.format;
+    }
+  } catch (renderErr) {
+    console.warn('[CreationController] Error in personalized render, falling back to raw media:', renderErr.message);
+  }
+
+  if (!downloadUrl) {
+    downloadUrl = await getSignedDownloadUrl(template.mainMedia, 300);
+  }
 
   res.status(200).json({
     success: true,
     data: {
       downloadUrl,
       expiresInSeconds: 300,
-      format: template.type === 'video' ? 'mp4' : 'png',
+      format: outputFormat,
+      isVideo: isVideoResult,
       watermarkRemoved: true,
     },
   });
@@ -183,10 +226,10 @@ const downloadCreation = asyncHandler(async (req, res) => {
 
 // @desc    Authorize and prepare share link for creation
 // @route   POST /api/creations/:templateId/share
-// @access  Private (User)
+// @access  Public (free) / Private (User)
 const shareCreation = asyncHandler(async (req, res) => {
   const { templateId } = req.params;
-  const userId = req.user._id;
+  const userId = req.user ? req.user._id : null;
 
   const template = await Template.findById(templateId);
   if (!template) {
@@ -196,7 +239,7 @@ const shareCreation = asyncHandler(async (req, res) => {
   let isAuthorized = false;
   if (template.accessType === 'free') {
     isAuthorized = true;
-  } else {
+  } else if (userId) {
     const purchase = await Purchase.findOne({
       userId,
       templateId,
@@ -213,12 +256,51 @@ const shareCreation = asyncHandler(async (req, res) => {
     });
   }
 
-  const shareUrl = await getSignedDownloadUrl(template.mainMedia, 600);
+  const {
+    userNameText,
+    userQuoteText,
+    userPhotoUri,
+    selectedFooter,
+    photoTransform,
+    nameTransform,
+    customizationState,
+  } = { ...(req.query || {}), ...(req.body || {}) };
+
+  const customState = customizationState || {};
+  const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
+  const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
+  const effectiveFooter = selectedFooter || customState.selectedFooter || (template.footers && template.footers.length > 0 ? template.footers[0] : null);
+
+  let shareUrl = null;
+
+  try {
+    const rendered = await renderPersonalizedTemplate({
+      template,
+      userNameText: effectiveUserName,
+      userQuoteText: userQuoteText || customState.userQuoteText || '',
+      userPhotoUri: effectiveUserPhoto,
+      selectedFooter: effectiveFooter,
+      photoTransform: photoTransform || customState.photoTransform || {},
+      nameTransform: nameTransform || customState.nameTransform || {},
+      req,
+    });
+
+    if (rendered && rendered.downloadUrl) {
+      shareUrl = rendered.downloadUrl;
+    }
+  } catch (renderErr) {
+    console.warn('[CreationController] Error in personalized share render:', renderErr.message);
+  }
+
+  if (!shareUrl) {
+    shareUrl = await getSignedDownloadUrl(template.mainMedia, 600);
+  }
 
   res.status(200).json({
     success: true,
     data: {
       shareUrl,
+      downloadUrl: shareUrl,
       message: `Check out my personalized status creation on Starpix!`,
     },
   });

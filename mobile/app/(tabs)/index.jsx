@@ -24,6 +24,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { resolveMediaUrl } from '../../src/utils/media';
+import { uploadUserMedia } from '../../src/utils/upload';
 
 import PressableScale from '../../src/components/PressableScale';
 import Toast from '../../src/components/Toast';
@@ -308,8 +309,55 @@ export default function HomeScreen() {
     }
 
     try {
-      const resolved = resolveMediaUrl(mediaSource);
-      const isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+      const targetFrame = selectedFrames[target.id] !== undefined
+        ? selectedFrames[target.id]
+        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
+
+      const activeCustomFooter =
+        target.footers && target.footers.length > 0
+          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+          : null;
+
+      let remoteUserPhoto = displayPhoto;
+      if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
+        try {
+          const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
+          if (uploaded) remoteUserPhoto = uploaded;
+        } catch (uploadErr) {
+          console.warn('Could not upload user photo:', uploadErr);
+        }
+      }
+
+      let resolved = resolveMediaUrl(mediaSource);
+      let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+
+      // Request server-side personalized render with footers, user photo, and user name
+      if (target.id && !String(target.id).startsWith('durga_')) {
+        try {
+          const res = await API.post(`/creations/${target.id}/download`, {
+            userNameText: displayName,
+            userPhotoUri: remoteUserPhoto || displayPhoto,
+            selectedFooter: activeCustomFooter,
+            customizationState: {
+              userNameText: displayName,
+              userPhotoUri: remoteUserPhoto || displayPhoto,
+              selectedFrame: targetFrame,
+              footers: target.footers || [],
+              canvasConfig: target.canvasConfig || null,
+              selectedFooter: activeCustomFooter,
+            },
+          });
+          if (res.data?.data?.downloadUrl) {
+            resolved = res.data.data.downloadUrl;
+            if (typeof res.data.data.isVideo === 'boolean') {
+              isVideo = res.data.data.isVideo;
+            }
+          }
+        } catch (errApi) {
+          console.warn('Personalized download endpoint notice:', errApi?.message);
+        }
+      }
+
       const ext = isVideo ? 'mp4' : 'jpg';
       let targetUri = resolved;
 
@@ -332,15 +380,6 @@ export default function HomeScreen() {
       }
 
       // Add to Downloads store so it appears in the Downloads tab
-      const targetFrame = selectedFrames[target.id] !== undefined
-        ? selectedFrames[target.id]
-        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
-
-      const activeCustomFooter =
-        target.footers && target.footers.length > 0
-          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
-          : null;
-
       const creationItem = {
         id: `reel_${Date.now()}`,
         templateId: target.id,
@@ -353,7 +392,7 @@ export default function HomeScreen() {
         mediaType: target.mediaType || (isVideo ? 'video' : 'image'),
         editedText: displayName,
         userNameText: displayName,
-        userPhotoUri: displayPhoto || null,
+        userPhotoUri: remoteUserPhoto || displayPhoto || null,
         selectedFrame: targetFrame !== 'none' ? targetFrame : null,
         activeTemplate: target.rawTemplate || target,
         template: target.rawTemplate || target,
@@ -376,10 +415,10 @@ export default function HomeScreen() {
               templateId: target.id,
               imageUrl: resolved,
               editedText: displayName,
-              editedPhoto: displayPhoto || '',
+              editedPhoto: remoteUserPhoto || displayPhoto || '',
               customizationState: {
                 userNameText: displayName,
-                userPhotoUri: displayPhoto || null,
+                userPhotoUri: remoteUserPhoto || displayPhoto || null,
                 selectedFrame: targetFrame,
                 footers: target.footers || [],
                 canvasConfig: target.canvasConfig || null,
@@ -424,8 +463,53 @@ export default function HomeScreen() {
     }
 
     try {
-      const resolved = resolveMediaUrl(mediaSource);
-      const isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+      const targetFrame = selectedFrames[target.id] !== undefined
+        ? selectedFrames[target.id]
+        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
+
+      const activeCustomFooter =
+        target.footers && target.footers.length > 0
+          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+          : null;
+
+      let remoteUserPhoto = displayPhoto;
+      if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
+        try {
+          const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
+          if (uploaded) remoteUserPhoto = uploaded;
+        } catch (uploadErr) {
+          console.warn('Could not upload user photo:', uploadErr);
+        }
+      }
+
+      let resolved = resolveMediaUrl(mediaSource);
+      let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+
+      // Request personalized share link with footers, user photo, and user name
+      if (target.id && !String(target.id).startsWith('durga_')) {
+        try {
+          const res = await API.post(`/creations/${target.id}/share`, {
+            userNameText: displayName,
+            userPhotoUri: remoteUserPhoto || displayPhoto,
+            selectedFooter: activeCustomFooter,
+            customizationState: {
+              userNameText: displayName,
+              userPhotoUri: remoteUserPhoto || displayPhoto,
+              selectedFrame: targetFrame,
+              footers: target.footers || [],
+              canvasConfig: target.canvasConfig || null,
+              selectedFooter: activeCustomFooter,
+            },
+          });
+          const link = res.data?.data?.shareUrl || res.data?.data?.downloadUrl;
+          if (link) {
+            resolved = link;
+          }
+        } catch (errApi) {
+          console.warn('Personalized share endpoint notice:', errApi?.message);
+        }
+      }
+
       const ext = isVideo ? 'mp4' : 'jpg';
       const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       let shareUri = resolved;
@@ -437,15 +521,6 @@ export default function HomeScreen() {
       }
 
       // Save creation to Downloads store and backend as user shares
-      const targetFrame = selectedFrames[target.id] !== undefined
-        ? selectedFrames[target.id]
-        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
-
-      const activeCustomFooter =
-        target.footers && target.footers.length > 0
-          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
-          : null;
-
       const creationItem = {
         id: `reel_${Date.now()}`,
         templateId: target.id,
@@ -458,7 +533,7 @@ export default function HomeScreen() {
         mediaType: target.mediaType || (isVideo ? 'video' : 'image'),
         editedText: displayName,
         userNameText: displayName,
-        userPhotoUri: displayPhoto || null,
+        userPhotoUri: remoteUserPhoto || displayPhoto || null,
         selectedFrame: targetFrame !== 'none' ? targetFrame : null,
         activeTemplate: target.rawTemplate || target,
         template: target.rawTemplate || target,
@@ -481,10 +556,10 @@ export default function HomeScreen() {
               templateId: target.id,
               imageUrl: resolved,
               editedText: displayName,
-              editedPhoto: displayPhoto || '',
+              editedPhoto: remoteUserPhoto || displayPhoto || '',
               customizationState: {
                 userNameText: displayName,
-                userPhotoUri: displayPhoto || null,
+                userPhotoUri: remoteUserPhoto || displayPhoto || null,
                 selectedFrame: targetFrame,
                 footers: target.footers || [],
                 canvasConfig: target.canvasConfig || null,

@@ -19,6 +19,7 @@ import API from '../../src/utils/api';
 import { hapticSuccess } from '../../src/utils/haptics';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { uploadUserMedia } from '../../src/utils/upload';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -50,6 +51,7 @@ export default function PreviewScreen() {
     userQuoteText,
     selectedFrame,
     selectedEffect,
+    selectedFooter,
     photoScale,
     photoOffsetX,
     photoOffsetY,
@@ -92,20 +94,74 @@ export default function PreviewScreen() {
 
     setDownloading(true);
     try {
+      const effectiveFooter = selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null;
+
+      let remoteUserPhoto = userPhotoUri;
+      if (userPhotoUri && !userPhotoUri.startsWith('http://') && !userPhotoUri.startsWith('https://')) {
+        try {
+          const uploaded = await uploadUserMedia(userPhotoUri, 'user-creations');
+          if (uploaded) remoteUserPhoto = uploaded;
+        } catch (uploadErr) {
+          console.warn('Could not upload user photo to remote:', uploadErr);
+        }
+      }
+
+      const customizationState = {
+        activeTemplate,
+        userPhotoUri: remoteUserPhoto || userPhotoUri,
+        userNameText,
+        userQuoteText,
+        selectedFrame,
+        selectedEffect,
+        selectedFooter: effectiveFooter,
+        photoScale,
+        photoOffsetX,
+        photoOffsetY,
+        photoRotation,
+        nameOffsetX,
+        nameOffsetY,
+        nameFontSizeScale,
+        footers: activeTemplate?.footers || [],
+        canvasConfig: activeTemplate?.canvasConfig || null,
+      };
+
       let downloadUrl = activeTemplate.mainMedia || activeTemplate.previewAsset || activeTemplate.thumbnail;
+      let isVideo = Boolean(
+        activeTemplate.type === 'video' ||
+        (effectiveFooter && (effectiveFooter.type === 'video' || (effectiveFooter.videoAsset && effectiveFooter.videoAsset.match(/\.(mp4|webm|mov)(\?.*)?$/i)))) ||
+        (downloadUrl && (downloadUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || downloadUrl.includes('/video/')))
+      );
+
       try {
-        const res = await API.get(`/creations/${activeTemplate._id}/download`);
+        const res = await API.post(`/creations/${activeTemplate._id}/download`, {
+          userNameText,
+          userQuoteText,
+          userPhotoUri: remoteUserPhoto || userPhotoUri,
+          selectedFooter: effectiveFooter,
+          photoTransform: {
+            scale: photoScale,
+            rotation: photoRotation,
+            offsetX: photoOffsetX,
+            offsetY: photoOffsetY,
+          },
+          nameTransform: {
+            offsetX: nameOffsetX,
+            offsetY: nameOffsetY,
+            fontSizeScale: nameFontSizeScale,
+          },
+          customizationState,
+        });
+
         if (res.data && res.data.data && res.data.data.downloadUrl) {
           downloadUrl = res.data.data.downloadUrl;
+          if (typeof res.data.data.isVideo === 'boolean') {
+            isVideo = res.data.data.isVideo;
+          }
         }
       } catch (errApi) {
         console.log('Download endpoint notice:', errApi?.message);
       }
 
-      const isVideo = Boolean(
-        activeTemplate.type === 'video' ||
-        (downloadUrl && (downloadUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || downloadUrl.includes('/video/')))
-      );
       const ext = isVideo ? 'mp4' : 'jpg';
       let targetUri = downloadUrl;
       let savedToSystem = false;
@@ -143,22 +199,6 @@ export default function PreviewScreen() {
         }
       }
 
-      const customizationState = {
-        activeTemplate,
-        userPhotoUri,
-        userNameText,
-        userQuoteText,
-        selectedFrame,
-        selectedEffect,
-        photoScale,
-        photoOffsetX,
-        photoOffsetY,
-        photoRotation,
-        nameOffsetX,
-        nameOffsetY,
-        nameFontSizeScale,
-      };
-
       // Save creation entry in backend database
       let backendId = null;
       try {
@@ -166,7 +206,7 @@ export default function PreviewScreen() {
           templateId: activeTemplate._id,
           imageUrl: downloadUrl || targetUri,
           editedText: userNameText || userQuoteText || '',
-          editedPhoto: userPhotoUri || '',
+          editedPhoto: remoteUserPhoto || userPhotoUri || '',
           customizationState,
         });
         if (res.data && res.data.data && res.data.data._id) {
@@ -181,13 +221,20 @@ export default function PreviewScreen() {
         id: backendId || `creation_${Date.now()}`,
         templateId: activeTemplate._id,
         name: activeTemplate.name,
+        nameTranslations: activeTemplate.nameTranslations,
         thumbnail: activeTemplate.thumbnail || activeTemplate.previewAsset || targetUri,
         localUri: targetUri,
+        image: downloadUrl || targetUri,
+        mediaUrl: downloadUrl || targetUri,
         editedText: userNameText || userQuoteText || '',
-        editedPhoto: userPhotoUri || '',
+        editedPhoto: remoteUserPhoto || userPhotoUri || '',
         customizationState,
         activeTemplate,
-        userPhotoUri,
+        template: activeTemplate,
+        footers: activeTemplate?.footers || [],
+        selectedFooter: effectiveFooter,
+        canvasConfig: activeTemplate?.canvasConfig || null,
+        userPhotoUri: remoteUserPhoto || userPhotoUri,
         userNameText,
         userQuoteText,
         selectedFrame,
@@ -200,6 +247,7 @@ export default function PreviewScreen() {
         nameOffsetY,
         nameFontSizeScale,
         createdAt: new Date().toISOString(),
+        downloadedAt: new Date().toISOString(),
         isPaid: ['premium', 'paid', 'vip'].includes(activeTemplate.accessType),
         price: activeTemplate.price || 49,
       });
@@ -209,14 +257,14 @@ export default function PreviewScreen() {
       setAlertInfo({
         kind: 'saved',
         message: savedToSystem
-          ? `Status saved to your Phone Gallery and available in your Downloads library!`
-          : `Your status has been saved to your Downloads library!`,
+          ? t('download_saved_msg', { defaultValue: 'Status saved to your Phone Gallery and available in your Downloads library!' })
+          : t('download_saved_msg', { defaultValue: 'Your status has been saved to your Downloads library!' }),
       });
     } catch (err) {
       console.error('HD Download error:', err);
       setAlertInfo({
         kind: 'saved',
-        message: 'Your status has been saved to your downloads library!',
+        message: t('download_saved_msg', { defaultValue: 'Your status has been saved to your downloads library!' }),
       });
     } finally {
       setDownloading(false);
@@ -231,19 +279,80 @@ export default function PreviewScreen() {
 
     setSharing(true);
     try {
+      const effectiveFooter = selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null;
+
+      let remoteUserPhoto = userPhotoUri;
+      if (userPhotoUri && !userPhotoUri.startsWith('http://') && !userPhotoUri.startsWith('https://')) {
+        try {
+          const uploaded = await uploadUserMedia(userPhotoUri, 'user-creations');
+          if (uploaded) remoteUserPhoto = uploaded;
+        } catch (uploadErr) {
+          console.warn('Could not upload user photo to remote:', uploadErr);
+        }
+      }
+
+      const customizationState = {
+        activeTemplate,
+        userPhotoUri: remoteUserPhoto || userPhotoUri,
+        userNameText,
+        userQuoteText,
+        selectedFrame,
+        selectedEffect,
+        selectedFooter: effectiveFooter,
+        photoScale,
+        photoOffsetX,
+        photoOffsetY,
+        photoRotation,
+        nameOffsetX,
+        nameOffsetY,
+        nameFontSizeScale,
+        footers: activeTemplate?.footers || [],
+        canvasConfig: activeTemplate?.canvasConfig || null,
+      };
+
       let downloadUrl = activeTemplate.mainMedia || activeTemplate.previewAsset || activeTemplate.thumbnail;
-      const isVideo = Boolean(
+      let isVideo = Boolean(
         activeTemplate.type === 'video' ||
+        (effectiveFooter && (effectiveFooter.type === 'video' || (effectiveFooter.videoAsset && effectiveFooter.videoAsset.match(/\.(mp4|webm|mov)(\?.*)?$/i)))) ||
         (downloadUrl && (downloadUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || downloadUrl.includes('/video/')))
       );
-      const ext = isVideo ? 'mp4' : 'jpg';
-      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
-      let targetUri = downloadUrl;
 
       // Record use count on backend
       if (activeTemplate?._id) {
         API.post(`/templates/${activeTemplate._id}/use`, { action: 'share' }).catch(() => {});
       }
+
+      try {
+        const res = await API.post(`/creations/${activeTemplate._id}/share`, {
+          userNameText,
+          userQuoteText,
+          userPhotoUri: remoteUserPhoto || userPhotoUri,
+          selectedFooter: effectiveFooter,
+          photoTransform: {
+            scale: photoScale,
+            rotation: photoRotation,
+            offsetX: photoOffsetX,
+            offsetY: photoOffsetY,
+          },
+          nameTransform: {
+            offsetX: nameOffsetX,
+            offsetY: nameOffsetY,
+            fontSizeScale: nameFontSizeScale,
+          },
+          customizationState,
+        });
+
+        if (res.data && res.data.data) {
+          const link = res.data.data.shareUrl || res.data.data.downloadUrl;
+          if (link) downloadUrl = link;
+        }
+      } catch (shareErrApi) {
+        console.warn('Personalized share endpoint notice:', shareErrApi?.message);
+      }
+
+      const ext = isVideo ? 'mp4' : 'jpg';
+      const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+      let targetUri = downloadUrl;
 
       if (Platform.OS === 'web') {
         if (typeof navigator !== 'undefined' && navigator.share) {
@@ -280,32 +389,13 @@ export default function PreviewScreen() {
       }
 
       // Save to Downloads store and backend as user shares
-      const customizationState = {
-        activeTemplate,
-        userPhotoUri,
-        userNameText,
-        userQuoteText,
-        selectedFrame,
-        selectedEffect,
-        photoScale,
-        photoOffsetX,
-        photoOffsetY,
-        photoRotation,
-        nameOffsetX,
-        nameOffsetY,
-        nameFontSizeScale,
-        footers: activeTemplate?.footers || [],
-        canvasConfig: activeTemplate?.canvasConfig || null,
-        selectedFooter: selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null,
-      };
-
       let backendId = null;
       try {
         const res = await API.post('/creations/save-download', {
           templateId: activeTemplate._id,
           imageUrl: downloadUrl || targetUri,
           editedText: userNameText || userQuoteText || '',
-          editedPhoto: userPhotoUri || '',
+          editedPhoto: remoteUserPhoto || userPhotoUri || '',
           customizationState,
         });
         if (res.data && res.data.data && res.data.data._id) {
@@ -323,14 +413,14 @@ export default function PreviewScreen() {
         image: downloadUrl || targetUri,
         mediaUrl: downloadUrl || targetUri,
         editedText: userNameText || userQuoteText || '',
-        editedPhoto: userPhotoUri || '',
+        editedPhoto: remoteUserPhoto || userPhotoUri || '',
         customizationState,
         activeTemplate,
         template: activeTemplate,
         footers: activeTemplate?.footers || [],
-        selectedFooter: selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null,
+        selectedFooter: effectiveFooter,
         canvasConfig: activeTemplate?.canvasConfig || null,
-        userPhotoUri,
+        userPhotoUri: remoteUserPhoto || userPhotoUri,
         userNameText,
         userQuoteText,
         selectedFrame,
@@ -454,6 +544,7 @@ export default function PreviewScreen() {
             userQuoteText={userQuoteText}
             selectedFrame={selectedFrame}
             selectedEffect={selectedEffect}
+            selectedFooter={selectedFooter || selectedEffect}
             photoTransform={{ scale: photoScale, offsetX: photoOffsetX, offsetY: photoOffsetY, rotation: photoRotation }}
             nameTransform={{ offsetX: nameOffsetX, offsetY: nameOffsetY, fontSizeScale: nameFontSizeScale }}
             canvasWidth={CANVAS_WIDTH}

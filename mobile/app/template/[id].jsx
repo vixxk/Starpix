@@ -372,6 +372,7 @@ export default function TemplateEditorScreen() {
             userQuoteText={userQuoteText}
             selectedFrame={selectedFrame}
             selectedEffect={selectedEffect}
+            selectedFooter={selectedEffect}
             photoTransform={{ scale: photoScale, rotation: photoRotation, offsetX: photoOffsetX, offsetY: photoOffsetY }}
             nameTransform={{ offsetX: nameOffsetX, offsetY: nameOffsetY, fontSizeScale: nameFontSizeScale }}
             canvasWidth={CANVAS_WIDTH}
