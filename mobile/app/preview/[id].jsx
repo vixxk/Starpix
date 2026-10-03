@@ -150,7 +150,7 @@ export default function PreviewScreen() {
             fontSizeScale: nameFontSizeScale,
           },
           customizationState,
-        });
+        }, { timeout: 60000 });
 
         if (res.data && res.data.data && res.data.data.downloadUrl) {
           downloadUrl = res.data.data.downloadUrl;
@@ -340,7 +340,7 @@ export default function PreviewScreen() {
             fontSizeScale: nameFontSizeScale,
           },
           customizationState,
-        });
+        }, { timeout: 60000 });
 
         if (res.data && res.data.data) {
           const link = res.data.data.shareUrl || res.data.data.downloadUrl;

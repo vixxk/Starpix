@@ -331,10 +331,11 @@ export default function HomeScreen() {
         ? selectedFrames[target.id]
         : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
 
-      const activeCustomFooter =
-        target.footers && target.footers.length > 0
-          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
-          : null;
+      const activeCustomFooter = targetFrame === 'none'
+        ? null
+        : (target.footers && target.footers.length > 0
+            ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+            : null);
 
       let remoteUserPhoto = displayPhoto;
       if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
@@ -490,10 +491,11 @@ export default function HomeScreen() {
         ? selectedFrames[target.id]
         : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
 
-      const activeCustomFooter =
-        target.footers && target.footers.length > 0
-          ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
-          : null;
+      const activeCustomFooter = targetFrame === 'none'
+        ? null
+        : (target.footers && target.footers.length > 0
+            ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+            : null);
 
       let remoteUserPhoto = displayPhoto;
       if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {

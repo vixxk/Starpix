@@ -181,7 +181,7 @@ const downloadCreation = asyncHandler(async (req, res) => {
   const customState = customizationState || {};
   const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
   const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
-  const effectiveFooter = selectedFooter || customState.selectedFooter || (template.footers && template.footers.length > 0 ? template.footers[0] : null);
+  const effectiveFooter = selectedFooter !== undefined ? selectedFooter : (customState.selectedFooter !== undefined ? customState.selectedFooter : (template.footers && template.footers.length > 0 ? template.footers[0] : null));
 
   let downloadUrl = null;
   let isVideoResult = Boolean(template.type === 'video');
@@ -269,7 +269,7 @@ const shareCreation = asyncHandler(async (req, res) => {
   const customState = customizationState || {};
   const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
   const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
-  const effectiveFooter = selectedFooter || customState.selectedFooter || (template.footers && template.footers.length > 0 ? template.footers[0] : null);
+  const effectiveFooter = selectedFooter !== undefined ? selectedFooter : (customState.selectedFooter !== undefined ? customState.selectedFooter : (template.footers && template.footers.length > 0 ? template.footers[0] : null));
 
   let shareUrl = null;
 

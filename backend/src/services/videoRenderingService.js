@@ -319,7 +319,9 @@ async function renderPersonalizedTemplate({
     const templateFooters = template.footers || [];
     let activeFooter = null;
 
-    if (selectedFooter) {
+    if (selectedFooter === 'none' || selectedFooter === null) {
+      activeFooter = null;
+    } else if (selectedFooter) {
       if (typeof selectedFooter === 'object') {
         activeFooter = selectedFooter;
       } else if (typeof selectedFooter === 'string') {
@@ -327,9 +329,7 @@ async function renderPersonalizedTemplate({
           (f) => String(f._id || f.id) === String(selectedFooter) || f.name === selectedFooter
         );
       }
-    }
-
-    if (!activeFooter && templateFooters.length > 0) {
+    } else if (selectedFooter === undefined && templateFooters.length > 0) {
       activeFooter = templateFooters[0];
     }
 
