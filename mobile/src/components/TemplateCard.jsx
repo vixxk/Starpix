@@ -110,6 +110,28 @@ export default function TemplateCard({
           isMuted={true}
           shouldPlay={shouldPlay}
         />
+        {template.type === 'video' && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              borderRadius: 10,
+              paddingHorizontal: 7,
+              paddingVertical: 3.5,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 3.5,
+              zIndex: 25,
+            }}
+          >
+            <Ionicons name="musical-notes" size={11} color="#FFFFFF" />
+            <Text style={{ color: '#FFFFFF', fontSize: 9, fontFamily: FONTS.bold }}>
+              {t('media_video', { defaultValue: 'Video' })}
+            </Text>
+          </View>
+        )}
       </PressableScale>
 
       {/* Separated Action Buttons Row directly under every template card */}

@@ -107,3 +107,74 @@ export function DashboardSkeleton() {
     </div>
   );
 }
+
+/** Responsive skeleton for AI Credits Management page (packs & guide cards). */
+export function AICreditsSkeleton({ count = 6 }) {
+  return (
+    <div className="space-y-4">
+      {/* Subheader bar skeleton */}
+      <div className="flex justify-between items-center bg-paper-100 p-3 border-2 border-ink rounded-[2px]">
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-3 w-72 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-32" />
+      </div>
+
+      {/* Cards grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="panel p-4 flex flex-col justify-between border-2 space-y-4 bg-white">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-24" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="w-8 h-8 rounded-[2px]" />
+                <Skeleton className="w-8 h-8 rounded-[2px]" />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Skeleton className="h-3 w-20 mb-1.5" />
+                <Skeleton className="h-9 w-full rounded-[2px]" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Skeleton className="h-3 w-16 mb-1.5" />
+                  <Skeleton className="h-9 w-full rounded-[2px]" />
+                </div>
+                <div>
+                  <Skeleton className="h-3 w-16 mb-1.5" />
+                  <Skeleton className="h-9 w-full rounded-[2px]" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Skeleton className="h-3 w-16 mb-1.5" />
+                  <Skeleton className="h-9 w-full rounded-[2px]" />
+                </div>
+                <div>
+                  <Skeleton className="h-3 w-16 mb-1.5" />
+                  <Skeleton className="h-9 w-full rounded-[2px]" />
+                </div>
+              </div>
+
+              <div>
+                <Skeleton className="h-3 w-24 mb-1.5" />
+                <Skeleton className="h-14 w-full rounded-[2px]" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-ink/10">
+              <Skeleton className="h-6 w-20 rounded-[2px]" />
+              <Skeleton className="h-6 w-20 rounded-[2px]" />
+              <Skeleton className="h-6 w-16 rounded-[2px]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

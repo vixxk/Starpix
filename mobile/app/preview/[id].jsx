@@ -16,10 +16,11 @@ import BackButton from '../../src/components/BackButton';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp, SCREEN_PAD } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
-import { hapticSuccess } from '../../src/utils/haptics';
+import { hapticSuccess, hapticTap } from '../../src/utils/haptics';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { uploadUserMedia } from '../../src/utils/upload';
+import { checkCanAccessTemplate } from '../../src/utils/subscription';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -40,6 +41,7 @@ export default function PreviewScreen() {
   const [alertInfo, setAlertInfo] = useState(null); // { kind: 'saved' | 'failed', message? }
   const [paidConfirmInfo, setPaidConfirmInfo] = useState(null); // { action: 'download' | 'share' }
   const [payingPaid, setPayingPaid] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -74,17 +76,32 @@ export default function PreviewScreen() {
 
       if (activeTemplate.accessType === 'free') {
         setIsEntitled(true);
+        setEntitlementStatus(true);
         return;
       }
+
+      // Check lifetime access from user's purchased templates or VIP subscription
+      if (checkCanAccessTemplate(user, activeTemplate)) {
+        setIsEntitled(true);
+        setEntitlementStatus(true);
+        return;
+      }
+
       try {
-        const res = await API.get(`/payments/verify/${activeTemplate._id}`);
-        if (res.data.success && res.data.data.isUnlocked) setIsEntitled(true);
+        const res = await API.get(`/payments/verify/${targetId}`);
+        if (res.data?.success && res.data.data?.isUnlocked) {
+          setIsEntitled(true);
+          setEntitlementStatus(true);
+          if (res.data.data.isPurchased || res.data.data.lifetimeAccess) {
+            useAuthStore.getState().addPurchasedTemplate(targetId);
+          }
+        }
       } catch (err) {
         console.error(err);
       }
     };
     checkStatus();
-  }, [activeTemplate, id]);
+  }, [activeTemplate, id, user]);
 
   const handleDownloadHD = async () => {
     if (!isEntitled) {
@@ -100,9 +117,18 @@ export default function PreviewScreen() {
       if (userPhotoUri && !userPhotoUri.startsWith('http://') && !userPhotoUri.startsWith('https://')) {
         try {
           const uploaded = await uploadUserMedia(userPhotoUri, 'user-creations');
-          if (uploaded) remoteUserPhoto = uploaded;
+          if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
+            remoteUserPhoto = uploaded;
+          } else {
+            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          }
         } catch (uploadErr) {
           console.warn('Could not upload user photo to remote:', uploadErr);
+          try {
+            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          } catch (b64Err) {}
         }
       }
 
@@ -285,9 +311,18 @@ export default function PreviewScreen() {
       if (userPhotoUri && !userPhotoUri.startsWith('http://') && !userPhotoUri.startsWith('https://')) {
         try {
           const uploaded = await uploadUserMedia(userPhotoUri, 'user-creations');
-          if (uploaded) remoteUserPhoto = uploaded;
+          if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
+            remoteUserPhoto = uploaded;
+          } else {
+            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          }
         } catch (uploadErr) {
           console.warn('Could not upload user photo to remote:', uploadErr);
+          try {
+            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          } catch (b64Err) {}
         }
       }
 
@@ -491,6 +526,8 @@ export default function PreviewScreen() {
 
       if (res.data?.success) {
         hapticSuccess();
+        const targetId = activeTemplate._id || id;
+        useAuthStore.getState().addPurchasedTemplate(targetId);
         setIsEntitled(true);
         setEntitlementStatus(true);
         const pendingAction = paidConfirmInfo?.action;
@@ -562,7 +599,30 @@ export default function PreviewScreen() {
         <View style={styles.header}>
           <BackButton />
           <Text numberOfLines={1} style={styles.headerTitle}>{t('preview_status')}</Text>
-          <View style={styles.headerSpacer} />
+          {Boolean(
+            activeTemplate?.type === 'video' ||
+            (activeTemplate?.mainMedia && (activeTemplate.mainMedia.endsWith('.mp4') || activeTemplate.mainMedia.includes('.mp4') || activeTemplate.mainMedia.includes('/video/'))) ||
+            (activeTemplate?.previewAsset && (activeTemplate.previewAsset.endsWith('.mp4') || activeTemplate.previewAsset.includes('.mp4')))
+          ) ? (
+            <PressableScale
+              onPress={() => {
+                hapticTap();
+                setIsMuted((prev) => !prev);
+              }}
+              scaleTo={0.88}
+              style={[styles.soundBtn, !isMuted && styles.soundActiveBtn]}
+              contentStyle={styles.soundBtnContent}
+              accessibilityLabel={isMuted ? t('sound_unmute', { defaultValue: 'Turn Sound On' }) : t('sound_mute', { defaultValue: 'Mute Sound' })}
+            >
+              <Ionicons
+                name={isMuted ? 'volume-mute' : 'volume-high'}
+                size={18}
+                color={!isMuted ? COLORS.orange : '#8A7A68'}
+              />
+            </PressableScale>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
 
         {/* Status preview canvas */}
@@ -580,7 +640,32 @@ export default function PreviewScreen() {
             canvasWidth={CANVAS_WIDTH}
             canvasHeight={CANVAS_HEIGHT}
             showWatermark={!isEntitled}
+            isMuted={isMuted}
           />
+          {Boolean(
+            activeTemplate?.type === 'video' ||
+            (activeTemplate?.mainMedia && (activeTemplate.mainMedia.endsWith('.mp4') || activeTemplate.mainMedia.includes('.mp4') || activeTemplate.mainMedia.includes('/video/'))) ||
+            (activeTemplate?.previewAsset && (activeTemplate.previewAsset.endsWith('.mp4') || activeTemplate.previewAsset.includes('.mp4')))
+          ) && (
+            <PressableScale
+              onPress={() => {
+                hapticTap();
+                setIsMuted((prev) => !prev);
+              }}
+              scaleTo={0.92}
+              style={styles.canvasSoundBadge}
+              contentStyle={styles.canvasSoundBadgeContent}
+            >
+              <Ionicons
+                name={isMuted ? 'volume-mute' : 'volume-high'}
+                size={13}
+                color={COLORS.white}
+              />
+              <Text style={styles.canvasSoundText}>
+                {isMuted ? t('sound_off', { defaultValue: 'Sound Off' }) : t('sound_on', { defaultValue: 'Sound On' })}
+              </Text>
+            </PressableScale>
+          )}
         </View>
 
         {/* Footer */}
@@ -670,6 +755,8 @@ export default function PreviewScreen() {
           template={activeTemplate}
           onClose={() => setPaywallVisible(false)}
           onSuccess={() => {
+            const targetId = activeTemplate._id || id;
+            useAuthStore.getState().addPurchasedTemplate(targetId);
             setIsEntitled(true);
             setEntitlementStatus(true);
           }}
@@ -722,6 +809,49 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   headerSpacer: { width: 32 },
+  soundBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1.2,
+    borderColor: COLORS.borderStrong,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  soundBtnContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  soundActiveBtn: {
+    backgroundColor: '#FFF7ED',
+    borderColor: COLORS.orange,
+  },
+  canvasSoundBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 40,
+    elevation: 15,
+  },
+  canvasSoundBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  canvasSoundText: {
+    color: '#FFFFFF',
+    fontSize: fontScale(10),
+    fontFamily: FONTS.bold,
+  },
   canvasContainer: {
     flex: 1,
     justifyContent: 'center',

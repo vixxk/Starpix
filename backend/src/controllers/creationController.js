@@ -47,6 +47,7 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     editedPhoto: editedPhoto || '',
     customizationState: customizationState || {},
     imageUrl: finalImageUrl,
+    isAi: false,
     downloadedAt: new Date(),
   });
 
@@ -146,17 +147,22 @@ const downloadCreation = asyncHandler(async (req, res) => {
     isAuthorized = true;
   } else if (userId) {
     const user = await User.findById(userId);
-    if (user && user.isPremium && user.subscriptionStatus === 'active') {
-      isAuthorized = true;
-    } else {
-      const purchase = await Purchase.findOne({
+    const hasLifetimeAccess = Boolean(
+      (user && user.purchasedTemplates && user.purchasedTemplates.some((id) => id.toString() === templateId.toString())) ||
+      await Purchase.findOne({
         userId,
         templateId,
         status: 'successful',
-      });
-      if (purchase) {
-        isAuthorized = true;
+      })
+    );
+
+    if (hasLifetimeAccess) {
+      isAuthorized = true;
+      if (user && (!user.purchasedTemplates || !user.purchasedTemplates.some((id) => id.toString() === templateId.toString()))) {
+        await User.findByIdAndUpdate(userId, { $addToSet: { purchasedTemplates: templateId } });
       }
+    } else if (user && user.isPremium && user.subscriptionStatus === 'active') {
+      isAuthorized = true;
     }
   }
 
@@ -181,7 +187,13 @@ const downloadCreation = asyncHandler(async (req, res) => {
   const customState = customizationState || {};
   const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
   const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
-  const effectiveFooter = selectedFooter !== undefined ? selectedFooter : (customState.selectedFooter !== undefined ? customState.selectedFooter : (template.footers && template.footers.length > 0 ? template.footers[0] : null));
+  const effectiveFooter = (selectedFooter === 'none' || customState.selectedFooter === 'none')
+    ? null
+    : (selectedFooter !== undefined
+        ? selectedFooter
+        : (customState.selectedFooter !== undefined
+            ? customState.selectedFooter
+            : (template.footers && template.footers.length > 0 ? template.footers[0] : null)));
 
   let downloadUrl = null;
   let isVideoResult = Boolean(template.type === 'video');

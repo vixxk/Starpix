@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import { TableSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import InvoiceModal from '../components/InvoiceModal';
 import { printDocument } from '../utils/print';
 import {
@@ -148,7 +149,7 @@ export default function Purchases() {
           <p className="text-sm text-ink-mute font-medium">No transactions recorded yet.</p>
         </div>
       ) : (
-          <div className="table-scroll anim">
+          <TableScroll className="anim">
             <table className="data-table">
               <thead>
                 <tr>
@@ -257,7 +258,7 @@ export default function Purchases() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
 
       {/* Print-friendly invoice view */}

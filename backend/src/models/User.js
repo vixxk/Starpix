@@ -63,6 +63,12 @@ const userSchema = new mongoose.Schema(
         ref: 'Template',
       },
     ],
+    purchasedTemplates: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Template',
+      },
+    ],
     lastLoginAt: {
       type: Date,
       default: Date.now,

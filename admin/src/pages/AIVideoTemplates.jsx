@@ -4,6 +4,7 @@ import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
 import { TableSkeleton } from '../components/Skeleton';
 import Pagination from '../components/Pagination';
+import TableScroll from '../components/TableScroll';
 import { useToast } from '../context/ToastContext';
 import {
   VideoCamera,
@@ -69,7 +70,7 @@ export default function AIVideoTemplates() {
   const fetchCreations = async () => {
     setCreationLoading(true);
     try {
-      const params = { page: creationPage, limit: 10 };
+      const params = { page: creationPage, limit: 10, type: 'ai' };
       if (creationSearch) params.search = creationSearch;
       if (creationTypeFilter !== 'all') params.mediaType = creationTypeFilter;
 
@@ -305,7 +306,7 @@ export default function AIVideoTemplates() {
               <p className="text-xs text-ink-mute mt-1">Upload video or image assets to S3 to get started.</p>
             </div>
           ) : (
-            <div className="table-scroll anim">
+            <TableScroll className="anim">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -313,7 +314,7 @@ export default function AIVideoTemplates() {
                     <th>AI Template</th>
                     <th>Type</th>
                     <th>Credits Required (Price)</th>
-                    <th>S3 Asset URL</th>
+                    <th>Uses / Views</th>
                     <th>Status</th>
                     <th className="text-right">Actions</th>
                   </tr>
@@ -363,10 +364,8 @@ export default function AIVideoTemplates() {
                       <td className="font-mono text-xs font-bold text-flame-600">
                         {t.creditsRequired || 0} Credits
                       </td>
-                      <td className="max-w-[180px] truncate text-xs text-ink-mute font-mono">
-                        <a href={t.videoUrl} target="_blank" rel="noreferrer" className="text-flame-600 hover:underline">
-                          {t.videoUrl}
-                        </a>
+                      <td className="text-ink-mute">
+                        <span className="font-semibold text-ink tabular-nums">{t.uses || 0}</span> uses / {t.views || 0} views
                       </td>
                       <td>
                         <button
@@ -401,7 +400,7 @@ export default function AIVideoTemplates() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
 
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

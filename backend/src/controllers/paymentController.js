@@ -43,6 +43,13 @@ const createPayment = asyncHandler(async (req, res) => {
   template.trendingScore = template.views * 0.2 + template.uses * 0.4 + template.favoritesCount * 0.2 + template.purchasesCount * 0.2;
   await template.save();
 
+  // Permanently unlock template for lifetime access for this user
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $addToSet: { purchasedTemplates: templateId } },
+    { new: true }
+  );
+
   res.status(200).json({
     success: true,
     message: 'Payment simulated successfully (Development Mode)',
@@ -51,8 +58,12 @@ const createPayment = asyncHandler(async (req, res) => {
       purchaseId: purchase._id,
       paymentStatus: 'successful',
       entitlementGranted: true,
+      isUnlocked: true,
+      lifetimeAccess: true,
+      templateId,
       amount: purchase.amount,
       currency: purchase.currency,
+      purchasedTemplates: updatedUser?.purchasedTemplates || [],
     },
   });
 });
@@ -80,8 +91,40 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if user has an active global subscription (VIP Pass)
+  // 1. Lifetime purchase check: once a template is bought, it is unlocked forever for that user
   const user = await User.findById(userId);
+  const isPurchasedInUser = Boolean(
+    user &&
+    user.purchasedTemplates &&
+    user.purchasedTemplates.some((id) => id.toString() === templateId.toString())
+  );
+
+  const purchase = isPurchasedInUser
+    ? await Purchase.findOne({ userId, templateId, status: 'successful' }).sort({ createdAt: -1 })
+    : await Purchase.findOne({ userId, templateId, status: 'successful' });
+
+  if (isPurchasedInUser || purchase) {
+    // If recorded in Purchase collection but not yet in user.purchasedTemplates, sync to user
+    if (!isPurchasedInUser && user) {
+      await User.findByIdAndUpdate(userId, {
+        $addToSet: { purchasedTemplates: templateId },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        isUnlocked: true,
+        isPurchased: true,
+        lifetimeAccess: true,
+        transactionId: purchase?.transactionId || '',
+        purchaseDate: purchase?.createdAt || null,
+        reason: 'lifetime_purchase',
+      },
+    });
+  }
+
+  // 2. Check if user has an active global subscription (VIP Pass)
   let isVip = Boolean(user && user.isPremium && user.subscriptionStatus === 'active');
   if (isVip && user.subscriptionExpiresAt && new Date() > new Date(user.subscriptionExpiresAt)) {
     user.isPremium = false;
@@ -97,7 +140,7 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
     : 29;
 
   if (template.accessType === 'vip') {
-    // VIP-only tier — unlocks exclusively via the VIP Pass
+    // VIP-only tier — unlocks via VIP Pass or direct lifetime purchase (checked above)
     if (isVip) {
       return res.status(200).json({
         success: true,
@@ -113,25 +156,6 @@ const verifyEntitlement = asyncHandler(async (req, res) => {
         isUnlocked: false,
         price: lowestVipPrice,
         reason: 'vip_required',
-      },
-    });
-  }
-
-  // Check specific template direct purchase first
-  const purchase = await Purchase.findOne({
-    userId,
-    templateId,
-    status: 'successful',
-  });
-
-  if (purchase) {
-    return res.status(200).json({
-      success: true,
-      data: {
-        isUnlocked: true,
-        transactionId: purchase.transactionId,
-        purchaseDate: purchase.createdAt,
-        reason: 'individual_purchase',
       },
     });
   }
@@ -167,6 +191,14 @@ const getMyPurchases = asyncHandler(async (req, res) => {
   })
     .populate('templateId')
     .sort({ createdAt: -1 });
+
+  // Sync any template purchases into user.purchasedTemplates
+  const templateIds = purchases.map((p) => p.templateId?._id || p.templateId).filter(Boolean);
+  if (templateIds.length > 0) {
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { purchasedTemplates: { $each: templateIds } },
+    });
+  }
 
   res.status(200).json({
     success: true,

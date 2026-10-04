@@ -91,30 +91,43 @@ export default function ReelPersonalizationOverlay({
   }
 
   const canvasLayers = canvasConfig?.layers || [];
-  const photoLayer = canvasLayers.find((l) => l.type === 'photo');
-  const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && l.fieldName === 'name') || canvasLayers.find((l) => l.type === 'text');
-  const textNameLayer =
-    baseTextNameLayer
-      ? {
-          width: 0.5,
-          height: 0.1,
-          fontSize: 22,
-          fontColor: '#FFFFFF',
-          ...baseTextNameLayer,
-          x: baseTextNameLayer.x !== undefined ? baseTextNameLayer.x : (customFooter?.userNamePosition?.x ?? 0.78),
-          y: baseTextNameLayer.y !== undefined ? baseTextNameLayer.y : (customFooter?.userNamePosition?.y ?? 0.78),
-          textAlign: baseTextNameLayer.textAlign || customFooter?.userNamePosition?.textAlign || 'center',
-        }
-      : customFooter?.userNamePosition
-      ? { width: 0.8, height: 0.1, fontSize: 24, fontColor: '#FFFFFF', ...customFooter.userNamePosition }
-      : null;
+  const basePhotoLayer = canvasLayers.find((l) => l.type === 'photo');
+  const footerPhotoPos = customFooter?.userPhotoPosition;
+  const footerPhotoShape = customFooter?.userPhotoShape || customFooter?.shape || customFooter?.userPhotoPosition?.shape;
 
-  // Case 1: Template was configured by Admin in the Canvas Editor with custom layers.
+  const photoLayer = (basePhotoLayer || footerPhotoPos || footerPhotoShape)
+    ? {
+        x: footerPhotoPos?.x !== undefined ? footerPhotoPos.x : (basePhotoLayer?.x ?? 0.25),
+        y: footerPhotoPos?.y !== undefined ? footerPhotoPos.y : (basePhotoLayer?.y ?? 0.8),
+        width: footerPhotoPos?.width !== undefined ? footerPhotoPos.width : (basePhotoLayer?.width ?? 0.35),
+        height: footerPhotoPos?.height !== undefined ? footerPhotoPos.height : (basePhotoLayer?.height ?? 0.22),
+        shape: footerPhotoShape || footerPhotoPos?.shape || basePhotoLayer?.shape || 'circle',
+        zIndex: footerPhotoPos?.zIndex ?? basePhotoLayer?.zIndex ?? 25,
+      }
+    : null;
+
+  const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && l.fieldName === 'name') || canvasLayers.find((l) => l.type === 'text');
+  const footerTextPos = customFooter?.userNamePosition;
+
+  const textNameLayer = (baseTextNameLayer || footerTextPos)
+    ? {
+        x: footerTextPos?.x !== undefined ? footerTextPos.x : (baseTextNameLayer?.x ?? 0.78),
+        y: footerTextPos?.y !== undefined ? footerTextPos.y : (baseTextNameLayer?.y ?? 0.78),
+        width: footerTextPos?.width !== undefined ? footerTextPos.width : (baseTextNameLayer?.width ?? 0.5),
+        height: footerTextPos?.height !== undefined ? footerTextPos.height : (baseTextNameLayer?.height ?? 0.1),
+        fontSize: footerTextPos?.fontSize !== undefined ? footerTextPos.fontSize : (baseTextNameLayer?.fontSize ?? 22),
+        fontColor: footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#FFFFFF',
+        textAlign: footerTextPos?.textAlign || baseTextNameLayer?.textAlign || 'center',
+        zIndex: footerTextPos?.zIndex ?? baseTextNameLayer?.zIndex ?? 30,
+      }
+    : null;
+
+  // Case 1: Template has canvas layers or custom footer with photo/text layout.
   // Render EXACTLY as seen in Admin Canvas Editor:
   // - Shape-clipped photo layer (heart, circle, diamond, etc.)
   // - Text name layer with precise coordinates and styling
   // - NO hardcoded golden ribbon banner, NO hardcoded beaded rings
-  if (canvasLayers.length > 0) {
+  if (canvasLayers.length > 0 || customFooter?.userPhotoPosition || customFooter?.userNamePosition || footerPhotoShape) {
     return (
       <View
         style={[
@@ -133,10 +146,10 @@ export default function ReelPersonalizationOverlay({
       >
         {/* Photo Layer with exact SVG ClipPath shape */}
         {photoLayer ? (() => {
-          const lWidth = photoLayer.width * cardWidth;
-          const lHeight = photoLayer.height * cardHeight;
-          const left = photoLayer.x * cardWidth - lWidth / 2;
-          const top = photoLayer.y * cardHeight - lHeight / 2;
+          const lWidth = (photoLayer.width || 0.35) * cardWidth;
+          const lHeight = (photoLayer.height || 0.22) * cardHeight;
+          const left = (photoLayer.x ?? 0.25) * cardWidth - lWidth / 2;
+          const top = (photoLayer.y ?? 0.8) * cardHeight - lHeight / 2;
 
           return (
             <View
@@ -154,7 +167,7 @@ export default function ReelPersonalizationOverlay({
               pointerEvents="none"
             >
               <ShapeClippedPhoto
-                shape={photoLayer.shape || 'rectangle'}
+                shape={photoLayer.shape || 'circle'}
                 uri={effectivePhoto}
                 width={lWidth}
                 height={lHeight}
@@ -189,8 +202,9 @@ export default function ReelPersonalizationOverlay({
         {textNameLayer ? (() => {
           const lWidth = (textNameLayer.width || 0.5) * cardWidth;
           const lHeight = (textNameLayer.height || 0.1) * cardHeight;
-          const left = (textNameLayer.x ?? 0.78) * cardWidth - lWidth / 2;
-          const top = (textNameLayer.y ?? 0.78) * cardHeight - lHeight / 2;
+          const defaultTextX = photoLayer?.x !== undefined ? photoLayer.x : 0.5;
+          const left = (textNameLayer.x ?? defaultTextX) * cardWidth - lWidth / 2;
+          const top = (textNameLayer.y ?? 0.75) * cardHeight - lHeight / 2;
           const computedFontSize = Math.max(12, (textNameLayer.fontSize || 22) * (cardWidth / 375));
 
           return (
@@ -216,6 +230,7 @@ export default function ReelPersonalizationOverlay({
             >
               <Text
                 style={{
+                  width: '100%',
                   fontSize: computedFontSize,
                   color: textNameLayer.fontColor || '#FFFFFF',
                   fontFamily: FONTS.bold,

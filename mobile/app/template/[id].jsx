@@ -20,6 +20,7 @@ import { useCreationStore } from '../../src/store/useCreationStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { resolveMediaUrl } from '../../src/utils/media';
 import { hapticTap } from '../../src/utils/haptics';
+import { checkCanAccessTemplate } from '../../src/utils/subscription';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -50,6 +51,7 @@ export default function TemplateEditorScreen() {
   const [isFav, setIsFav] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [toastInfo, setToastInfo] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
 
   const router = useRouter();
 
@@ -194,7 +196,7 @@ export default function TemplateEditorScreen() {
             }
           }
 
-          if (resT.data.data.accessType === 'free') {
+          if (resT.data.data.accessType === 'free' || checkCanAccessTemplate(user, resT.data.data)) {
             setIsEntitled(true);
             setEntitlementStatus(true);
           } else {
@@ -203,6 +205,9 @@ export default function TemplateEditorScreen() {
               if (resVerify.data && resVerify.data.success && resVerify.data.data.isUnlocked) {
                 setIsEntitled(true);
                 setEntitlementStatus(true);
+                if (resVerify.data.data.isPurchased || resVerify.data.data.lifetimeAccess) {
+                  useAuthStore.getState().addPurchasedTemplate(id);
+                }
               } else {
                 setIsEntitled(false);
                 setEntitlementStatus(false);
@@ -336,6 +341,28 @@ export default function TemplateEditorScreen() {
             <Text numberOfLines={1} style={styles.templateTitle}>{getLocalizedName(activeTemplate, i18n.language)}</Text>
           </View>
           <View style={styles.headerRightGroup}>
+            {Boolean(
+              activeTemplate?.type === 'video' ||
+              (activeTemplate?.mainMedia && (activeTemplate.mainMedia.endsWith('.mp4') || activeTemplate.mainMedia.includes('.mp4') || activeTemplate.mainMedia.includes('/video/'))) ||
+              (activeTemplate?.previewAsset && (activeTemplate.previewAsset.endsWith('.mp4') || activeTemplate.previewAsset.includes('.mp4')))
+            ) && (
+              <PressableScale
+                onPress={() => {
+                  hapticTap();
+                  setIsMuted((prev) => !prev);
+                }}
+                scaleTo={0.88}
+                style={[styles.favHeaderBtn, !isMuted && styles.soundActiveBtn]}
+                contentStyle={styles.favHeaderContent}
+                accessibilityLabel={isMuted ? t('sound_unmute', { defaultValue: 'Turn Sound On' }) : t('sound_mute', { defaultValue: 'Mute Sound' })}
+              >
+                <Ionicons
+                  name={isMuted ? 'volume-mute' : 'volume-high'}
+                  size={18}
+                  color={!isMuted ? COLORS.orange : '#8A7A68'}
+                />
+              </PressableScale>
+            )}
             <PressableScale
               onPress={() => setShowReportModal(true)}
               scaleTo={0.88}
@@ -378,10 +405,35 @@ export default function TemplateEditorScreen() {
             canvasWidth={CANVAS_WIDTH}
             canvasHeight={CANVAS_HEIGHT}
             showWatermark={!isFreeOrUnlocked}
+            isMuted={isMuted}
             onPressPhotoSlot={handlePickPhoto}
             onPhotoTransformChange={setPhotoTransform}
             onNameTransformChange={setNameTransform}
           />
+          {Boolean(
+            activeTemplate?.type === 'video' ||
+            (activeTemplate?.mainMedia && (activeTemplate.mainMedia.endsWith('.mp4') || activeTemplate.mainMedia.includes('.mp4') || activeTemplate.mainMedia.includes('/video/'))) ||
+            (activeTemplate?.previewAsset && (activeTemplate.previewAsset.endsWith('.mp4') || activeTemplate.previewAsset.includes('.mp4')))
+          ) && (
+            <PressableScale
+              onPress={() => {
+                hapticTap();
+                setIsMuted((prev) => !prev);
+              }}
+              scaleTo={0.92}
+              style={styles.canvasSoundBadge}
+              contentStyle={styles.canvasSoundBadgeContent}
+            >
+              <Ionicons
+                name={isMuted ? 'volume-mute' : 'volume-high'}
+                size={13}
+                color={COLORS.white}
+              />
+              <Text style={styles.canvasSoundText}>
+                {isMuted ? t('sound_off', { defaultValue: 'Sound Off' }) : t('sound_on', { defaultValue: 'Sound On' })}
+              </Text>
+            </PressableScale>
+          )}
         </View>
 
         {/* Edit panel */}
@@ -599,6 +651,8 @@ export default function TemplateEditorScreen() {
           template={activeTemplate}
           onClose={() => setPaywallVisible(false)}
           onSuccess={() => {
+            const targetId = activeTemplate?._id || id;
+            useAuthStore.getState().addPurchasedTemplate(targetId);
             setIsEntitled(true);
             setEntitlementStatus(true);
             setAlertInfo({

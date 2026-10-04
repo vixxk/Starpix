@@ -40,6 +40,7 @@ import { hapticTap, hapticImpact } from '../../src/utils/haptics';
 import API from '../../src/utils/api';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useCreationStore } from '../../src/store/useCreationStore';
+import { checkHasActiveSubscription, checkCanAccessTemplate, checkIsTemplatePurchased } from '../../src/utils/subscription';
 import { SUPPORTED_LANGUAGES } from '../../src/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -51,6 +52,70 @@ import {
 } from '../../src/modules/home';
 
 const normalizeCat = (c) => (c || '').toString().toLowerCase().replace(/[-_\s]/g, '');
+
+const packCategoryRows = (itemsList, currentLang) => {
+  if (!itemsList || itemsList.length === 0) return [];
+  const rows = [];
+  let currentRow = [];
+  let currentChars = 0;
+
+  for (let i = 0; i < itemsList.length; i++) {
+    const cat = itemsList[i];
+    const label =
+      (cat.nameTranslations && cat.nameTranslations[currentLang]) ||
+      cat.label ||
+      cat.name ||
+      cat.id;
+    const len = (label || '').length;
+
+    // Never break if currentRow is empty
+    if (currentRow.length === 0) {
+      currentRow.push(cat);
+      currentChars = len;
+      continue;
+    }
+
+    // Never leave a row with only 1 item! (User rule: multiple categories in 1 line, never single)
+    if (currentRow.length === 1) {
+      currentRow.push(cat);
+      currentChars += len;
+      continue;
+    }
+
+    // Current row has 2 items. Check if adding 3rd item leaves a single item at the end
+    const remainingItems = itemsList.length - i;
+    const leaveForNext = remainingItems === 1;
+
+    // Add 3rd item if combined length is reasonable (<= 34 chars) and it doesn't orphan a single item
+    if (currentRow.length === 2 && !leaveForNext && (currentChars + len <= 34)) {
+      currentRow.push(cat);
+      rows.push(currentRow);
+      currentRow = [];
+      currentChars = 0;
+    } else {
+      rows.push(currentRow);
+      currentRow = [cat];
+      currentChars = len;
+    }
+  }
+
+  if (currentRow.length > 0) {
+    if (currentRow.length === 1 && rows.length > 0) {
+      // Rebalance: borrow from previous row so both rows have at least 2 items
+      const prevRow = rows[rows.length - 1];
+      if (prevRow.length > 2) {
+        currentRow.unshift(prevRow.pop());
+        rows.push(currentRow);
+      } else {
+        prevRow.push(currentRow[0]);
+      }
+    } else {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+};
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -75,12 +140,49 @@ export default function HomeScreen() {
   const [actionLoading, setActionLoading] = useState(null); // { type: 'download' | 'share', id: string }
 
   const [activeCategory, setActiveCategory] = useState('special');
+  const [categoryRows, setCategoryRows] = useState(CATEGORY_CHIPS);
+  const [rawCategories, setRawCategories] = useState([]);
+  const [categoryScrollOffset, setCategoryScrollOffset] = useState(0);
+  const [categoryContentHeight, setCategoryContentHeight] = useState(1);
+  const [categoryContainerHeight, setCategoryContainerHeight] = useState(1);
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
   const [selectedFrames, setSelectedFrames] = useState({});
   const [isPlaying, setIsPlaying] = useState(true);
+  const [isFeedMuted, setIsFeedMuted] = useState(false);
   const [activeReelPlaybackReady, setActiveReelPlaybackReady] = useState(false);
+
+  // Fetch admin-configured categories dynamically from backend
+  useEffect(() => {
+    API.get('/categories', { params: { active: true } })
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          const cats = res.data.data;
+          const formatted = cats.map((c) => ({
+            id: c.slug || c._id,
+            name: c.name,
+            icon: c.icon || '✨',
+            nameTranslations: c.nameTranslations || {},
+            labelKey: c.slug,
+            isSpecial: c.slug === 'special' || (c.name && c.name.toLowerCase().includes('special')),
+          }));
+          setRawCategories(formatted);
+        }
+      })
+      .catch((err) => {
+        console.log('Error fetching categories for HomeScreen:', err?.message);
+      });
+  }, []);
+
+  // Dynamically re-pack categories whenever categories list or app language changes
+  useEffect(() => {
+    const listToPack = rawCategories && rawCategories.length > 0
+      ? rawCategories
+      : CATEGORY_CHIPS.flat();
+    const packed = packCategoryRows(listToPack, i18n.language);
+    setCategoryRows(packed);
+  }, [rawCategories, i18n.language]);
 
   // Synchronize playback: hold playback at frame 0 for a brief 350ms so background, footer, name & avatar all mount together before motion starts
   useEffect(() => {
@@ -97,6 +199,64 @@ export default function HomeScreen() {
   const [paidConfirmState, setPaidConfirmState] = useState(null); // { item, action: 'download' | 'share' }
   const [payingForTemplate, setPayingForTemplate] = useState(false);
   const [unlockedIds, setUnlockedIds] = useState(new Set());
+
+  // Load and sync purchased templates for lifetime access
+  useEffect(() => {
+    let isMounted = true;
+    const syncPurchased = async () => {
+      const ids = new Set();
+      // 1. From current user object
+      if (user?.purchasedTemplates && Array.isArray(user.purchasedTemplates)) {
+        user.purchasedTemplates.forEach((p) => {
+          const id = typeof p === 'object' ? String(p._id || p.id || '') : String(p || '');
+          if (id) ids.add(id);
+        });
+      }
+      // 2. From AsyncStorage backup
+      try {
+        const stored = await AsyncStorage.getItem('starpix_unlocked_templates');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((id) => id && ids.add(String(id)));
+          }
+        }
+      } catch (e) {}
+
+      if (isMounted && ids.size > 0) {
+        setUnlockedIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+    };
+    syncPurchased();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.purchasedTemplates]);
+
+  const isTemplateUnlocked = useCallback(
+    (target) => {
+      if (!target) return false;
+      const id = String(target.id || target._id || '');
+      if (!id) return false;
+      if (target.accessType === 'free') return true;
+      if (checkHasActiveSubscription(user)) return true;
+      if (unlockedIds.has(id)) return true;
+      if (target.isPurchased || target.rawTemplate?.isPurchased) return true;
+      if (user?.purchasedTemplates && Array.isArray(user.purchasedTemplates)) {
+        const hasIt = user.purchasedTemplates.some((p) => {
+          const pId = typeof p === 'object' ? String(p._id || p.id || '') : String(p || '');
+          return pId === id;
+        });
+        if (hasIt) return true;
+      }
+      return false;
+    },
+    [user, unlockedIds]
+  );
   const viewedReelIds = useRef(new Set());
 
   const flatListRef = useRef(null);
@@ -122,12 +282,7 @@ export default function HomeScreen() {
   const controlsWidth = Math.max(cardWidth, Math.min(windowWidth * 0.92, 360));
 
   const getSubscriptionLabel = () => {
-    const isVip = Boolean(
-      user &&
-      user.isPremium &&
-      (user.subscriptionStatus === 'active' || !user.subscriptionStatus) &&
-      (!user.subscriptionExpiresAt || new Date() <= new Date(user.subscriptionExpiresAt))
-    );
+    const isVip = checkHasActiveSubscription(user);
     if (!isVip) {
       return t('pro_badge') || 'PRO';
     }
@@ -203,6 +358,9 @@ export default function HomeScreen() {
                   height: f.height,
                   zIndex: f.zIndex || 10,
                   userNamePosition: f.userNamePosition || null,
+                  userPhotoPosition: f.userPhotoPosition || null,
+                  userPhotoShape: f.userPhotoShape || f.shape || null,
+                  shape: f.userPhotoShape || f.shape || null,
                   isNone: false,
                   isCustom: true,
                 };
@@ -243,13 +401,13 @@ export default function HomeScreen() {
 
   // Filter reels based on active category
   const displayReels = useMemo(() => {
-    if (activeCategory === 'all') {
+    if (activeCategory === 'all' || activeCategory === 'all_categories') {
       return reels;
     }
     const normActive = normalizeCat(activeCategory);
     return reels.filter((r) => {
       const normR = normalizeCat(r.category);
-      if (normR === normActive) return true;
+      if (normR === normActive || normR.includes(normActive) || normActive.includes(normR)) return true;
       if (normActive === 'special' && (normR === 'durgapuja' || normR === 'festivals' || normR === 'trending')) {
         return true;
       }
@@ -336,9 +494,18 @@ export default function HomeScreen() {
       if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
         try {
           const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
-          if (uploaded) remoteUserPhoto = uploaded;
+          if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
+            remoteUserPhoto = uploaded;
+          } else {
+            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          }
         } catch (uploadErr) {
           console.warn('Could not upload user photo:', uploadErr);
+          try {
+            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          } catch (b64Err) {}
         }
       }
 
@@ -458,8 +625,8 @@ export default function HomeScreen() {
     const target = reelItem || activeReel;
     if (!target) return;
 
-    // Check if paid template and not yet unlocked in current session
-    if (target.isPaid && !unlockedIds.has(target.id)) {
+    // Check if paid template and not yet unlocked for lifetime
+    if (target.isPaid && !isTemplateUnlocked(target)) {
       // Show confirmation popup for the money required
       setPaidConfirmState({ item: target, action: 'download' });
       return;
@@ -496,9 +663,18 @@ export default function HomeScreen() {
       if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
         try {
           const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
-          if (uploaded) remoteUserPhoto = uploaded;
+          if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
+            remoteUserPhoto = uploaded;
+          } else {
+            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          }
         } catch (uploadErr) {
           console.warn('Could not upload user photo:', uploadErr);
+          try {
+            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+          } catch (b64Err) {}
         }
       }
 
@@ -643,8 +819,8 @@ export default function HomeScreen() {
     const target = reelItem || activeReel;
     if (!target) return;
 
-    // Check if paid template and not yet unlocked in current session
-    if (target.isPaid && !unlockedIds.has(target.id)) {
+    // Check if paid template and not yet unlocked for lifetime
+    if (target.isPaid && !isTemplateUnlocked(target)) {
       // Show confirmation popup for the money required
       setPaidConfirmState({ item: target, action: 'share' });
       return;
@@ -673,7 +849,13 @@ export default function HomeScreen() {
 
       if (res.data?.success) {
         hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
-        setUnlockedIds((prev) => new Set(prev).add(item.id));
+        const targetId = String(item.id);
+        setUnlockedIds((prev) => {
+          const next = new Set(prev).add(targetId);
+          AsyncStorage.setItem('starpix_unlocked_templates', JSON.stringify([...next])).catch(() => {});
+          return next;
+        });
+        useAuthStore.getState().addPurchasedTemplate(targetId);
         setPaidConfirmState(null);
         showToast(t('payment_successful'));
 
@@ -743,7 +925,7 @@ export default function HomeScreen() {
                       resizeMode={ResizeMode.COVER}
                       shouldPlay={shouldPlayMedia}
                       isLooping
-                      isMuted
+                      isMuted={isFeedMuted}
                     />
                   ) : (
                     <Image
@@ -869,6 +1051,26 @@ export default function HomeScreen() {
                 />
               </PressableScale>
             ) : null}
+
+            {/* Sound Mute/Unmute Button - ONLY for Video */}
+            {item.mediaType === 'video' ? (
+              <PressableScale
+                onPress={() => {
+                  hapticTap();
+                  setIsFeedMuted((prev) => !prev);
+                }}
+                scaleTo={0.92}
+                style={styles.soundToggleBtn}
+                contentStyle={styles.iconCenter}
+                accessibilityLabel={isFeedMuted ? t('sound_unmute', { defaultValue: 'Turn Sound On' }) : t('sound_mute', { defaultValue: 'Mute Sound' })}
+              >
+                <Ionicons
+                  name={isFeedMuted ? 'volume-mute' : 'volume-high'}
+                  size={fontScale(17)}
+                  color="#FFFFFF"
+                />
+              </PressableScale>
+            ) : null}
           </View>
 
           {/* Next Button: NOT on template, positioned near the right end of the screen */}
@@ -950,23 +1152,15 @@ export default function HomeScreen() {
             )}
           </PressableScale>
 
-          {/* Edit Button */}
+          {/* Edit Button: circular red button with white pencil+ icon */}
           <PressableScale
             onPress={handleEdit}
-            scaleTo={0.95}
+            scaleTo={0.92}
             disabled={Boolean(actionLoading)}
             style={styles.editActionBtn}
-            contentStyle={styles.actionBtnContent}
+            contentStyle={styles.editActionBtnContent}
           >
-            <Ionicons name="pencil-outline" size={fontScale(15)} color="#E11D48" />
-            <Text
-              style={styles.editActionText}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
-              {t('edit')}
-            </Text>
+            <MaterialCommunityIcons name="pencil-plus-outline" size={fontScale(18)} color="#FFFFFF" />
           </PressableScale>
         </View>
 
@@ -1080,7 +1274,7 @@ export default function HomeScreen() {
             contentStyle={styles.aiTrendsContent}
           >
             <Ionicons name="sparkles" size={fontScale(13)} color="#E11D48" />
-            <Text style={styles.aiTrendsText}>{t('ai_trends')}</Text>
+            <Text style={styles.aiTrendsText} numberOfLines={1}>{t('ai_trends')}</Text>
           </PressableScale>
 
           {/* Language Switcher Icon */}
@@ -1112,48 +1306,103 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Sticky Category / Filter Chips at Top */}
+      {/* Category / Filter Chips at Top */}
       <View style={styles.categoryContainer}>
-        {CATEGORY_CHIPS.map((row, rowIdx) => (
-          <View key={`row_${rowIdx}`} style={styles.categoryRow}>
-            {row.map((chip) => {
-              const isSelected = activeCategory === chip.id;
-              return (
-                <TouchableOpacity
-                  key={chip.id}
-                  activeOpacity={0.75}
-                  onPress={() => handleCategoryPress(chip.id)}
-                  style={[
-                    styles.chip,
-                    isSelected && styles.chipActive,
-                    chip.isSpecial && !isSelected && styles.chipSpecialInactive,
-                  ]}
-                >
-                  {chip.icon ? (
-                    <Text style={styles.chipIcon}>{chip.icon}</Text>
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.chipText,
-                      isSelected && styles.chipTextActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {t(chip.labelKey)}
-                  </Text>
-                  {chip.chevron ? (
-                    <Ionicons
-                      name="chevron-down"
-                      size={fontScale(11)}
-                      color={isSelected ? '#FFFFFF' : '#E11D48'}
-                      style={{ marginLeft: 2 }}
-                    />
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ))}
+        <View style={styles.categoryInnerWrapper}>
+          <ScrollView
+            style={[
+              styles.categoryScrollArea,
+              categoryRows.length > 3 && styles.categoryScrollAreaMaxHeight,
+            ]}
+            contentContainerStyle={styles.categoryScrollContent}
+            showsVerticalScrollIndicator={false}
+            persistentScrollbar={false}
+            nestedScrollEnabled={true}
+            onScroll={(e) => {
+              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+              setCategoryScrollOffset(contentOffset?.y || 0);
+              setCategoryContentHeight(contentSize?.height || 1);
+              setCategoryContainerHeight(layoutMeasurement?.height || 1);
+            }}
+            scrollEventThrottle={16}
+          >
+            {categoryRows.map((row, rowIdx) => (
+              <View key={`row_${rowIdx}`} style={styles.categoryRow}>
+                {row.map((chip) => {
+                  const isSelected = activeCategory === chip.id;
+                  const label =
+                    (chip.nameTranslations && chip.nameTranslations[i18n.language]) ||
+                    (chip.labelKey && i18n.exists(chip.labelKey) ? t(chip.labelKey) : (chip.name || chip.id));
+
+                  return (
+                    <TouchableOpacity
+                      key={chip.id}
+                      activeOpacity={0.75}
+                      onPress={() => handleCategoryPress(chip.id)}
+                      style={[
+                        styles.chip,
+                        isSelected && styles.chipActive,
+                        chip.isSpecial && !isSelected && styles.chipSpecialInactive,
+                      ]}
+                    >
+                      {chip.icon ? (
+                        <Text style={styles.chipIcon}>{chip.icon}</Text>
+                      ) : null}
+                      <Text
+                        style={[
+                          styles.chipText,
+                          isSelected && styles.chipTextActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                      {chip.chevron ? (
+                        <Ionicons
+                          name="chevron-down"
+                          size={fontScale(11)}
+                          color={isSelected ? '#FFFFFF' : '#E11D48'}
+                          style={{ marginLeft: 2 }}
+                        />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Visible Scrollbar on the Right if more than 3 rows */}
+          {categoryRows.length > 3 && (
+            <View style={styles.customScrollbarTrack}>
+              <View
+                style={[
+                  styles.customScrollbarThumb,
+                  {
+                    height: Math.max(
+                      18,
+                      categoryContentHeight > 0
+                        ? (categoryContainerHeight / categoryContentHeight) * categoryContainerHeight
+                        : 28
+                    ),
+                    transform: [
+                      {
+                        translateY:
+                          categoryContentHeight > categoryContainerHeight
+                            ? (categoryScrollOffset / (categoryContentHeight - categoryContainerHeight)) *
+                              (categoryContainerHeight -
+                                Math.max(
+                                  18,
+                                  (categoryContainerHeight / categoryContentHeight) * categoryContainerHeight
+                                ))
+                            : 0,
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Main Single-Viewport Snapping List */}
@@ -1185,9 +1434,9 @@ export default function HomeScreen() {
 
             {/* Action Buttons Skeleton (Download, Share, Edit) */}
             <View style={[styles.actionRow, { width: controlsWidth, marginTop: 8 }]}>
-              <Skeleton width="34%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
-              <Skeleton width="32%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
-              <Skeleton width="28%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width="42%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width="42%" height={38} borderRadius={20} style={{ backgroundColor: '#F1F5F9' }} />
+              <Skeleton width={38} height={38} borderRadius={19} style={{ backgroundColor: '#F1F5F9' }} />
             </View>
 
             {/* Frame Selector Skeleton (4 boxes) */}

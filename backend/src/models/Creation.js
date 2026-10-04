@@ -18,6 +18,11 @@ const creationSchema = new mongoose.Schema(
       ref: 'AIVideoTemplate',
       required: false,
     },
+    isAi: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     mediaType: {
       type: String,
       enum: ['image', 'video'],

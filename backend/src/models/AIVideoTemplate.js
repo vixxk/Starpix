@@ -81,6 +81,14 @@ const aiVideoTemplateSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    uses: {
+      type: Number,
+      default: 0,
+    },
+    views: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

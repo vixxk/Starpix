@@ -248,7 +248,12 @@ export default function TemplateEditModal({
                             />
                             {footerItem.userNamePosition && (
                               <span className="badge bg-amber-100 text-amber-900 border-amber-300 text-[10px] whitespace-nowrap">
-                                📍 Custom Name Position
+                                📍 Custom Text Pos
+                              </span>
+                            )}
+                            {(footerItem.userPhotoPosition || footerItem.userPhotoShape) && (
+                              <span className="badge bg-sky-100 text-sky-900 border-sky-300 text-[10px] whitespace-nowrap">
+                                🖼️ Custom Shape ({footerItem.userPhotoShape || footerItem.userPhotoPosition?.shape || 'Custom'})
                               </span>
                             )}
                           </div>

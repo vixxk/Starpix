@@ -74,6 +74,33 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  soundActiveBtn: {
+    backgroundColor: '#FFF7ED',
+    borderColor: COLORS.orange,
+  },
+  canvasSoundBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 40,
+    elevation: 15,
+  },
+  canvasSoundBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  canvasSoundText: {
+    color: '#FFFFFF',
+    fontSize: fontScale(10),
+    fontFamily: FONTS.bold,
+  },
   resetHeaderBtn: {
     backgroundColor: COLORS.surfaceAlt,
     borderRadius: 12,

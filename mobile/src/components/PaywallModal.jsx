@@ -63,6 +63,10 @@ export default function PaywallModal({ visible, template, onClose, onSuccess }) 
 
       if (res.data.success) {
         hapticSuccess();
+        try {
+          const { useAuthStore } = require('../store/useAuthStore');
+          useAuthStore.getState().addPurchasedTemplate(template._id);
+        } catch (e) {}
         animateOut(() => {
           onSuccess && onSuccess(res.data.data);
           onClose();

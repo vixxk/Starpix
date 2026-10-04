@@ -4,6 +4,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import API from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { TableSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import {
   Flag,
   MagnifyingGlass,
@@ -245,7 +246,7 @@ export default function UserReports() {
         </div>
       ) : (
         <div className="panel overflow-hidden">
-          <div className="table-scroll anim">
+          <TableScroll className="anim">
             <table className="data-table">
               <thead>
                 <tr>
@@ -411,7 +412,7 @@ export default function UserReports() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
 
           {/* Pagination */}
           {pagination.pages > 1 && (

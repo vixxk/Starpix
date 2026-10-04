@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { TableSkeleton } from '../components/Skeleton';
 import Pagination from '../components/Pagination';
 import GrantVipModal from '../components/GrantVipModal';
+import TableScroll from '../components/TableScroll';
 import ModalPortal from '../components/ModalPortal';
 import { resolveMediaUrl } from '../utils/media';
 import {
@@ -172,7 +173,7 @@ export default function SubscriptionsPage() {
         </div>
       ) : (
         <div className="panel overflow-hidden">
-          <div className="table-scroll anim">
+          <TableScroll className="anim">
             <table className="data-table">
               <thead>
                 <tr>
@@ -310,7 +311,7 @@ export default function SubscriptionsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
 
           {/* Pagination */}
           <Pagination

@@ -20,6 +20,7 @@ import ConfirmModal from '../../src/components/ConfirmModal';
 import { COLORS, FONTS } from '../../src/constants/colors';
 import { fontScale, wp, hp } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { checkHasActiveSubscription } from '../../src/utils/subscription';
 import { useTranslation } from 'react-i18next';
 import { hapticTap } from '../../src/utils/haptics';
 
@@ -115,8 +116,12 @@ export default function VerifyScreen() {
     }
 
     try {
-      await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
-      router.replace('/(tabs)');
+      const verifiedUser = await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
+      if (checkHasActiveSubscription(verifiedUser)) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/vip');
+      }
     } catch (e) {
       // Error handled in store
     }

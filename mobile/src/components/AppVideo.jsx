@@ -29,6 +29,9 @@ export default function AppVideo({
   const player = useVideoPlayer(uri || '', (p) => {
     p.loop = isLooping;
     p.muted = isMuted;
+    try {
+      p.volume = 1.0;
+    } catch (e) {}
     if (shouldPlay) {
       try {
         p.play();
@@ -48,6 +51,9 @@ export default function AppVideo({
     if (!player) return;
     try {
       player.muted = isMuted;
+      if (!isMuted) {
+        player.volume = 1.0;
+      }
     } catch (e) {}
   }, [player, isMuted]);
 

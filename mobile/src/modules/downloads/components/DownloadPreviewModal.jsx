@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, Modal, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Image, Modal, Pressable, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { COLORS } from '../../../constants/colors';
+import { COLORS, FONTS } from '../../../constants/colors';
 import AppVideo, { ResizeMode } from '../../../components/AppVideo';
 import PressableScale from '../../../components/PressableScale';
 import ReelPersonalizationOverlay from '../../../components/ReelPersonalizationOverlay';
 import { resolveMediaUrl } from '../../../utils/media';
 import { wp, hp } from '../../../utils/responsive';
 import { getLocalizedName } from '../../../utils/localized';
+import { hapticTap } from '../../../utils/haptics';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useCreationStore } from '../../../store/useCreationStore';
 import { isVideoMedia, getCardThumbnail } from '../constants';
@@ -22,14 +23,22 @@ export default function DownloadPreviewModal({
   onClose,
   onRedownload,
   onShare,
+  onDelete,
   isRedownloading = false,
   isSharing = false,
 }) {
   const { t, i18n } = useTranslation();
   const [mediaLoading, setMediaLoading] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const user = useAuthStore((state) => state.user);
   const storeUserName = useCreationStore((state) => state.userNameText || state.defaultUserNameText);
   const storeUserPhoto = useCreationStore((state) => state.userPhotoUri || state.defaultUserPhotoUri);
+
+  const lastItemRef = useRef(item);
+  if (item) {
+    lastItemRef.current = item;
+  }
+  const displayItem = item || lastItemRef.current;
 
   useEffect(() => {
     if (visible && item) {
@@ -39,29 +48,34 @@ export default function DownloadPreviewModal({
     }
   }, [visible, item]);
 
-  if (!visible || !item) return null;
+  if (!displayItem) return null;
+
+  const handleClose = () => {
+    hapticTap();
+    onClose();
+  };
 
   const mediaSource =
-    item.mediaUrl ||
-    item.image ||
-    item.localUri ||
-    item.imageUrl ||
-    (item.template && (item.template.mainMedia || item.template.previewAsset));
+    displayItem.mediaUrl ||
+    displayItem.image ||
+    displayItem.localUri ||
+    displayItem.imageUrl ||
+    (displayItem.template && (displayItem.template.mainMedia || displayItem.template.previewAsset));
 
-  const isVideo = item.mediaType === 'video' || isVideoMedia(mediaSource);
+  const isVideo = displayItem.mediaType === 'video' || isVideoMedia(mediaSource);
 
-  const templateObj = item.activeTemplate || item.template;
-  const canvasConfig = item.canvasConfig || templateObj?.canvasConfig || null;
+  const templateObj = displayItem.activeTemplate || displayItem.template;
+  const canvasConfig = displayItem.canvasConfig || templateObj?.canvasConfig || null;
 
   const footers =
-    item.footers && item.footers.length > 0
-      ? item.footers
+    displayItem.footers && displayItem.footers.length > 0
+      ? displayItem.footers
       : templateObj?.footers && templateObj.footers.length > 0
       ? templateObj.footers
       : [];
 
   const customFooter =
-    item.selectedFooter ||
+    displayItem.selectedFooter ||
     (footers.length > 0 ? footers[0] : null);
 
   const normalizedFooter = customFooter
@@ -72,28 +86,28 @@ export default function DownloadPreviewModal({
     : null;
 
   const frameId =
-    item.selectedFrame ||
+    displayItem.selectedFrame ||
     (normalizedFooter ? normalizedFooter.id : (templateObj?.defaultFrame || 'durga_puja'));
 
   const userName =
-    (item.userNameText && item.userNameText.trim()) ||
-    (item.editedText && item.editedText.trim()) ||
+    (displayItem.userNameText && displayItem.userNameText.trim()) ||
+    (displayItem.editedText && displayItem.editedText.trim()) ||
     (storeUserName && storeUserName.trim()) ||
     user?.name ||
     user?.fullName ||
     'User';
 
   const userPhotoUri =
-    item.userPhotoUri ||
-    item.editedPhoto ||
+    displayItem.userPhotoUri ||
+    displayItem.editedPhoto ||
     storeUserPhoto ||
     user?.profilePhoto ||
     user?.avatar ||
     null;
 
   const localizedTitle =
-    getLocalizedName(item.activeTemplate || item.aiTemplate || item.template, i18n.language) ||
-    item.title ||
+    getLocalizedName(displayItem.activeTemplate || displayItem.aiTemplate || displayItem.template, i18n.language) ||
+    displayItem.title ||
     'Starpix Creation';
 
   const maxW = wp(0.92);
@@ -107,10 +121,10 @@ export default function DownloadPreviewModal({
 
   return (
     <Modal
-      visible={visible}
+      visible={visible && Boolean(item)}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.fullscreenOverlay}>
         <StatusBar style="light" />
@@ -120,17 +134,37 @@ export default function DownloadPreviewModal({
           <Text style={styles.fullscreenTitle} numberOfLines={1}>
             {localizedTitle}
           </Text>
-          <PressableScale
-            onPress={onClose}
-            scaleTo={0.9}
-            style={styles.closeBtn}
-          >
-            <Ionicons name="close" size={24} color={COLORS.white} />
-          </PressableScale>
+          <View style={styles.headerRightButtons}>
+            {onDelete && (
+              <TouchableOpacity
+                onPress={() => {
+                  hapticTap();
+                  onDelete(displayItem);
+                }}
+                style={styles.deleteHeaderBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('delete') || 'Delete'}
+              >
+                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeBtn}
+              activeOpacity={0.7}
+              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            >
+              <Ionicons name="close" size={24} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Main Full Screen Media Area with Attached Template Footer & Name */}
-        <Pressable style={styles.fullscreenContentArea} onPress={onClose}>
+        <Pressable style={styles.fullscreenContentArea} onPress={handleClose}>
           <View
             style={{
               width: cardWidth,
@@ -145,19 +179,19 @@ export default function DownloadPreviewModal({
             <View style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0, overflow: 'hidden' }}>
               {isVideo ? (
                 <AppVideo
-                  key={`base_vid_${item._id || 'view'}`}
+                  key={`base_vid_${displayItem._id || 'view'}`}
                   source={{ uri: resolveMediaUrl(mediaSource) }}
                   style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
                   resizeMode={ResizeMode.COVER}
                   isLooping
-                  shouldPlay
-                  isMuted={false}
+                  shouldPlay={visible}
+                  isMuted={isMuted}
                   onReadyForDisplay={() => setMediaLoading(false)}
                   onLoad={() => setMediaLoading(false)}
                 />
               ) : (
                 <Image
-                  source={{ uri: resolveMediaUrl(mediaSource || getCardThumbnail(item)) }}
+                  source={{ uri: resolveMediaUrl(mediaSource || getCardThumbnail(displayItem)) }}
                   style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
                   resizeMode="cover"
                   onLoadStart={() => setMediaLoading(true)}
@@ -224,11 +258,11 @@ export default function DownloadPreviewModal({
                 >
                   {isFootVid ? (
                     <AppVideo
-                      key={`foot_vid_${item._id || 'view'}`}
+                      key={`foot_vid_${displayItem._id || 'view'}`}
                       source={{ uri: footerUri }}
                       style={{ width: fWidth, height: fHeight }}
                       resizeMode={fitMode === 'cover' ? ResizeMode.COVER : fitMode === 'fill' ? ResizeMode.STRETCH : ResizeMode.CONTAIN}
-                      shouldPlay
+                      shouldPlay={visible}
                       isLooping
                       isMuted
                     />
@@ -271,13 +305,49 @@ export default function DownloadPreviewModal({
                 <ActivityIndicator size="small" color="#EE1D24" />
               </View>
             )}
+
+            {isVideo && (
+              <PressableScale
+                onPress={() => {
+                  hapticTap();
+                  setIsMuted((prev) => !prev);
+                }}
+                scaleTo={0.93}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={[
+                  styles.soundBadgeContainer,
+                  isMuted ? styles.soundBadgeMuted : styles.soundBadgeActive,
+                  { maxWidth: cardWidth * 0.52 },
+                ]}
+                accessibilityLabel={
+                  isMuted
+                    ? t('sound_unmute', { defaultValue: 'Turn Sound On' })
+                    : t('sound_mute', { defaultValue: 'Mute Sound' })
+                }
+              >
+                <Ionicons
+                  name={isMuted ? 'volume-mute' : 'volume-high'}
+                  size={14}
+                  color={isMuted ? '#F59E0B' : '#FFFFFF'}
+                />
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={styles.soundText}
+                >
+                  {isMuted
+                    ? t('sound_off', { defaultValue: 'Sound Off' })
+                    : t('sound_on', { defaultValue: 'Sound On' })}
+                </Text>
+              </PressableScale>
+            )}
           </View>
         </Pressable>
 
         {/* Footer Action Controls */}
         <View style={[styles.fullscreenFooter, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
           <PressableScale
-            onPress={() => onRedownload(item)}
+            onPress={() => onRedownload(displayItem)}
             scaleTo={0.94}
             style={styles.fullscreenActionBtn}
             contentStyle={styles.fullscreenBtnContent}

@@ -185,6 +185,12 @@ export default function PaidTemplateConfirmModal({
                     {t('no_watermark', { defaultValue: 'No Watermark' })}
                   </Text>
                 </View>
+                <View style={[styles.perkPill, styles.perkPillLifetime]}>
+                  <Ionicons name="infinite" size={11} color="#2563EB" />
+                  <Text style={[styles.perkText, styles.perkTextLifetime]} numberOfLines={1}>
+                    {t('lifetime_access', { defaultValue: 'Lifetime Access' })}
+                  </Text>
+                </View>
               </View>
 
               {/* Price Highlight */}
@@ -399,6 +405,12 @@ const styles = StyleSheet.create({
   },
   perkTextSuccess: {
     color: '#047857',
+  },
+  perkPillLifetime: {
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+  },
+  perkTextLifetime: {
+    color: '#1D4ED8',
   },
   priceContainer: {
     flexDirection: 'row',

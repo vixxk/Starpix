@@ -3,6 +3,26 @@ const Template = require('../models/Template');
 const Category = require('../models/Category');
 const Analytics = require('../models/Analytics');
 
+const annotateTemplateWithUserAccess = (templateDoc, user) => {
+  if (!templateDoc) return templateDoc;
+  const obj = templateDoc.toObject ? templateDoc.toObject() : { ...templateDoc };
+  if (!user) {
+    obj.isPurchased = false;
+    obj.isUnlocked = obj.accessType === 'free';
+    return obj;
+  }
+  const purchasedIds = new Set((user.purchasedTemplates || []).map((id) => id.toString()));
+  const isVip = Boolean(
+    user.isPremium &&
+    user.subscriptionStatus === 'active' &&
+    (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date())
+  );
+  const isPurchased = purchasedIds.has(obj._id.toString());
+  obj.isPurchased = isPurchased;
+  obj.isUnlocked = obj.accessType === 'free' || isPurchased || isVip;
+  return obj;
+};
+
 // @desc    Get all templates with filtering, search, pagination
 // @route   GET /api/templates
 // @access  Public
@@ -64,9 +84,11 @@ const getTemplates = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(limit);
 
+  const annotatedTemplates = templates.map((t) => annotateTemplateWithUserAccess(t, req.user));
+
   res.status(200).json({
     success: true,
-    data: templates,
+    data: annotatedTemplates,
     pagination: {
       total,
       page,
@@ -86,9 +108,11 @@ const getTrendingTemplates = asyncHandler(async (req, res) => {
     .sort({ isPinned: -1, order: 1, sortOrder: 1, trendingScore: -1, uses: -1, views: -1 })
     .limit(limit);
 
+  const annotatedTrending = templates.map((t) => annotateTemplateWithUserAccess(t, req.user));
+
   res.status(200).json({
     success: true,
-    data: templates,
+    data: annotatedTrending,
   });
 });
 
@@ -175,7 +199,7 @@ const getTemplateById = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: template,
+    data: annotateTemplateWithUserAccess(template, req.user),
   });
 });
 

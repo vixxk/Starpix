@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import Skeleton from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import { printDocument } from '../utils/print';
 import {
   ChartPieSlice,
@@ -279,7 +280,7 @@ export default function Reports() {
                 <p className="text-xs text-ink-mute font-medium">No VIP pack subscriptions recorded in this range.</p>
               </div>
             ) : (
-              <div className="table-scroll">
+              <TableScroll>
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -335,7 +336,7 @@ export default function Reports() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableScroll>
             )}
           </div>
 
@@ -353,7 +354,7 @@ export default function Reports() {
                 <p className="text-xs text-ink-mute font-medium">No template sales in this range.</p>
               </div>
             ) : (
-              <div className="table-scroll">
+              <TableScroll>
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -407,7 +408,7 @@ export default function Reports() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableScroll>
             )}
           </div>
 

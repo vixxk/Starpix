@@ -22,6 +22,39 @@ const isVideoMedia = (url) => {
 };
 
 /**
+ * Extracts video duration in seconds via ffprobe
+ */
+function getVideoDuration(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  try {
+    const out = execSync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+      { timeout: 10000 }
+    ).toString().trim();
+    const num = parseFloat(out);
+    return !isNaN(num) && num > 0 ? num : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Checks whether a media file contains an audio stream
+ */
+function hasAudioStream(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return false;
+  try {
+    const out = execSync(
+      `ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+      { timeout: 10000 }
+    ).toString().trim();
+    return Boolean(out && out.length > 0);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Downloads a remote URL or resolves a local file to a temp file path
  */
 async function downloadToTemp(urlOrPath, tempDir, prefix = 'media') {
@@ -86,27 +119,63 @@ async function getMediaBuffer(urlOrPath) {
 }
 
 /**
- * Generates an SVG clipping mask matching the mobile app's getPhotoShapeStyles
+ * Generates an SVG clipping mask matching the mobile app's ShapeClippedPhoto
  */
 function getShapeMaskSvg(shape, w, h) {
   const minDim = Math.min(w, h);
-  switch (shape) {
+  const heartPoints = `${w * 0.5},${h * 0.15} ${w * 0.65},0 ${w * 0.85},0 ${w},${h * 0.15} ${w},${h * 0.35} ${w * 0.5},${h * 0.90} 0,${h * 0.35} 0,${h * 0.15} ${w * 0.15},0 ${w * 0.35},0`;
+  const diamondPoints = `${w / 2},0 ${w},${h / 2} ${w / 2},${h} 0,${h / 2}`;
+  const hexagonPoints = `${w * 0.25},0 ${w * 0.75},0 ${w},${h / 2} ${w * 0.75},${h} ${w * 0.25},${h} 0,${h / 2}`;
+  const starPoints = `${w * 0.5},0 ${w * 0.61},${h * 0.35} ${w * 0.98},${h * 0.35} ${w * 0.68},${h * 0.57} ${w * 0.79},${h * 0.91} ${w * 0.5},${h * 0.70} ${w * 0.21},${h * 0.91} ${w * 0.32},${h * 0.57} ${w * 0.02},${h * 0.35} ${w * 0.39},${h * 0.35}`;
+
+  switch (String(shape || '').toLowerCase()) {
     case 'circle':
       return `<circle cx="${w / 2}" cy="${h / 2}" r="${minDim / 2}" fill="#fff" />`;
     case 'rounded':
       const r = minDim * 0.2;
       return `<rect x="0" y="0" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="#fff" />`;
     case 'diamond':
-      return `<polygon points="${w / 2},0 ${w},${h / 2} ${w / 2},${h} 0,${h / 2}" fill="#fff" />`;
+      return `<polygon points="${diamondPoints}" fill="#fff" />`;
     case 'hexagon':
-      return `<polygon points="${w * 0.25},0 ${w * 0.75},0 ${w},${h / 2} ${w * 0.75},${h} ${w * 0.25},${h} 0,${h / 2}" fill="#fff" />`;
+      return `<polygon points="${hexagonPoints}" fill="#fff" />`;
     case 'star':
-      return `<polygon points="${w * 0.5},0 ${w * 0.61},${h * 0.35} ${w * 0.98},${h * 0.35} ${w * 0.68},${h * 0.57} ${w * 0.79},${h * 0.91} ${w * 0.5},${h * 0.70} ${w * 0.21},${h * 0.91} ${w * 0.32},${h * 0.57} ${w * 0.02},${h * 0.35} ${w * 0.39},${h * 0.35}" fill="#fff" />`;
+      return `<polygon points="${starPoints}" fill="#fff" />`;
     case 'heart':
-      return `<polygon points="${w * 0.5},${h * 0.15} ${w * 0.65},0 ${w * 0.85},0 ${w},${h * 0.15} ${w},${h * 0.35} ${w * 0.5},${h * 0.90} 0,${h * 0.35} 0,${h * 0.15} ${w * 0.15},0 ${w * 0.35},0" fill="#fff" />`;
+      return `<polygon points="${heartPoints}" fill="#fff" />`;
     case 'rectangle':
     default:
       return `<rect x="0" y="0" width="${w}" height="${h}" fill="#fff" />`;
+  }
+}
+
+/**
+ * Generates outer white border stroke matching the mobile app's ShapeClippedPhoto renderStrokeShape
+ */
+function getShapeStrokeSvg(shape, w, h, strokeWidth = 3) {
+  const minDim = Math.min(w, h);
+  const halfStroke = strokeWidth / 2;
+  const heartPoints = `${w * 0.5},${h * 0.15} ${w * 0.65},0 ${w * 0.85},0 ${w},${h * 0.15} ${w},${h * 0.35} ${w * 0.5},${h * 0.90} 0,${h * 0.35} 0,${h * 0.15} ${w * 0.15},0 ${w * 0.35},0`;
+  const diamondPoints = `${w / 2},0 ${w},${h / 2} ${w / 2},${h} 0,${h / 2}`;
+  const hexagonPoints = `${w * 0.25},0 ${w * 0.75},0 ${w},${h / 2} ${w * 0.75},${h} ${w * 0.25},${h} 0,${h / 2}`;
+  const starPoints = `${w * 0.5},0 ${w * 0.61},${h * 0.35} ${w * 0.98},${h * 0.35} ${w * 0.68},${h * 0.57} ${w * 0.79},${h * 0.91} ${w * 0.5},${h * 0.70} ${w * 0.21},${h * 0.91} ${w * 0.32},${h * 0.57} ${w * 0.02},${h * 0.35} ${w * 0.39},${h * 0.35}`;
+
+  switch (String(shape || '').toLowerCase()) {
+    case 'circle':
+      return `<circle cx="${w / 2}" cy="${h / 2}" r="${minDim / 2 - halfStroke}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
+    case 'rounded':
+      const r = minDim * 0.2;
+      return `<rect x="${halfStroke}" y="${halfStroke}" width="${w - strokeWidth}" height="${h - strokeWidth}" rx="${r}" ry="${r}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
+    case 'diamond':
+      return `<polygon points="${diamondPoints}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
+    case 'hexagon':
+      return `<polygon points="${hexagonPoints}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
+    case 'star':
+      return `<polygon points="${starPoints}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
+    case 'heart':
+      return `<polygon points="${heartPoints}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
+    case 'rectangle':
+    default:
+      return `<rect x="${halfStroke}" y="${halfStroke}" width="${w - strokeWidth}" height="${h - strokeWidth}" stroke="#FFFFFF" stroke-width="${strokeWidth}" fill="none" />`;
   }
 }
 
@@ -127,10 +196,41 @@ function escapeXml(unsafe) {
 }
 
 /**
- * Creates the shaped user photo buffer using Sharp
+ * Creates the shaped user photo buffer using Sharp with exact shape, crisp white stroke border,
+ * and default avatar placeholder if no user photo was provided.
  */
 async function processUserPhoto(photoBuffer, w, h, shape = 'rectangle') {
-  if (!photoBuffer) return null;
+  const minDim = Math.min(w, h);
+  const strokeSvg = getShapeStrokeSvg(shape, w, h, 3);
+  const maskSvg = getShapeMaskSvg(shape, w, h);
+
+  if (!photoBuffer) {
+    // Generate default avatar placeholder matching mobile ShapeClippedPhoto:
+    // Base dark background #1E293B, persona icon in #94A3B8, and outer stroke border
+    const avatarSvg = `
+      <svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="shapeClip_${shape}">
+            ${maskSvg}
+          </clipPath>
+        </defs>
+        <g clip-path="url(#shapeClip_${shape})">
+          <rect x="0" y="0" width="${w}" height="${h}" fill="#1E293B" />
+          <g transform="translate(${w / 2 - minDim * 0.22}, ${h / 2 - minDim * 0.22})">
+            <circle cx="${minDim * 0.22}" cy="${minDim * 0.16}" r="${minDim * 0.12}" fill="#94A3B8" />
+            <rect x="${minDim * 0.06}" y="${minDim * 0.32}" width="${minDim * 0.32}" height="${minDim * 0.2}" rx="${minDim * 0.1}" fill="#94A3B8" />
+          </g>
+        </g>
+        ${strokeSvg}
+      </svg>
+    `;
+    try {
+      return await sharp(Buffer.from(avatarSvg)).png().toBuffer();
+    } catch (e) {
+      console.warn('[Renderer] Error generating avatar placeholder:', e.message);
+      return null;
+    }
+  }
 
   try {
     const resizedPhoto = await sharp(photoBuffer)
@@ -138,11 +238,14 @@ async function processUserPhoto(photoBuffer, w, h, shape = 'rectangle') {
       .ensureAlpha()
       .toBuffer();
 
-    const maskSvg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${getShapeMaskSvg(shape, w, h)}</svg>`;
-    const maskBuffer = Buffer.from(maskSvg);
+    const maskBuffer = Buffer.from(`<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${maskSvg}</svg>`);
+    const borderBuffer = Buffer.from(`<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${strokeSvg}</svg>`);
 
     const shapedPhoto = await sharp(resizedPhoto)
-      .composite([{ input: maskBuffer, blend: 'dest-in' }])
+      .composite([
+        { input: maskBuffer, blend: 'dest-in' },
+        { input: borderBuffer, blend: 'over' },
+      ])
       .png()
       .toBuffer();
 
@@ -154,12 +257,21 @@ async function processUserPhoto(photoBuffer, w, h, shape = 'rectangle') {
 }
 
 /**
- * Generates SVG buffer for User Name text layer
+ * Generates SVG buffer for User Name text layer matching mobile text rendering with drop shadow
  */
 function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFFFF', textAlign = 'center', fontWeight = 'bold') {
   if (!text || !text.trim()) return null;
 
-  const escapedText = escapeXml(text.trim());
+  const trimmedText = text.trim();
+  const escapedText = escapeXml(trimmedText);
+
+  // Auto-fit font size if text exceeds width (mimicking adjustsFontSizeToFit)
+  let effFontSize = fontSize;
+  const approxTextWidth = trimmedText.length * fontSize * 0.58;
+  if (approxTextWidth > width && width > 0) {
+    effFontSize = Math.max(16, Math.floor((width / approxTextWidth) * fontSize));
+  }
+
   let anchor = 'middle';
   let textX = x + width / 2;
 
@@ -171,7 +283,7 @@ function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFF
     textX = x + width;
   }
 
-  const textY = Math.round(y + height / 2 + fontSize * 0.35);
+  const textY = Math.round(y + height / 2 + effFontSize * 0.35);
 
   const svgContent = `
     <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -183,8 +295,8 @@ function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFF
       <text
         x="${textX}"
         y="${textY}"
-        font-family="Noto Sans, sans-serif"
-        font-size="${fontSize}"
+        font-family="sans-serif"
+        font-size="${effFontSize}"
         font-weight="${fontWeight}"
         fill="${fontColor}"
         text-anchor="${anchor}"
@@ -218,7 +330,7 @@ async function buildOverlayPng({
     try {
       const resizedFooter = await sharp(imageFooterBuffer)
         .resize(footerRect.width, footerRect.height, {
-          fit: footerRect.fit === 'cover' ? 'cover' : 'contain',
+          fit: footerRect.fit === 'fill' ? 'fill' : (footerRect.fit === 'cover' ? 'cover' : 'contain'),
           background: { r: 0, g: 0, b: 0, alpha: 0 },
         })
         .png()
@@ -226,19 +338,19 @@ async function buildOverlayPng({
 
       composites.push({
         input: resizedFooter,
-        left: Math.max(0, footerRect.left),
-        top: Math.max(0, footerRect.top),
+        left: footerRect.left,
+        top: footerRect.top,
       });
     } catch (e) {
       console.warn('[Renderer] Error preparing image footer:', e.message);
     }
   }
 
-  // 2. Shaped User Photo (zIndex 15)
-  if (photoBuffer && photoLayer) {
+  // 2. Shaped User Photo with White Border (zIndex 15)
+  if (photoLayer) {
     const scale = photoTransform?.scale || 1;
-    const photoW = Math.round(photoLayer.width * CANVAS_WIDTH * scale);
-    const photoH = Math.round(photoLayer.height * CANVAS_HEIGHT * scale);
+    const photoW = Math.max(40, Math.round(photoLayer.width * CANVAS_WIDTH * scale));
+    const photoH = Math.max(40, Math.round(photoLayer.height * CANVAS_HEIGHT * scale));
     const photoLeft = Math.round(photoLayer.x * CANVAS_WIDTH - photoW / 2 + (photoTransform?.offsetX || 0));
     const photoTop = Math.round(photoLayer.y * CANVAS_HEIGHT - photoH / 2 + (photoTransform?.offsetY || 0));
 
@@ -246,8 +358,8 @@ async function buildOverlayPng({
     if (shaped) {
       composites.push({
         input: shaped,
-        left: Math.max(0, photoLeft),
-        top: Math.max(0, photoTop),
+        left: photoLeft,
+        top: photoTop,
       });
     }
   }
@@ -323,52 +435,91 @@ async function renderPersonalizedTemplate({
       activeFooter = null;
     } else if (selectedFooter) {
       if (typeof selectedFooter === 'object') {
-        activeFooter = selectedFooter;
+        activeFooter = { ...selectedFooter };
       } else if (typeof selectedFooter === 'string') {
-        activeFooter = templateFooters.find(
+        const found = templateFooters.find(
           (f) => String(f._id || f.id) === String(selectedFooter) || f.name === selectedFooter
         );
+        if (found) {
+          activeFooter = typeof found.toObject === 'function' ? found.toObject() : { ...found };
+        }
       }
     } else if (selectedFooter === undefined && templateFooters.length > 0) {
-      activeFooter = templateFooters[0];
+      const f = templateFooters[0];
+      activeFooter = typeof f.toObject === 'function' ? f.toObject() : { ...f };
     }
 
-    // 2. Identify Layers from CanvasConfig
-    const canvasConfig = template.canvasConfig || {};
-    const layers = canvasConfig.layers || [];
-
-    let photoLayer = layers.find((l) => l.type === 'photo');
-    let textLayer = layers.find((l) => l.type === 'text' && l.fieldName === 'name') || layers.find((l) => l.type === 'text');
-
-    // Default layers fallback if template doesn't have canvas layers defined
-    if (!photoLayer && userPhotoUri) {
-      photoLayer = {
-        x: 0.24,
-        y: 0.88,
-        width: 0.36,
-        height: 0.22,
-        shape: 'circle',
-      };
+    // Merge with DB footer definition if available to ensure all admin properties are present
+    if (activeFooter && (activeFooter._id || activeFooter.id)) {
+      const dbMatch = templateFooters.find(
+        (f) => String(f._id || f.id) === String(activeFooter._id || activeFooter.id) || f.name === activeFooter.name
+      );
+      if (dbMatch) {
+        const dbObj = typeof dbMatch.toObject === 'function' ? dbMatch.toObject() : dbMatch;
+        activeFooter = {
+          ...dbObj,
+          ...activeFooter,
+          userPhotoPosition: activeFooter.userPhotoPosition || dbObj.userPhotoPosition || null,
+          userNamePosition: activeFooter.userNamePosition || dbObj.userNamePosition || null,
+          userPhotoShape: activeFooter.userPhotoShape || dbObj.userPhotoShape || activeFooter.shape || dbObj.shape || null,
+        };
+      }
     }
 
-    let effectiveTextLayer = textLayer || {
-      x: 0.72,
-      y: 0.78,
-      width: 0.75,
-      height: 0.1,
-      fontSize: 24,
-      fontColor: '#FFFFFF',
-      textAlign: 'left',
-    };
+    // 2. Identify Layers from CanvasConfig & Active Footer
+    const canvasConfig = template.canvasConfig || req?.body?.customizationState?.canvasConfig || {};
+    const canvasLayers = canvasConfig.layers || [];
 
-    if (activeFooter && activeFooter.userNamePosition && activeFooter.userNamePosition.x !== undefined) {
-      effectiveTextLayer = {
-        ...effectiveTextLayer,
-        ...activeFooter.userNamePosition,
-      };
-    }
+    const basePhotoLayer = canvasLayers.find((l) => l.type === 'photo');
+    const footerPhotoPos = activeFooter?.userPhotoPosition;
+    const footerPhotoShape = activeFooter?.userPhotoShape || activeFooter?.shape || activeFooter?.userPhotoPosition?.shape;
 
-    const effectiveName = userNameText || effectiveTextLayer.defaultValue || '';
+    let effectivePhotoLayer = (basePhotoLayer || footerPhotoPos || footerPhotoShape || userPhotoUri)
+      ? {
+          x: footerPhotoPos?.x !== undefined
+            ? (footerPhotoPos.x > 1 ? footerPhotoPos.x / 100 : footerPhotoPos.x)
+            : (basePhotoLayer?.x !== undefined ? (basePhotoLayer.x > 1 ? basePhotoLayer.x / 100 : basePhotoLayer.x) : 0.25),
+          y: footerPhotoPos?.y !== undefined
+            ? (footerPhotoPos.y > 1 ? footerPhotoPos.y / 100 : footerPhotoPos.y)
+            : (basePhotoLayer?.y !== undefined ? (basePhotoLayer.y > 1 ? basePhotoLayer.y / 100 : basePhotoLayer.y) : 0.8),
+          width: footerPhotoPos?.width !== undefined
+            ? (footerPhotoPos.width > 1 ? footerPhotoPos.width / 100 : footerPhotoPos.width)
+            : (basePhotoLayer?.width !== undefined ? (basePhotoLayer.width > 1 ? basePhotoLayer.width / 100 : basePhotoLayer.width) : 0.35),
+          height: footerPhotoPos?.height !== undefined
+            ? (footerPhotoPos.height > 1 ? footerPhotoPos.height / 100 : footerPhotoPos.height)
+            : (basePhotoLayer?.height !== undefined ? (basePhotoLayer.height > 1 ? basePhotoLayer.height / 100 : basePhotoLayer.height) : 0.22),
+          shape: footerPhotoShape || footerPhotoPos?.shape || basePhotoLayer?.shape || 'circle',
+        }
+      : null;
+
+    const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && l.fieldName === 'name') || canvasLayers.find((l) => l.type === 'text');
+    const footerTextPos = activeFooter?.userNamePosition;
+    const defaultTextX = effectivePhotoLayer?.x !== undefined ? effectivePhotoLayer.x : 0.5;
+
+    let effectiveTextLayer = (baseTextNameLayer || footerTextPos || userNameText)
+      ? {
+          x: footerTextPos?.x !== undefined
+            ? (footerTextPos.x > 1 ? footerTextPos.x / 100 : footerTextPos.x)
+            : (baseTextNameLayer?.x !== undefined ? (baseTextNameLayer.x > 1 ? baseTextNameLayer.x / 100 : baseTextNameLayer.x) : defaultTextX),
+          y: footerTextPos?.y !== undefined
+            ? (footerTextPos.y > 1 ? footerTextPos.y / 100 : footerTextPos.y)
+            : (baseTextNameLayer?.y !== undefined ? (baseTextNameLayer.y > 1 ? baseTextNameLayer.y / 100 : baseTextNameLayer.y) : 0.75),
+          width: footerTextPos?.width !== undefined
+            ? (footerTextPos.width > 1 ? footerTextPos.width / 100 : footerTextPos.width)
+            : (baseTextNameLayer?.width !== undefined ? (baseTextNameLayer.width > 1 ? baseTextNameLayer.width / 100 : baseTextNameLayer.width) : 0.6),
+          height: footerTextPos?.height !== undefined
+            ? (footerTextPos.height > 1 ? footerTextPos.height / 100 : footerTextPos.height)
+            : (baseTextNameLayer?.height !== undefined ? (baseTextNameLayer.height > 1 ? baseTextNameLayer.height / 100 : baseTextNameLayer.height) : 0.1),
+          fontSize: footerTextPos?.fontSize !== undefined
+            ? footerTextPos.fontSize
+            : (baseTextNameLayer?.fontSize !== undefined ? baseTextNameLayer.fontSize : 22),
+          fontColor: footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#FFFFFF',
+          textAlign: footerTextPos?.textAlign || baseTextNameLayer?.textAlign || 'center',
+          fontWeight: footerTextPos?.fontWeight || baseTextNameLayer?.fontWeight || 'bold',
+        }
+      : null;
+
+    const effectiveName = userNameText || effectiveTextLayer?.defaultValue || '';
 
     // 3. Determine media types
     const rawBgImage = canvasConfig.backgroundImage || template.mainMedia || template.previewAsset || template.thumbnail;
@@ -391,25 +542,48 @@ async function renderPersonalizedTemplate({
       photoBuffer = await getMediaBuffer(userPhotoUri);
     }
 
-    // 5. Calculate Footer Geometry
+    // 5. Calculate Footer Geometry matching mobile index.jsx
     let footerRect = null;
     let footerVideoPath = null;
     let imageFooterBuffer = null;
 
     if (activeFooter && rawFooterAsset) {
-      const heightPct = activeFooter.heightPercent || activeFooter.configuration?.heightPercent || 40;
-      const fit = activeFooter.objectFit || activeFooter.configuration?.objectFit || 'contain';
-      const fWidth = Math.round((activeFooter.width !== undefined ? activeFooter.width : 1.0) * CANVAS_WIDTH);
-      const fHeight = Math.round((activeFooter.height !== undefined ? activeFooter.height : heightPct / 100) * CANVAS_HEIGHT);
-      const fLeft = Math.round((activeFooter.x !== undefined ? activeFooter.x : 0.5) * CANVAS_WIDTH - fWidth / 2);
-      const fTop = Math.round((activeFooter.y !== undefined ? activeFooter.y : (1 - heightPct / 200)) * CANVAS_HEIGHT - fHeight / 2);
+      const heightVal = activeFooter.height !== undefined
+        ? activeFooter.height
+        : (activeFooter.heightPercent ? activeFooter.heightPercent / 100 : 0.4);
+      const heightNorm = typeof heightVal === 'number'
+        ? (heightVal > 1 ? heightVal / 100 : heightVal)
+        : 0.4;
+
+      const widthVal = activeFooter.width !== undefined ? activeFooter.width : 1.0;
+      const widthNorm = typeof widthVal === 'number'
+        ? (widthVal > 1 ? widthVal / 100 : widthVal)
+        : 1.0;
+
+      const fWidth = Math.round(widthNorm * CANVAS_WIDTH);
+      const fHeight = Math.round(heightNorm * CANVAS_HEIGHT);
+
+      const xVal = activeFooter.x !== undefined ? activeFooter.x : 0.5;
+      const xNorm = typeof xVal === 'number' ? (xVal > 1 ? xVal / 100 : xVal) : 0.5;
+
+      const yVal = activeFooter.y !== undefined ? activeFooter.y : (1 - heightNorm / 2);
+      const yNorm = typeof yVal === 'number' ? (yVal > 1 ? yVal / 100 : yVal) : (1 - heightNorm / 2);
+
+      const fLeft = Math.round(xNorm * CANVAS_WIDTH - fWidth / 2);
+      const fTop = Math.round(yNorm * CANVAS_HEIGHT - fHeight / 2);
+
+      const fitMode = activeFooter.objectFit === 'cover'
+        ? 'cover'
+        : activeFooter.objectFit === 'fill'
+        ? 'fill'
+        : 'contain';
 
       footerRect = {
         width: fWidth,
         height: fHeight,
         left: fLeft,
         top: fTop,
-        fit,
+        fit: fitMode,
       };
 
       if (isFooterVideo) {
@@ -423,7 +597,7 @@ async function renderPersonalizedTemplate({
     // 6. Build the static overlay PNG (User photo + User name + Static Image footer if not video)
     const overlayBuffer = await buildOverlayPng({
       photoBuffer,
-      photoLayer,
+      photoLayer: effectivePhotoLayer,
       userNameText: effectiveName,
       effectiveTextLayer,
       imageFooterBuffer: !isFooterVideo ? imageFooterBuffer : null,
@@ -445,13 +619,25 @@ async function renderPersonalizedTemplate({
       tempFilesToClean.push(outputVideoPath);
 
       let ffmpegCmd = '';
+      const baseHasAudio = hasAudioStream(baseMediaPath);
+      const footerHasAudio = Boolean(isFooterVideo && footerVideoPath && hasAudioStream(footerVideoPath));
 
       if (isBaseVideo) {
+        const baseDuration = getVideoDuration(baseMediaPath);
+        const durationLimit = baseDuration ? Math.min(60, Math.max(3, baseDuration)) : 15;
+        const durationArg = `-t ${durationLimit}`;
+        const fadeStart = Math.max(0, durationLimit - 0.5);
+        const audioFadeFilter = `-af "afade=t=out:st=${fadeStart}:d=0.5"`;
+
+        let audioMapArg = '';
+        if (baseHasAudio) {
+          audioMapArg = `-map 0:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
+        } else if (footerHasAudio) {
+          audioMapArg = `-map 1:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
+        }
+
         if (isFooterVideo && footerVideoPath) {
           // Both base and footer are videos:
-          // [0:v] is base video
-          // [1:v] is footer video
-          // [2:v] is overlay PNG (photo + name)
           const fWidth = footerRect.width;
           const fHeight = footerRect.height;
           const fLeft = footerRect.left;
@@ -461,42 +647,57 @@ async function renderPersonalizedTemplate({
           let footScaleFilter = `scale=${fWidth}:${fHeight}:force_original_aspect_ratio=increase,crop=${fWidth}:${fHeight}`;
           if (fitMode === 'contain') {
             footScaleFilter = `scale=${fWidth}:${fHeight}:force_original_aspect_ratio=decrease,pad=${fWidth}:${fHeight}:(ow-iw)/2:(oh-ih)/2:color=black@0`;
+          } else if (fitMode === 'fill') {
+            footScaleFilter = `scale=${fWidth}:${fHeight}`;
           }
 
           if (overlayPngPath) {
-            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" -map 0:a? -shortest -c:v libx264 -preset veryfast -crf 22 -c:a aac -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
-            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" -map 0:a? -shortest -c:v libx264 -preset veryfast -crf 22 -c:a aac -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           }
         } else {
           // Base is video, footer is static image or no footer (overlayPngPath already has footer, photo, text)
           if (overlayPngPath) {
-            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0[outv]" -map "[outv]" -map 0:a? -c:v libx264 -preset veryfast -crf 22 -c:a aac -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
-            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" -c:v libx264 -preset veryfast -crf 22 -c:a copy -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           }
         }
       } else {
         // Base is static image, but footer is video (animated status video!)
+        const footDuration = getVideoDuration(footerVideoPath);
+        const targetDuration = footDuration ? Math.min(30, Math.max(5, footDuration)) : 15;
+        const fadeStart = Math.max(0, targetDuration - 0.5);
+        const audioFadeFilter = `-af "afade=t=out:st=${fadeStart}:d=0.5"`;
+
+        let audioMapArg = '';
+        if (footerHasAudio) {
+          audioMapArg = `-map 1:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
+        }
+
         const fWidth = footerRect ? footerRect.width : CANVAS_WIDTH;
         const fHeight = footerRect ? footerRect.height : Math.round(0.4 * CANVAS_HEIGHT);
         const fLeft = footerRect ? footerRect.left : 0;
         const fTop = footerRect ? footerRect.top : Math.round(0.6 * CANVAS_HEIGHT);
+        const fitMode = footerRect?.fit || 'contain';
 
         let footScaleFilter = `scale=${fWidth}:${fHeight}:force_original_aspect_ratio=increase,crop=${fWidth}:${fHeight}`;
-        if (footerRect?.fit === 'contain') {
+        if (fitMode === 'contain') {
           footScaleFilter = `scale=${fWidth}:${fHeight}:force_original_aspect_ratio=decrease,pad=${fWidth}:${fHeight}:(ow-iw)/2:(oh-ih)/2:color=black@0`;
+        } else if (fitMode === 'fill') {
+          footScaleFilter = `scale=${fWidth}:${fHeight}`;
         }
 
         if (overlayPngPath) {
-          ffmpegCmd = `ffmpeg -y -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" -map 1:a? -shortest -c:v libx264 -preset veryfast -crf 22 -c:a aac -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         } else {
-          ffmpegCmd = `ffmpeg -y -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" -map 1:a? -shortest -c:v libx264 -preset veryfast -crf 22 -c:a aac -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         }
       }
 
       console.log('[Renderer] Executing FFmpeg video render...');
-      execSync(ffmpegCmd, { stdio: 'pipe' });
+      execSync(ffmpegCmd, { stdio: 'pipe', timeout: 60000 });
 
       if (!fs.existsSync(outputVideoPath) || fs.statSync(outputVideoPath).size === 0) {
         throw new Error('FFmpeg failed to produce final video');

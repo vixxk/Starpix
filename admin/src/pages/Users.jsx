@@ -7,6 +7,7 @@ import ModalPortal from '../components/ModalPortal';
 import { useToast } from '../context/ToastContext';
 import { TableSkeleton } from '../components/Skeleton';
 import Pagination from '../components/Pagination';
+import TableScroll from '../components/TableScroll';
 import {
   UsersThree,
   CrownSimple,
@@ -262,8 +263,8 @@ export default function UsersPage() {
               <p className="text-sm text-ink-mute font-medium">No users match your criteria.</p>
             </div>
           ) : (
-            <div className="table-scroll anim">
-              <table className="data-table">
+          <TableScroll className="anim">
+            <table className="data-table">
                 <thead>
                   <tr>
                     <th>User Profile</th>
@@ -399,7 +400,7 @@ export default function UsersPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
 
           {/* Directory Pagination */}
@@ -435,7 +436,7 @@ export default function UsersPage() {
               <p className="text-sm text-ink-mute font-medium">No account deletion logs recorded yet.</p>
             </div>
           ) : (
-            <div className="table-scroll anim">
+            <TableScroll className="anim">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -505,7 +506,7 @@ export default function UsersPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
 
           {/* Deletion Logs Pagination */}

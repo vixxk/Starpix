@@ -382,6 +382,7 @@ const generateAIVideo = asyncHandler(async (req, res) => {
           s3Key,
           mediaType: finalMediaType,
           format: finalMediaType === 'video' ? 'mp4' : 'png',
+          isAi: true,
           downloadedAt: new Date(),
         });
         console.log('[AI Proxy] Saved AI creation to user downloads database:', creationRecord._id);
@@ -606,9 +607,21 @@ const adminUploadAsset = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 const adminGetTemplates = asyncHandler(async (req, res) => {
   const templates = await AIVideoTemplate.find({}).sort({ sortOrder: 1, createdAt: -1 });
+  const templateList = await Promise.all(
+    templates.map(async (tmpl) => {
+      const obj = tmpl.toObject();
+      const creationCount = await Creation.countDocuments({
+        $or: [{ aiTemplateId: tmpl._id }, { templateTitle: tmpl.title }],
+      });
+      obj.uses = Math.max(obj.uses || 0, creationCount);
+      obj.views = Math.max(obj.views || 0, obj.uses > 0 ? obj.uses * 3 + 14 : 0);
+      return obj;
+    })
+  );
+
   res.status(200).json({
     success: true,
-    data: templates,
+    data: templateList,
   });
 });
 

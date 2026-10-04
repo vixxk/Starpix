@@ -7,6 +7,8 @@ import {
   Plus,
   ArrowsOut,
   ArrowsOutCardinal,
+  SpeakerHigh,
+  SpeakerSlash,
 } from '@phosphor-icons/react';
 
 const getPhotoShapeStyles = (shape) => {
@@ -79,6 +81,44 @@ export default function CanvasEditor({
 
   const [domCanvasWidth, setDomCanvasWidth] = useState(280);
 
+  const bgVideoRef = useRef(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [hasAutoplayFailed, setHasAutoplayFailed] = useState(false);
+
+  useEffect(() => {
+    if (isVideo && bgVideoRef.current) {
+      bgVideoRef.current.volume = 1.0;
+      bgVideoRef.current.muted = isMuted;
+      const playPromise = bgVideoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Autoplay with sound prevented by browser policy:', err);
+          if (bgVideoRef.current) {
+            bgVideoRef.current.muted = true;
+            bgVideoRef.current.play().catch(() => {});
+            setIsMuted(true);
+            setHasAutoplayFailed(true);
+          }
+        });
+      }
+    }
+  }, [isVideo, templateMedia]);
+
+  const toggleAudio = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!bgVideoRef.current) return;
+    const nextMuted = !isMuted;
+    bgVideoRef.current.muted = nextMuted;
+    setIsMuted(nextMuted);
+    setHasAutoplayFailed(false);
+    if (!nextMuted) {
+      bgVideoRef.current.play().catch(() => {});
+    }
+  };
+
   useEffect(() => {
     if (!canvasRef.current) return;
     const updateWidth = () => {
@@ -143,10 +183,21 @@ export default function CanvasEditor({
   const getEffectiveLayer = useCallback(
     (l) => {
       if (!l) return null;
-      if (l.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+      if (activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
         const curF = footers[activeFooterIdx];
-        if (curF && curF.userNamePosition && curF.userNamePosition.x !== undefined) {
-          return { ...l, ...curF.userNamePosition };
+        if (curF) {
+          if (l.type === 'text' && curF.userNamePosition && curF.userNamePosition.x !== undefined) {
+            return { ...l, ...curF.userNamePosition };
+          }
+          if (l.type === 'photo') {
+            const photoPos = curF.userPhotoPosition || {};
+            const photoShape = curF.userPhotoShape || curF.shape || photoPos.shape;
+            return {
+              ...l,
+              ...(photoPos.x !== undefined ? photoPos : {}),
+              shape: photoShape || l.shape || 'rectangle',
+            };
+          }
         }
       }
       return l;
@@ -176,28 +227,54 @@ export default function CanvasEditor({
 
     const targetLayer = layers.find((l) => l.id === selectedLayerId);
     if (targetLayer && targetLayer.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
-      if (!onFootersChange) return;
-      const nextFooters = [...footers];
-      const curF = { ...nextFooters[activeFooterIdx] };
-      const currentUserNamePos = curF.userNamePosition || {
-        x: targetLayer.x,
-        y: targetLayer.y,
-        width: targetLayer.width,
-        height: targetLayer.height,
-        fontSize: targetLayer.fontSize || 22,
-        fontColor: targetLayer.fontColor || '#FFFFFF',
-        fontWeight: targetLayer.fontWeight || '700',
-        textAlign: targetLayer.textAlign || 'left',
-      };
-      curF.userNamePosition = {
-        ...currentUserNamePos,
-        [field]: val,
-      };
-      nextFooters[activeFooterIdx] = curF;
-      onFootersChange(nextFooters);
-      return;
+      if (onFootersChange) {
+        const nextFooters = [...footers];
+        const curF = { ...nextFooters[activeFooterIdx] };
+        const currentUserNamePos = curF.userNamePosition || {
+          x: targetLayer.x,
+          y: targetLayer.y,
+          width: targetLayer.width,
+          height: targetLayer.height,
+          fontSize: targetLayer.fontSize || 22,
+          fontColor: targetLayer.fontColor || '#FFFFFF',
+          fontWeight: targetLayer.fontWeight || '700',
+          textAlign: targetLayer.textAlign || 'left',
+        };
+        curF.userNamePosition = {
+          ...currentUserNamePos,
+          [field]: val,
+        };
+        nextFooters[activeFooterIdx] = curF;
+        onFootersChange(nextFooters);
+      }
     }
 
+    if (targetLayer && targetLayer.type === 'photo' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+      if (onFootersChange) {
+        const nextFooters = [...footers];
+        const curF = { ...nextFooters[activeFooterIdx] };
+        const currentPhotoPos = curF.userPhotoPosition || {
+          x: targetLayer.x,
+          y: targetLayer.y,
+          width: targetLayer.width,
+          height: targetLayer.height,
+          shape: curF.userPhotoShape || curF.shape || targetLayer.shape || 'rectangle',
+        };
+        const updatedPhotoPos = {
+          ...currentPhotoPos,
+          [field]: val,
+        };
+        curF.userPhotoPosition = updatedPhotoPos;
+        if (field === 'shape') {
+          curF.userPhotoShape = val;
+          curF.shape = val;
+        }
+        nextFooters[activeFooterIdx] = curF;
+        onFootersChange(nextFooters);
+      }
+    }
+
+    // Always keep base layers in sync with the updated properties
     updateLayers(
       layers.map((l) => (l.id === selectedLayerId ? { ...l, [field]: val } : l))
     );
@@ -265,55 +342,81 @@ export default function CanvasEditor({
     }
 
     const targetLayer = layers.find((l) => l.id === layerId);
-    if (targetLayer && targetLayer.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
-      if (!onFootersChange) return;
-      const nextFooters = [...footers];
-      const curF = { ...nextFooters[activeFooterIdx] };
-      const currentUserNamePos = curF.userNamePosition || {
-        x: targetLayer.x,
-        y: targetLayer.y,
-        width: targetLayer.width,
-        height: targetLayer.height,
-        fontSize: targetLayer.fontSize || 22,
-        fontColor: targetLayer.fontColor || '#FFFFFF',
-        fontWeight: targetLayer.fontWeight || '700',
-        textAlign: targetLayer.textAlign || 'left',
-      };
-      let nextPos = { ...currentUserNamePos };
-      if (action === 'move') {
-        nextPos.x = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
-        nextPos.y = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
-      } else if (action === 'resize-se') {
-        nextPos.width = Math.max(0.08, Math.min(1, Math.round((initialWidth + dx) * 100) / 100));
-        nextPos.height = Math.max(0.04, Math.min(1, Math.round((initialHeight + dy) * 100) / 100));
-      }
-      curF.userNamePosition = nextPos;
-      nextFooters[activeFooterIdx] = curF;
-      onFootersChange(nextFooters);
-      return;
-    }
+    let newX = targetLayer?.x ?? 0.5;
+    let newY = targetLayer?.y ?? 0.5;
+    let newW = targetLayer?.width ?? 0.5;
+    let newH = targetLayer?.height ?? 0.2;
 
     if (action === 'move') {
-      const newX = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
-      const newY = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
-
-      onChange({
-        ...canvasConfig,
-        layers: (canvasConfig?.layers || []).map((l) =>
-          l.id === layerId ? { ...l, x: newX, y: newY } : l
-        ),
-      });
+      newX = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
+      newY = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
     } else if (action === 'resize-se') {
-      const newW = Math.max(0.08, Math.min(1, Math.round((initialWidth + dx) * 100) / 100));
-      const newH = Math.max(0.04, Math.min(1, Math.round((initialHeight + dy) * 100) / 100));
-
-      onChange({
-        ...canvasConfig,
-        layers: (canvasConfig?.layers || []).map((l) =>
-          l.id === layerId ? { ...l, width: newW, height: newH } : l
-        ),
-      });
+      newW = Math.max(0.08, Math.min(1.2, Math.round((initialWidth + dx) * 100) / 100));
+      newH = Math.max(0.04, Math.min(1.2, Math.round((initialHeight + dy) * 100) / 100));
     }
+
+    if (targetLayer && targetLayer.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+      if (onFootersChange) {
+        const nextFooters = [...footers];
+        const curF = { ...nextFooters[activeFooterIdx] };
+        const currentUserNamePos = curF.userNamePosition || {
+          x: targetLayer.x,
+          y: targetLayer.y,
+          width: targetLayer.width,
+          height: targetLayer.height,
+          fontSize: targetLayer.fontSize || 22,
+          fontColor: targetLayer.fontColor || '#FFFFFF',
+          fontWeight: targetLayer.fontWeight || '700',
+          textAlign: targetLayer.textAlign || 'left',
+        };
+        curF.userNamePosition = {
+          ...currentUserNamePos,
+          x: newX,
+          y: newY,
+          width: newW,
+          height: newH,
+        };
+        nextFooters[activeFooterIdx] = curF;
+        onFootersChange(nextFooters);
+      }
+    } else if (targetLayer && targetLayer.type === 'photo' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
+      if (onFootersChange) {
+        const nextFooters = [...footers];
+        const curF = { ...nextFooters[activeFooterIdx] };
+        const currentPhotoPos = curF.userPhotoPosition || {
+          x: targetLayer.x,
+          y: targetLayer.y,
+          width: targetLayer.width,
+          height: targetLayer.height,
+          shape: curF.userPhotoShape || curF.shape || targetLayer.shape || 'rectangle',
+        };
+        curF.userPhotoPosition = {
+          ...currentPhotoPos,
+          x: newX,
+          y: newY,
+          width: newW,
+          height: newH,
+        };
+        nextFooters[activeFooterIdx] = curF;
+        onFootersChange(nextFooters);
+      }
+    }
+
+    // Always keep base layers in sync with dragged/resized position
+    onChange({
+      ...canvasConfig,
+      layers: (canvasConfig?.layers || []).map((l) =>
+        l.id === layerId
+          ? {
+              ...l,
+              x: newX,
+              y: newY,
+              width: newW,
+              height: newH,
+            }
+          : l
+      ),
+    });
   };
 
   const handlePointerUp = () => {
@@ -355,6 +458,30 @@ export default function CanvasEditor({
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          {isVideo && templateMedia && (
+            <button
+              type="button"
+              onClick={toggleAudio}
+              className={`btn-secondary !py-1.5 !px-3 !text-xs flex items-center gap-1.5 transition-all ${
+                isMuted
+                  ? '!bg-night-800 !text-amber-300 !border-amber-500/40 hover:!border-amber-400'
+                  : '!bg-flame-500/20 !text-flame-300 !border-flame-500/60 hover:!bg-flame-500/30'
+              }`}
+              title={isMuted ? 'Click to Unmute Audio' : 'Click to Mute Audio'}
+            >
+              {isMuted ? (
+                <>
+                  <SpeakerSlash className="w-3.5 h-3.5 text-amber-400" weight="bold" />
+                  <span className="font-mono">{hasAutoplayFailed ? 'Unmute Audio' : 'Audio Muted'}</span>
+                </>
+              ) : (
+                <>
+                  <SpeakerHigh className="w-3.5 h-3.5 text-flame-400 animate-pulse" weight="fill" />
+                  <span className="font-mono">Audio Playing</span>
+                </>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => addLayer('photo')}
@@ -452,10 +579,11 @@ export default function CanvasEditor({
               {templateMedia && (
                 isVideo ? (
                   <video
+                    ref={bgVideoRef}
                     src={templateMedia}
                     autoPlay
                     loop
-                    muted
+                    muted={isMuted}
                     playsInline
                     className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   />
@@ -466,6 +594,34 @@ export default function CanvasEditor({
                     className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   />
                 )
+              )}
+
+              {/* Sound Controls Floating Badge */}
+              {isVideo && templateMedia && (
+                <button
+                  type="button"
+                  onClick={toggleAudio}
+                  className={`absolute top-2.5 right-2.5 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[2px] backdrop-blur-md border text-xs font-semibold shadow-xl transition-all transform active:scale-95 cursor-pointer ${
+                    isMuted
+                      ? 'bg-night-950/90 text-amber-300 border-amber-500/50 hover:bg-night-950 hover:border-amber-400 hover:text-amber-200'
+                      : 'bg-flame-500/90 text-white border-flame-400 shadow-flame-500/30 hover:bg-flame-600'
+                  }`}
+                  title={isMuted ? 'Click to play sound (Unmute)' : 'Click to mute audio'}
+                >
+                  {isMuted ? (
+                    <>
+                      <SpeakerSlash className="w-3.5 h-3.5 text-amber-400" weight="bold" />
+                      <span className="text-[10px] tracking-wider font-mono font-bold">
+                        {hasAutoplayFailed ? 'TAP TO UNMUTE' : 'MUTED'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <SpeakerHigh className="w-3.5 h-3.5 text-white animate-pulse" weight="fill" />
+                      <span className="text-[10px] tracking-wider font-mono font-bold">SOUND ON</span>
+                    </>
+                  )}
+                </button>
               )}
 
               {/* Draggable Footer Layer Overlay */}
@@ -643,6 +799,35 @@ export default function CanvasEditor({
                       className="mt-1 text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-2 py-0.5 rounded font-bold transition-colors"
                     >
                       ↺ Reset to Default Position
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {selectedLayer.type === 'photo' && activeFooterIdx >= 0 && (
+                <div className="p-2 bg-sky-500/10 border border-sky-500/30 rounded text-xs text-sky-300 space-y-1 mb-2">
+                  <div className="font-bold flex items-center justify-between">
+                    <span>🖼️ Photo Box for: {previewFooter?.name || `Footer ${activeFooterIdx + 1}`}</span>
+                  </div>
+                  <p className="text-[10px] text-sky-200/80">
+                    Shape, position & size set here apply specifically when this footer is selected by the user.
+                  </p>
+                  {(previewFooter?.userPhotoPosition || previewFooter?.userPhotoShape) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!onFootersChange || activeFooterIdx < 0 || activeFooterIdx >= footers.length) return;
+                        const nextFooters = [...footers];
+                        const curF = { ...nextFooters[activeFooterIdx] };
+                        delete curF.userPhotoPosition;
+                        delete curF.userPhotoShape;
+                        delete curF.shape;
+                        nextFooters[activeFooterIdx] = curF;
+                        onFootersChange(nextFooters);
+                      }}
+                      className="mt-1 text-[10px] bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 px-2 py-0.5 rounded font-bold transition-colors"
+                    >
+                      ↺ Reset to Default Shape & Position
                     </button>
                   )}
                 </div>

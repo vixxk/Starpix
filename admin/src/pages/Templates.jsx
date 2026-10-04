@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
 import { TableSkeleton } from '../components/Skeleton';
 import Pagination from '../components/Pagination';
+import TableScroll from '../components/TableScroll';
 import { useToast } from '../context/ToastContext';
 import {
   Sparkle,
@@ -16,6 +18,7 @@ import {
   Plus,
   PushPin,
   CrownSimple,
+  ImageSquare,
 } from '@phosphor-icons/react';
 
 import {
@@ -23,9 +26,15 @@ import {
   isVideoUrl,
   TemplateEditModal,
 } from '../modules/templates';
+import CreationsTable from '../modules/aiVideoTemplates/CreationsTable';
+import MediaPreviewModal from '../modules/aiVideoTemplates/MediaPreviewModal';
 
 export default function Templates() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') === 'creations' ? 'creations' : 'templates';
+  const [activeTab, setActiveTab] = useState(currentTab);
+
   const [templates, setTemplates] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +51,27 @@ export default function Templates() {
   const [statusTarget, setStatusTarget] = useState(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [formData, setFormData] = useState(initialForm());
+
+  // Non-AI User Generated Content state
+  const [creations, setCreations] = useState([]);
+  const [creationLoading, setCreationLoading] = useState(false);
+  const [creationSearch, setCreationSearch] = useState('');
+  const [creationTypeFilter, setCreationTypeFilter] = useState('all');
+  const [creationPage, setCreationPage] = useState(1);
+  const [creationPagination, setCreationPagination] = useState({ page: 1, totalPages: 1, totalItems: 0, limit: 10 });
+  const [previewMedia, setPreviewMedia] = useState(null);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'creations' || tab === 'templates') {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'creations' ? { tab: 'creations' } : {});
+  };
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -73,13 +103,52 @@ export default function Templates() {
     }
   };
 
+  const fetchCreations = async () => {
+    setCreationLoading(true);
+    try {
+      const params = {
+        page: creationPage,
+        limit: 10,
+        type: 'non-ai',
+      };
+      if (creationSearch) params.search = creationSearch;
+      if (creationTypeFilter !== 'all') params.mediaType = creationTypeFilter;
+
+      const res = await API.get('/admin/creations', { params });
+      if (res.data.success) {
+        setCreations(res.data.data || []);
+        if (res.data.pagination) {
+          setCreationPagination({
+            page: res.data.pagination.page || creationPage,
+            totalPages: res.data.pagination.pages || 1,
+            totalItems: res.data.pagination.total || (res.data.data || []).length,
+            limit: res.data.pagination.limit || 10,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error loading non-AI creations:', err);
+      toast.error('Failed to load user generated content');
+    } finally {
+      setCreationLoading(false);
+    }
+  };
+
   useEffect(() => {
     setPage(1);
   }, [search, selectedCategory, statusFilter]);
 
   useEffect(() => {
-    fetchTemplates();
-  }, [page, search, selectedCategory, statusFilter]);
+    if (activeTab === 'templates') {
+      fetchTemplates();
+    }
+  }, [page, search, selectedCategory, statusFilter, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'creations') {
+      fetchCreations();
+    }
+  }, [activeTab, creationPage, creationSearch, creationTypeFilter]);
 
   const handleOpenCreate = () => {
     setEditingTemplate(null);
@@ -204,17 +273,53 @@ export default function Templates() {
   return (
     <div className="space-y-3.5 sm:space-y-5">
       <PageHead
-        icon={<Sparkle className="w-6 h-6" weight="duotone" />}
-        title="Template Studio"
-        subtitle={`Showing page ${pagination.page} of ${pagination.totalPages} (${pagination.totalItems} total templates)`}
+        icon={activeTab === 'templates' ? <Sparkle className="w-6 h-6" weight="duotone" /> : <ImageSquare className="w-6 h-6 text-flame-500" weight="duotone" />}
+        title={activeTab === 'templates' ? 'Template Studio' : 'User Generated Content'}
+        subtitle={
+          activeTab === 'templates'
+            ? `Showing page ${pagination.page} of ${pagination.totalPages} (${pagination.totalItems} total templates)`
+            : `Showing page ${creationPagination.page} of ${creationPagination.totalPages} (${creationPagination.totalItems} non-AI status creations generated from home page)`
+        }
         actions={
-          <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
-            <Plus className="w-4 h-4" weight="bold" /> New Template
-          </button>
+          activeTab === 'templates' && (
+            <button onClick={handleOpenCreate} className="btn-primary w-full sm:w-auto">
+              <Plus className="w-4 h-4" weight="bold" /> New Template
+            </button>
+          )
         }
       />
 
-      {/* Toolbar with Search, Category filter, and Status filter */}
+      {/* Sub-Navigation Tabs */}
+      <div className="flex border-b-2 border-ink gap-2">
+        <button
+          type="button"
+          onClick={() => handleTabChange('templates')}
+          className={`px-4 py-2.5 font-bold uppercase text-xs border-2 border-b-0 rounded-t-[2px] flex items-center gap-2 transition-all ${
+            activeTab === 'templates'
+              ? 'bg-ink text-paper-100 border-ink shadow-hard-sm'
+              : 'bg-paper-100 text-ink-mute border-transparent hover:text-ink'
+          }`}
+        >
+          <Sparkle className="w-4 h-4" />
+          <span>Templates Studio ({pagination.totalItems})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('creations')}
+          className={`px-4 py-2.5 font-bold uppercase text-xs border-2 border-b-0 rounded-t-[2px] flex items-center gap-2 transition-all ${
+            activeTab === 'creations'
+              ? 'bg-flame-500 text-ink border-ink shadow-hard-sm'
+              : 'bg-paper-100 text-ink-mute border-transparent hover:text-ink'
+          }`}
+        >
+          <ImageSquare className="w-4 h-4" weight="fill" />
+          <span>User Generated Content ({creationPagination.totalItems})</span>
+        </button>
+      </div>
+
+      {activeTab === 'templates' ? (
+        <>
+          {/* Toolbar with Search, Category filter, and Status filter */}
       <div className="panel p-2.5 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="flex-1 relative">
           <MagnifyingGlass className="w-4 h-4 text-ink-mute absolute left-3.5 top-3" />
@@ -271,7 +376,7 @@ export default function Templates() {
           </p>
         </div>
       ) : (
-        <div className="table-scroll anim">
+        <TableScroll className="anim">
           <table className="data-table">
             <thead>
               <tr>
@@ -353,7 +458,7 @@ export default function Templates() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       )}
 
       {/* Pagination */}
@@ -363,6 +468,30 @@ export default function Templates() {
         totalItems={pagination.totalItems}
         limit={pagination.limit}
         onPageChange={(newPage) => setPage(newPage)}
+      />
+        </>
+      ) : (
+        <CreationsTable
+          creations={creations}
+          loading={creationLoading}
+          search={creationSearch}
+          setSearch={setCreationSearch}
+          typeFilter={creationTypeFilter}
+          setTypeFilter={setCreationTypeFilter}
+          page={creationPage}
+          setPage={setCreationPage}
+          pagination={creationPagination}
+          onPreview={setPreviewMedia}
+          searchPlaceholder="Search user generated content by template title, ID, or user..."
+          emptyTitle="No user generated content found"
+          emptySubtitle="Users have not generated or downloaded any non-AI templates yet."
+        />
+      )}
+
+      {/* Full Screen Media Preview Modal */}
+      <MediaPreviewModal
+        previewMedia={previewMedia}
+        onClose={() => setPreviewMedia(null)}
       />
 
       {/* Edit / Create Template Modal */}

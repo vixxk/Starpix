@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, FlatList, BackHandler } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -71,6 +71,7 @@ export default function DownloadsScreen() {
   const [previewItem, setPreviewItem] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [sharingId, setSharingId] = useState(null);
+  const [deletedIds, setDeletedIds] = useState(() => new Set());
 
   const downloadedCreations = useCreationStore((state) => state.downloadedCreations || []);
   const removeDownloadedCreation = useCreationStore((state) => state.removeDownloadedCreation);
@@ -124,139 +125,145 @@ export default function DownloadsScreen() {
   }, [fetchDownloads]);
 
   // Combine backend S3 downloads and local store downloads into a unified list
-  const allCreations = [];
-  const seenIds = new Set();
+  const allCreations = useMemo(() => {
+    const list = [];
+    const seenIds = new Set();
 
-  backendDownloads.forEach((item) => {
-    const cId = getCreationId(item);
-    if (cId) seenIds.add(cId);
-
-    const tId = getTemplateId(item);
-    const template = (typeof item.templateId === 'object' && item.templateId) ? item.templateId : {};
-    const aiTemplate = (typeof item.aiTemplateId === 'object' && item.aiTemplateId) ? item.aiTemplateId : null;
-    const customState = item.customizationState || {};
-    const catalogTmpl =
-      (template && template._id) ? template :
-      (tId && templateCatalog[tId]) ? templateCatalog[tId] :
-      (templateCatalog[(item.templateTitle || '').toLowerCase().trim()]);
-
-    const activeTmpl = catalogTmpl || aiTemplate || customState.activeTemplate || (template._id ? template : null);
-    const footers = (catalogTmpl?.footers && catalogTmpl.footers.length > 0)
-      ? catalogTmpl.footers
-      : (template.footers && template.footers.length > 0)
-      ? template.footers
-      : (customState.footers && customState.footers.length > 0)
-      ? customState.footers
-      : (customState.selectedFooter ? [customState.selectedFooter] : []);
-
-    const selectedFooter = customState.selectedFooter || (footers.length > 0 ? footers[0] : null);
-    const canvasConfig = catalogTmpl?.canvasConfig || template.canvasConfig || customState.canvasConfig || null;
-    const mediaUrl = item.imageUrl || catalogTmpl?.mainMedia || template.mainMedia || template.previewAsset;
-    const mediaType = item.mediaType || catalogTmpl?.type || template.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
-
-    allCreations.push({
-      _id: cId,
-      title: item.templateTitle || catalogTmpl?.name || aiTemplate?.title || template.name || 'Personalized Status',
-      nameTranslations: catalogTmpl?.nameTranslations || template.nameTranslations || customState.nameTranslations,
-      image: catalogTmpl?.thumbnail || template.thumbnail || aiTemplate?.thumbnailUrl || item.imageUrl || template.previewAsset || item.editedPhoto,
-      mediaUrl: mediaUrl,
-      mediaType: mediaType,
-      editedText: item.editedText || customState.userNameText || '',
-      editedPhoto: item.editedPhoto || customState.userPhotoUri || '',
-      downloadedAt: item.downloadedAt || item.createdAt,
-      template: catalogTmpl || template,
-      aiTemplate: aiTemplate,
-      activeTemplate: activeTmpl,
-      userPhotoUri: customState.userPhotoUri || item.editedPhoto || null,
-      userNameText: customState.userNameText || item.editedText || '',
-      userQuoteText: customState.userQuoteText || '',
-      selectedFrame: customState.selectedFrame || (selectedFooter ? (selectedFooter.id || (selectedFooter._id ? String(selectedFooter._id) : null)) : null),
-      selectedEffect: customState.selectedEffect || null,
-      footers: footers,
-      selectedFooter: selectedFooter,
-      canvasConfig: canvasConfig,
-      source: 'backend',
-    });
-  });
-
-  const userLocalCreations = downloadedCreations.filter((item) => {
-    if (!user) return false;
-    const currentUserId = String(user._id || user.id || '');
-    if (!item.userId) return true;
-    return String(item.userId) === currentUserId;
-  });
-
-  userLocalCreations.forEach((item) => {
-    const cId = getCreationId(item);
-    const tId = getTemplateId(item);
-    const text = item.editedText || item.userNameText || item.customizationState?.userNameText || '';
-    const photo = item.userPhotoUri || item.editedPhoto || item.customizationState?.userPhotoUri || '';
-
-    if (cId && seenIds.has(cId)) return;
-
-    const isSameAsBackend = allCreations.some((bItem) => {
-      const bTId = getTemplateId(bItem);
-      if (tId && bTId && tId === bTId) {
-        const bText = bItem.editedText || bItem.userNameText || '';
-        const bPhoto = bItem.userPhotoUri || bItem.editedPhoto || '';
-        if (text === bText && (photo === bPhoto || (!photo && !bPhoto))) {
-          return true;
-        }
-      }
-      return false;
-    });
-
-    if (!isSameAsBackend) {
+    backendDownloads.forEach((item) => {
+      const cId = getCreationId(item);
+      if (cId && deletedIds.has(String(cId))) return;
       if (cId) seenIds.add(cId);
-      const customState = item.customizationState || {};
-      const aiTmpl = item.aiTemplate || customState.aiTemplate || null;
-      const tmpl = item.template || customState.activeTemplate || item.activeTemplate || null;
-      const catalogTmpl =
-        (tmpl && tmpl._id) ? tmpl :
-        (tId && templateCatalog[tId]) ? templateCatalog[tId] :
-        (templateCatalog[(item.name || item.title || '').toLowerCase().trim()]);
 
-      const activeTmpl = catalogTmpl || tmpl || aiTmpl;
+      const tId = getTemplateId(item);
+      const template = (typeof item.templateId === 'object' && item.templateId) ? item.templateId : {};
+      const aiTemplate = (typeof item.aiTemplateId === 'object' && item.aiTemplateId) ? item.aiTemplateId : null;
+      const customState = item.customizationState || {};
+      const catalogTmpl =
+        (template && template._id) ? template :
+        (tId && templateCatalog[tId]) ? templateCatalog[tId] :
+        (templateCatalog[(item.templateTitle || '').toLowerCase().trim()]);
+
+      const activeTmpl = catalogTmpl || aiTemplate || customState.activeTemplate || (template._id ? template : null);
       const footers = (catalogTmpl?.footers && catalogTmpl.footers.length > 0)
         ? catalogTmpl.footers
-        : (item.footers && item.footers.length > 0)
-        ? item.footers
-        : (tmpl?.footers && tmpl.footers.length > 0)
-        ? tmpl.footers
+        : (template.footers && template.footers.length > 0)
+        ? template.footers
         : (customState.footers && customState.footers.length > 0)
         ? customState.footers
-        : (item.selectedFooter ? [item.selectedFooter] : []);
+        : (customState.selectedFooter ? [customState.selectedFooter] : []);
 
-      const selectedFooter = item.selectedFooter || customState.selectedFooter || (footers.length > 0 ? footers[0] : null);
-      const canvasConfig = catalogTmpl?.canvasConfig || item.canvasConfig || tmpl?.canvasConfig || customState.canvasConfig || null;
-      const mediaUrl = item.mediaUrl || item.localUri || item.image || catalogTmpl?.mainMedia || tmpl?.mainMedia;
-      const mediaType = item.mediaType || catalogTmpl?.type || tmpl?.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
+      const selectedFooter = customState.selectedFooter || (footers.length > 0 ? footers[0] : null);
+      const canvasConfig = catalogTmpl?.canvasConfig || template.canvasConfig || customState.canvasConfig || null;
+      const mediaUrl = item.imageUrl || catalogTmpl?.mainMedia || template.mainMedia || template.previewAsset;
+      const mediaType = item.mediaType || catalogTmpl?.type || template.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
 
-      allCreations.push({
-        _id: cId || `local_${Date.now()}`,
-        title: item.name || catalogTmpl?.name || aiTmpl?.title || item.title || 'Personalized Status',
-        nameTranslations: catalogTmpl?.nameTranslations || item.nameTranslations || tmpl?.nameTranslations,
-        image: catalogTmpl?.thumbnail || tmpl?.thumbnail || item.thumbnail || item.localUri || item.editedPhoto || item.image,
+      list.push({
+        _id: cId,
+        title: item.templateTitle || catalogTmpl?.name || aiTemplate?.title || template.name || 'Personalized Status',
+        nameTranslations: catalogTmpl?.nameTranslations || template.nameTranslations || customState.nameTranslations,
+        image: catalogTmpl?.thumbnail || template.thumbnail || aiTemplate?.thumbnailUrl || item.imageUrl || template.previewAsset || item.editedPhoto,
         mediaUrl: mediaUrl,
         mediaType: mediaType,
-        editedText: text,
-        editedPhoto: photo,
-        downloadedAt: item.createdAt || item.downloadedAt || new Date().toISOString(),
-        template: catalogTmpl || tmpl,
-        aiTemplate: aiTmpl,
+        editedText: item.editedText || customState.userNameText || '',
+        editedPhoto: item.editedPhoto || customState.userPhotoUri || '',
+        downloadedAt: item.downloadedAt || item.createdAt,
+        template: catalogTmpl || template,
+        aiTemplate: aiTemplate,
         activeTemplate: activeTmpl,
-        userPhotoUri: photo || null,
-        userNameText: item.userNameText || customState.userNameText || text,
-        userQuoteText: item.userQuoteText || customState.userQuoteText || '',
-        selectedFrame: item.selectedFrame || customState.selectedFrame || (selectedFooter ? (selectedFooter.id || (selectedFooter._id ? String(selectedFooter._id) : null)) : null),
-        selectedEffect: item.selectedEffect || customState.selectedEffect || null,
+        userPhotoUri: customState.userPhotoUri || item.editedPhoto || null,
+        userNameText: customState.userNameText || item.editedText || '',
+        userQuoteText: customState.userQuoteText || '',
+        selectedFrame: customState.selectedFrame || (selectedFooter ? (selectedFooter.id || (selectedFooter._id ? String(selectedFooter._id) : null)) : null),
+        selectedEffect: customState.selectedEffect || null,
         footers: footers,
         selectedFooter: selectedFooter,
         canvasConfig: canvasConfig,
-        source: 'local',
+        source: 'backend',
       });
-    }
-  });
+    });
+
+    const userLocalCreations = downloadedCreations.filter((item) => {
+      if (!user) return false;
+      const currentUserId = String(user._id || user.id || '');
+      if (!item.userId) return true;
+      return String(item.userId) === currentUserId;
+    });
+
+    userLocalCreations.forEach((item) => {
+      const cId = getCreationId(item);
+      if (cId && deletedIds.has(String(cId))) return;
+      const tId = getTemplateId(item);
+      const text = item.editedText || item.userNameText || item.customizationState?.userNameText || '';
+      const photo = item.userPhotoUri || item.editedPhoto || item.customizationState?.userPhotoUri || '';
+
+      if (cId && seenIds.has(cId)) return;
+
+      const isSameAsBackend = list.some((bItem) => {
+        const bTId = getTemplateId(bItem);
+        if (tId && bTId && tId === bTId) {
+          const bText = bItem.editedText || bItem.userNameText || '';
+          const bPhoto = bItem.userPhotoUri || bItem.editedPhoto || '';
+          if (text === bText && (photo === bPhoto || (!photo && !bPhoto))) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (!isSameAsBackend) {
+        if (cId) seenIds.add(cId);
+        const customState = item.customizationState || {};
+        const aiTmpl = item.aiTemplate || customState.aiTemplate || null;
+        const tmpl = item.template || customState.activeTemplate || item.activeTemplate || null;
+        const catalogTmpl =
+          (tmpl && tmpl._id) ? tmpl :
+          (tId && templateCatalog[tId]) ? templateCatalog[tId] :
+          (templateCatalog[(item.name || item.title || '').toLowerCase().trim()]);
+
+        const activeTmpl = catalogTmpl || tmpl || aiTmpl;
+        const footers = (catalogTmpl?.footers && catalogTmpl.footers.length > 0)
+          ? catalogTmpl.footers
+          : (item.footers && item.footers.length > 0)
+          ? item.footers
+          : (tmpl?.footers && tmpl.footers.length > 0)
+          ? tmpl.footers
+          : (customState.footers && customState.footers.length > 0)
+          ? customState.footers
+          : (item.selectedFooter ? [item.selectedFooter] : []);
+
+        const selectedFooter = item.selectedFooter || customState.selectedFooter || (footers.length > 0 ? footers[0] : null);
+        const canvasConfig = catalogTmpl?.canvasConfig || item.canvasConfig || tmpl?.canvasConfig || customState.canvasConfig || null;
+        const mediaUrl = item.mediaUrl || item.localUri || item.image || catalogTmpl?.mainMedia || tmpl?.mainMedia;
+        const mediaType = item.mediaType || catalogTmpl?.type || tmpl?.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
+
+        list.push({
+          _id: cId || `local_${Date.now()}`,
+          title: item.name || catalogTmpl?.name || aiTmpl?.title || item.title || 'Personalized Status',
+          nameTranslations: catalogTmpl?.nameTranslations || item.nameTranslations || tmpl?.nameTranslations,
+          image: catalogTmpl?.thumbnail || tmpl?.thumbnail || item.thumbnail || item.localUri || item.editedPhoto || item.image,
+          mediaUrl: mediaUrl,
+          mediaType: mediaType,
+          editedText: text,
+          editedPhoto: photo,
+          downloadedAt: item.createdAt || item.downloadedAt || new Date().toISOString(),
+          template: catalogTmpl || tmpl,
+          aiTemplate: aiTmpl,
+          activeTemplate: activeTmpl,
+          userPhotoUri: photo || null,
+          userNameText: item.userNameText || customState.userNameText || text,
+          userQuoteText: item.userQuoteText || customState.userQuoteText || '',
+          selectedFrame: item.selectedFrame || customState.selectedFrame || (selectedFooter ? (selectedFooter.id || (selectedFooter._id ? String(selectedFooter._id) : null)) : null),
+          selectedEffect: item.selectedEffect || customState.selectedEffect || null,
+          footers: footers,
+          selectedFooter: selectedFooter,
+          canvasConfig: canvasConfig,
+          source: 'local',
+        });
+      }
+    });
+
+    return list;
+  }, [backendDownloads, downloadedCreations, templateCatalog, user, deletedIds]);
 
   const handleShare = async (fileOrUrl, itemId = null) => {
     if (!fileOrUrl) return;
@@ -341,31 +348,49 @@ export default function DownloadsScreen() {
     }
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!deleteTarget) return;
 
-    if (deleteTarget.mode === 'all') {
-      clearDownloadedCreations();
-      setBackendDownloads([]);
-      if (user) {
-        try {
-          await API.delete('/creations/clear-all');
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    } else if (deleteTarget.mode === 'one') {
-      removeDownloadedCreation(deleteTarget.id);
-      setBackendDownloads((prev) => prev.filter((c) => c._id !== deleteTarget.id));
-      if (user) {
-        try {
-          await API.delete(`/creations/${deleteTarget.id}`);
-        } catch (e) {
-          console.error(e);
-        }
+    const target = deleteTarget;
+    // 1. Immediately dismiss confirmation dialog for snappy response
+    setDeleteTarget(null);
+
+    // 2. If the preview modal was open for this item, close it immediately
+    if (previewItem) {
+      const previewId = String(previewItem._id || previewItem.id || '');
+      if (target.mode === 'all' || previewId === String(target.id)) {
+        setPreviewItem(null);
       }
     }
-    setDeleteTarget(null);
+
+    if (target.mode === 'all') {
+      // Optimistic instant UI update
+      clearDownloadedCreations();
+      setBackendDownloads([]);
+      setDeletedIds(new Set());
+      if (user) {
+        API.delete('/creations/clear-all').catch((e) => {
+          console.error('[Optimistic Delete All Background Error]:', e);
+        });
+      }
+    } else if (target.mode === 'one') {
+      const targetId = String(target.id);
+      // Optimistic instant UI update
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        next.add(targetId);
+        return next;
+      });
+      removeDownloadedCreation(target.id);
+      setBackendDownloads((prev) =>
+        prev.filter((c) => String(c._id || c.id) !== targetId)
+      );
+      if (user) {
+        API.delete(`/creations/${targetId}`).catch((e) => {
+          console.error('[Optimistic Delete Item Background Error]:', e);
+        });
+      }
+    }
   };
 
   return (
@@ -517,6 +542,7 @@ export default function DownloadsScreen() {
           onClose={() => setPreviewItem(null)}
           onRedownload={handleRedownload}
           onShare={(img) => handleShare(img, previewItem?._id)}
+          onDelete={(it) => setDeleteTarget({ mode: 'one', id: it._id || it.id })}
           isRedownloading={downloadingId === previewItem?._id}
           isSharing={sharingId === previewItem?._id}
         />

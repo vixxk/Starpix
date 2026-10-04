@@ -50,6 +50,20 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
+  headerSpacer: {
+    width: wp(0.18),
+    height: wp(0.1),
+  },
+  headerActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    width: wp(0.18),
+  },
+  headerActionBtn: {
+    padding: 6,
+    marginLeft: 4,
+  },
   headerCenter: {
     alignItems: 'center',
   },
@@ -126,7 +140,6 @@ export const styles = StyleSheet.create({
   },
   heroCrown: {
     fontSize: fontScale(16),
-    marginLeft: wp(0.01),
   },
   heroSubtitle: {
     fontSize: fontScale(10.5),
@@ -291,13 +304,13 @@ export const styles = StyleSheet.create({
     backgroundColor: '#FEF08A',
   },
   activePlanBadge: {
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D97706',
   },
   lockedPlanBadge: {
     backgroundColor: '#6B7280',
   },
   upgradePlanBadge: {
-    backgroundColor: '#D97706',
+    backgroundColor: '#16A34A',
   },
   badgeIcon: {
     marginRight: wp(0.008),
@@ -327,8 +340,18 @@ export const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   planCardActiveSub: {
+    borderColor: '#D97706',
+    borderWidth: 1.8,
+    backgroundColor: '#FFFBEB',
+  },
+  planCardUpgradeSelected: {
     borderColor: '#16A34A',
     borderWidth: 1.8,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: hp(0.004) },
+    shadowOpacity: 0.18,
+    shadowRadius: wp(0.02),
+    elevation: 4,
     backgroundColor: '#F0FDF4',
   },
   planCardDisabled: {

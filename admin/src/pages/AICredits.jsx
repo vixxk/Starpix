@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import PageHead from '../components/PageHead';
 import { useToast } from '../context/ToastContext';
+import { AICreditsSkeleton } from '../components/Skeleton';
 import MediaUploadZone from '../components/MediaUploadZone';
 import {
   Coins,
@@ -221,8 +222,13 @@ export default function AICredits() {
         </button>
       </div>
 
-      {/* Tab 1: Credit Packs */}
-      {activeTab === 'packs' && (
+      {/* Content */}
+      {loading ? (
+        <AICreditsSkeleton count={6} />
+      ) : (
+        <>
+          {/* Tab 1: Credit Packs */}
+          {activeTab === 'packs' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center bg-paper-100 p-3 border-2 border-ink rounded-[2px]">
             <div>
@@ -518,6 +524,8 @@ export default function AICredits() {
             ))}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

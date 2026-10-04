@@ -62,7 +62,7 @@ const uploadSingleMedia = asyncHandler(async (req, res) => {
       if (!isExact916) {
         console.log(`[Upload] Template video uploaded with size ${w}x${h}. Re-encoding to exact 9:16 (1080x1920) ratio...`);
         execSync(
-          `ffmpeg -y -i "${tmpInput}" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p -movflags +faststart -crf 22 "${tmpOutput}"`,
+          `ffmpeg -y -i "${tmpInput}" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p -movflags +faststart -crf 22 -c:a aac -b:a 192k "${tmpOutput}"`,
           { stdio: 'pipe' }
         );
         if (fs.existsSync(tmpOutput) && fs.statSync(tmpOutput).size > 0) {

@@ -166,4 +166,29 @@ export const useAuthStore = create((set, get) => ({
       console.error('Error updating user profile:', e);
     }
   },
+
+  addPurchasedTemplate: (templateId) => {
+    if (!templateId) return;
+    const tid = String(templateId);
+    const currentUser = get().user;
+    if (currentUser) {
+      const existing = currentUser.purchasedTemplates || [];
+      const alreadyHas = existing.some(
+        (id) => (typeof id === 'object' ? String(id._id || id.id) : String(id)) === tid
+      );
+      if (!alreadyHas) {
+        const updatedList = [...existing, tid];
+        const updatedUser = { ...currentUser, purchasedTemplates: updatedList };
+        set({ user: updatedUser });
+        AsyncStorage.setItem('starpix_user_data', JSON.stringify(updatedUser)).catch(() => {});
+      }
+    }
+  },
+
+  isTemplateUnlocked: (templateId) => {
+    const user = get().user;
+    if (!user || !templateId) return false;
+    const { checkCanAccessTemplate } = require('../utils/subscription');
+    return checkCanAccessTemplate(user, { _id: templateId });
+  },
 }));

@@ -38,8 +38,14 @@ export default function HeroTemplateCard({
 }) {
   const [resultMediaLoading, setResultMediaLoading] = React.useState(true);
   const [loadingStage, setLoadingStage] = React.useState(0);
+  const [isMuted, setIsMuted] = React.useState(false);
+  const [isPlaying, setIsPlaying] = React.useState(true);
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
   const progressAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    setIsPlaying(true);
+  }, [selectedTemplate?._id, selectedTemplate?.videoUrl]);
 
   React.useEffect(() => {
     if (!generating) {
@@ -212,7 +218,13 @@ export default function HeroTemplateCard({
         generatedResult.resultUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) &&
         !generatedResult.resultUrl.match(/\.(jpg|jpeg|png|webp)(\?.*)?$/i)
       );
-  const showVideoPlayer = generatedResult?.resultUrl ? isResultVideo : isCurrentVideo;
+  const isVideoAsset =
+    (selectedTemplate?.mediaType || 'video') === 'video' ||
+    Boolean(
+      selectedTemplate?.videoUrl &&
+      selectedTemplate.videoUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i)
+    );
+  const showVideoPlayer = generatedResult?.resultUrl ? isResultVideo : isVideoAsset;
 
   return (
     <View style={styles.heroCard}>
@@ -368,59 +380,89 @@ export default function HeroTemplateCard({
 
         {/* Main Media Preview */}
         <View style={styles.mediaContainer}>
-          {generatedResult?.resultUrl ? (
-            showVideoPlayer ? (
+          {showVideoPlayer ? (
+            <View style={styles.mediaPreviewWrap}>
               <AppVideo
-                source={{ uri: resolveMediaUrl(generatedResult.resultUrl) }}
+                source={{
+                  uri: resolveMediaUrl(
+                    generatedResult?.resultUrl || selectedTemplate.videoUrl
+                  ),
+                }}
                 style={styles.mainMedia}
                 resizeMode={ResizeMode.COVER}
-                shouldPlay
+                shouldPlay={isPlaying}
                 isLooping
+                isMuted={isMuted}
                 onReadyForDisplay={() => setResultMediaLoading(false)}
                 onLoad={() => setResultMediaLoading(false)}
                 onError={() => setResultMediaLoading(false)}
               />
-            ) : (
-              <Image
-                source={{ uri: resolveMediaUrl(generatedResult.resultUrl) }}
-                style={styles.mainMedia}
-                resizeMode="cover"
-                onLoadStart={() => setResultMediaLoading(true)}
-                onLoadEnd={() => setResultMediaLoading(false)}
-                onError={() => setResultMediaLoading(false)}
+
+              {/* Sound Toggle Button (Sound On / Sound Off) */}
+              <TouchableOpacity
+                onPress={() => setIsMuted((m) => !m)}
+                style={styles.soundBadgeContainer}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={isMuted ? 'volume-mute' : 'volume-high'}
+                  size={fontScale(13)}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.soundBadgeText}>
+                  {isMuted ? t('sound_off') : t('sound_on')}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Tap anywhere on video to toggle play/pause */}
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                onPress={() => setIsPlaying((p) => !p)}
+                activeOpacity={1}
               />
-            )
-          ) : (
-            <View style={styles.mediaPreviewWrap}>
-              <Image
-                source={{
-                  uri: resolveMediaUrl(
-                    selectedTemplate.videoUrl || selectedTemplate.thumbnailUrl
-                  ),
-                }}
-                style={styles.mainMedia}
-                resizeMode="cover"
-              />
-              {isCurrentVideo && (
-                <View style={styles.playButtonOverlay}>
-                  <View style={styles.playButtonCircle}>
-                    <Ionicons
-                      name="play"
-                      size={fontScale(24)}
-                      color="#FFFFFF"
-                      style={{ marginLeft: wp(0.01) }}
-                    />
-                  </View>
-                </View>
-              )}
-              {isCurrentVideo && (
-                <View style={styles.durationBadge}>
+
+              {/* Play/Pause Button in the Mid of the Template */}
+              <View style={styles.playButtonOverlay} pointerEvents="box-none">
+                <TouchableOpacity
+                  style={[
+                    styles.playButtonCircle,
+                    isPlaying && styles.playButtonCirclePlaying,
+                  ]}
+                  onPress={() => setIsPlaying((p) => !p)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={isPlaying ? 'pause' : 'play'}
+                    size={fontScale(22)}
+                    color="#FFFFFF"
+                    style={!isPlaying ? { marginLeft: wp(0.01) } : {}}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {selectedTemplate?.durationSeconds ? (
+                <View style={styles.durationBadge} pointerEvents="none">
                   <Text style={styles.durationText}>
-                    {`00:${selectedTemplate.durationSeconds || 15}`}
+                    {`00:${String(selectedTemplate.durationSeconds).padStart(2, '0')}`}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </View>
+          ) : (
+            <Image
+              source={{
+                uri: resolveMediaUrl(
+                  generatedResult?.resultUrl ||
+                  selectedTemplate.thumbnailUrl ||
+                  selectedTemplate.videoUrl
+                ),
+              }}
+              style={styles.mainMedia}
+              resizeMode="cover"
+              onLoadStart={() => setResultMediaLoading(true)}
+              onLoadEnd={() => setResultMediaLoading(false)}
+              onError={() => setResultMediaLoading(false)}
+            />
           )}
 
           {/* Premium Animated AI Loading Screen for Generating, Buffering, or Photo Uploaded */}
@@ -430,7 +472,9 @@ export default function HeroTemplateCard({
               <Image
                 source={{
                   uri: resolveMediaUrl(
-                    userFaces[0] || selectedTemplate.thumbnailUrl || selectedTemplate.videoUrl
+                    userFaces[0] ||
+                    selectedTemplate.thumbnailUrl ||
+                    (selectedTemplate.mediaType === 'image' ? selectedTemplate.videoUrl : '')
                   ),
                 }}
                 style={styles.loadingBlurredBackdrop}

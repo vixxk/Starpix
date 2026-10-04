@@ -167,7 +167,7 @@ export default function TemplateRenderer({
   canvasWidth,
   canvasHeight,
   showWatermark = false,
-  isMuted = true,
+  isMuted = false,
   shouldPlay = true,
   onPressPhotoSlot,
   onPhotoTransformChange,
@@ -199,6 +199,12 @@ export default function TemplateRenderer({
         isVideo ? (
           Platform.OS === 'web' ? (
             <video
+              ref={(ref) => {
+                if (ref) {
+                  ref.muted = isMuted;
+                  if (shouldPlay) ref.play().catch(() => {});
+                }
+              }}
               src={bgImage}
               autoPlay
               loop

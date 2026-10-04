@@ -38,6 +38,7 @@ import { resolveMediaUrl } from '../src/utils/media';
 import { uploadUserMedia } from '../src/utils/upload';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useCreationStore } from '../src/store/useCreationStore';
+import { checkHasActiveSubscription } from '../src/utils/subscription';
 
 import {
   LANGUAGES,
@@ -58,6 +59,7 @@ export default function AITrendsScreen() {
   const scrollRef = useRef(null);
 
   const [templates, setTemplates] = useState([]);
+  const [categories, setCategories] = useState(CATEGORIES);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,7 +81,34 @@ export default function AITrendsScreen() {
 
   useEffect(() => {
     fetchTemplates();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await API.get('/categories', { params: { active: true } });
+      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        const adminCats = res.data.data.map((c) => ({
+          id: c.name,
+          name: c.name,
+          slug: c.slug,
+          icon: c.icon || '✨',
+          nameTranslations: c.nameTranslations || {},
+        }));
+
+        const hasSpecial = adminCats.some(
+          (c) => c.name?.toLowerCase().includes('special') || c.slug === 'special'
+        );
+        const finalCats = hasSpecial
+          ? adminCats
+          : [{ id: "Today's Special", name: "Today's Special", icon: '⭐', slug: 'special' }, ...adminCats];
+
+        setCategories(finalCats);
+      }
+    } catch (err) {
+      console.log('Error fetching categories for AI Trends:', err?.message);
+    }
+  };
 
   const fetchTemplates = async () => {
     try {
@@ -103,7 +132,7 @@ export default function AITrendsScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     hapticTap();
-    await fetchTemplates();
+    await Promise.all([fetchTemplates(), fetchCategories()]);
     setRefreshing(false);
   };
 
@@ -125,13 +154,29 @@ export default function AITrendsScreen() {
   };
 
   // Category filter selection
-  const handleSelectCategory = (catId) => {
+  const handleSelectCategory = (catId, slug) => {
     if (generating) return;
     hapticTap();
     setActiveCategory(catId);
-    const filtered = catId === "Today's Special"
+    const isAllOrSpecial =
+      catId === "Today's Special" ||
+      catId === 'All' ||
+      slug === 'special' ||
+      slug === 'all';
+
+    const filtered = isAllOrSpecial
       ? templates
-      : templates.filter((t) => t.category?.toLowerCase() === catId.toLowerCase());
+      : templates.filter((t) => {
+          const tCat = (t.category || '').toLowerCase().trim();
+          const target = catId.toLowerCase().trim();
+          const targetSlug = (slug || '').toLowerCase().trim();
+          return (
+            tCat === target ||
+            (targetSlug && tCat === targetSlug) ||
+            tCat.replace(/[-_\s]/g, '') === target.replace(/[-_\s]/g, '')
+          );
+        });
+
     if (filtered.length > 0) {
       setSelectedTemplate(filtered[0]);
       setUserFaces([]);
@@ -422,20 +467,35 @@ export default function AITrendsScreen() {
   const requiredPhotosCount = selectedTemplate?.requiredPhotos || 1;
 
   // Filter templates list based on category and excluding currently selected template
-  const displayTemplates = activeCategory === "Today's Special"
+  const isSpecialOrAll =
+    activeCategory === "Today's Special" ||
+    activeCategory === 'All' ||
+    activeCategory === 'special' ||
+    activeCategory === 'all';
+
+  const displayTemplates = isSpecialOrAll
     ? templates
-    : (templates.filter((t) => t.category?.toLowerCase() === activeCategory.toLowerCase()).length > 0
-        ? templates.filter((t) => t.category?.toLowerCase() === activeCategory.toLowerCase())
+    : (templates.filter((t) => {
+        const tCat = (t.category || '').toLowerCase().trim();
+        const target = activeCategory.toLowerCase().trim();
+        return (
+          tCat === target ||
+          tCat.replace(/[-_\s]/g, '') === target.replace(/[-_\s]/g, '')
+        );
+      }).length > 0
+        ? templates.filter((t) => {
+            const tCat = (t.category || '').toLowerCase().trim();
+            const target = activeCategory.toLowerCase().trim();
+            return (
+              tCat === target ||
+              tCat.replace(/[-_\s]/g, '') === target.replace(/[-_\s]/g, '')
+            );
+          })
         : templates);
   const otherTemplates = displayTemplates.filter((t) => t._id !== selectedTemplate?._id);
 
   const getSubscriptionLabel = () => {
-    const isVip = Boolean(
-      user &&
-      user.isPremium &&
-      (user.subscriptionStatus === 'active' || !user.subscriptionStatus) &&
-      (!user.subscriptionExpiresAt || new Date() <= new Date(user.subscriptionExpiresAt))
-    );
+    const isVip = checkHasActiveSubscription(user);
     if (!isVip) {
       return t('pro_badge') || 'PRO';
     }
@@ -558,26 +618,36 @@ export default function AITrendsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesScroll}
         >
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const isSelected = activeCategory === cat.id;
+            const catLabel =
+              (cat.nameTranslations && cat.nameTranslations[i18n.language]) ||
+              (cat.slug === 'special' || cat.id === "Today's Special"
+                ? t('todays_special')
+                : (cat.name || cat.id));
+
             return (
               <TouchableOpacity
-                key={cat.id}
-                onPress={() => handleSelectCategory(cat.id)}
+                key={cat.id || cat.slug}
+                onPress={() => handleSelectCategory(cat.id, cat.slug)}
                 style={[
                   styles.categoryChip,
                   isSelected && styles.categoryChipSelected,
                 ]}
                 activeOpacity={0.8}
               >
-                {renderCategoryIcon(cat.iconType, isSelected)}
+                {cat.icon ? (
+                  <Text style={styles.catEmoji}>{cat.icon}</Text>
+                ) : (
+                  renderCategoryIcon(cat.iconType, isSelected)
+                )}
                 <Text
                   style={[
                     styles.categoryText,
                     isSelected && styles.categoryTextSelected,
                   ]}
                 >
-                  {cat.id}
+                  {catLabel}
                 </Text>
               </TouchableOpacity>
             );
@@ -621,7 +691,13 @@ export default function AITrendsScreen() {
           ) : (
             otherTemplates.map((tmpl) => {
               const isTmplVideo = tmpl.mediaType === 'video';
-              const imgUri = resolveMediaUrl(tmpl.thumbnailUrl || tmpl.videoUrl);
+              const hasImageThumb = Boolean(
+                tmpl.thumbnailUrl &&
+                !tmpl.thumbnailUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i)
+              );
+              const imgUri = resolveMediaUrl(
+                hasImageThumb ? tmpl.thumbnailUrl : (tmpl.mediaType === 'image' ? tmpl.videoUrl : '')
+              );
 
             return (
               <TouchableOpacity
@@ -632,11 +708,22 @@ export default function AITrendsScreen() {
               >
                 {/* Left Thumbnail */}
                 <View style={styles.feedThumbWrap}>
-                  <Image
-                    source={{ uri: imgUri }}
-                    style={styles.feedThumbImg}
-                    resizeMode="cover"
-                  />
+                  {isTmplVideo && !hasImageThumb ? (
+                    <AppVideo
+                      source={{ uri: resolveMediaUrl(tmpl.videoUrl) }}
+                      style={styles.feedThumbImg}
+                      resizeMode={ResizeMode.COVER}
+                      shouldPlay={false}
+                      isLooping={false}
+                      isMuted={true}
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: imgUri }}
+                      style={styles.feedThumbImg}
+                      resizeMode="cover"
+                    />
+                  )}
                   {isTmplVideo && (
                     <View style={styles.feedPlayIcon}>
                       <Ionicons name="play" size={fontScale(14)} color="#FFFFFF" />

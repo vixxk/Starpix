@@ -29,7 +29,7 @@ import {
 
 export default function BuyCreditsScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
 
   const user = useAuthStore((state) => state.user);
@@ -83,6 +83,28 @@ export default function BuyCreditsScreen() {
 
   const currentCredits = user?.credits !== undefined ? user.credits : 240;
   const selectedPack = creditPacks.find((p) => p.id === selectedPackId) || creditPacks[0] || CREDIT_PACKS[2];
+
+  const getPackCreditsText = (pack) => {
+    let num = pack.credits;
+    if (typeof num !== 'number') {
+      const parsed = parseInt(String(pack.creditsDisplay || pack.credits || '').replace(/[^\d]/g, ''), 10);
+      num = !isNaN(parsed) ? parsed : pack.credits;
+    }
+    const formattedNum = typeof num === 'number'
+      ? num.toLocaleString(i18n?.language || 'en')
+      : String(num || 0);
+
+    return t('credits_count', {
+      count: formattedNum,
+      defaultValue: `${formattedNum} ${t('ai_credits') || 'AI Credits'}`,
+    });
+  };
+
+  const getRangeText = (item) => {
+    const rawRange = item.range || '';
+    const numRange = rawRange.replace(/\s*Credits?/i, '').trim();
+    return t('credits_range', { range: numRange, defaultValue: rawRange });
+  };
 
   const handleSelectPack = (packId) => {
     hapticTap();
@@ -297,7 +319,7 @@ export default function BuyCreditsScreen() {
                     ) : null}
                   </View>
 
-                  <Text style={styles.packCreditsText}>{pack.creditsDisplay || `${pack.credits} AI Credits`}</Text>
+                  <Text style={styles.packCreditsText}>{getPackCreditsText(pack)}</Text>
                   <Text
                     style={[
                       styles.packDescText,
@@ -356,7 +378,7 @@ export default function BuyCreditsScreen() {
                 </View>
 
                 <View style={styles.guideCreditsBadge}>
-                  <Text style={styles.guideCreditsText}>{item.range}</Text>
+                  <Text style={styles.guideCreditsText}>{getRangeText(item)}</Text>
                 </View>
 
                 <View style={styles.guideThumbWrap}>

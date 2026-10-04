@@ -80,6 +80,27 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
     // Existing user logging in: only update last login timestamp, do not create
     user.lastLoginAt = new Date();
+
+    // Sync any past successful template purchases into user.purchasedTemplates
+    try {
+      const pastPurchases = await Purchase.find({
+        userId: user._id,
+        status: 'successful',
+        templateId: { $ne: null },
+      }).select('templateId');
+
+      if (pastPurchases.length > 0) {
+        const pastTemplateIds = pastPurchases.map((p) => p.templateId).filter(Boolean);
+        const existingIds = (user.purchasedTemplates || []).map((id) => id.toString());
+        const missingIds = pastTemplateIds.filter((id) => !existingIds.includes(id.toString()));
+        if (missingIds.length > 0) {
+          user.purchasedTemplates = [...(user.purchasedTemplates || []), ...missingIds];
+        }
+      }
+    } catch (syncErr) {
+      console.warn('[AuthController] Purchase sync error on login:', syncErr.message);
+    }
+
     await user.save();
 
     const token = generateToken(user._id, 'user', '3650d');
@@ -100,6 +121,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
           subscriptionExpiresAt: user.subscriptionExpiresAt,
           vipGrantedBy: user.vipGrantedBy,
           favorites: user.favorites,
+          purchasedTemplates: user.purchasedTemplates || [],
           isNewUser: false,
         },
         token,
@@ -177,6 +199,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
         subscriptionExpiresAt: user.subscriptionExpiresAt,
         vipGrantedBy: user.vipGrantedBy,
         favorites: user.favorites,
+        purchasedTemplates: [],
         isNewUser: true,
       },
       token,
@@ -197,6 +220,31 @@ const getMe = asyncHandler(async (req, res) => {
   if (user && (user.credits === undefined || user.credits === null)) {
     user.credits = 240;
     await user.save();
+  }
+
+  // Automatically sync any past successful template purchases into user.purchasedTemplates
+  if (user) {
+    try {
+      const pastPurchases = await Purchase.find({
+        userId: user._id,
+        status: 'successful',
+        templateId: { $ne: null },
+      }).select('templateId');
+
+      if (pastPurchases.length > 0) {
+        const pastTemplateIds = pastPurchases.map((p) => p.templateId).filter(Boolean);
+        const existingIds = (user.purchasedTemplates || []).map((id) => id.toString());
+        const missingIds = pastTemplateIds.filter((id) => !existingIds.includes(id.toString()));
+        if (missingIds.length > 0) {
+          await User.findByIdAndUpdate(user._id, {
+            $addToSet: { purchasedTemplates: { $each: missingIds } },
+          });
+          user.purchasedTemplates = [...(user.purchasedTemplates || []), ...missingIds];
+        }
+      }
+    } catch (syncErr) {
+      console.warn('[AuthController] Purchase sync error in getMe:', syncErr.message);
+    }
   }
 
   res.status(200).json({

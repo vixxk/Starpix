@@ -332,20 +332,36 @@ const getAdminCreations = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
-  const { search, mediaType } = req.query;
+  const { search, mediaType, type } = req.query;
 
-  let query = {};
+  const conditions = [];
+
+  if (type === 'ai') {
+    conditions.push({
+      $or: [{ isAi: true }, { aiTemplateId: { $ne: null } }],
+    });
+  } else if (type === 'non-ai' || type === 'standard' || type === 'template') {
+    conditions.push({
+      isAi: { $ne: true },
+      aiTemplateId: null,
+    });
+  }
+
   if (mediaType && mediaType !== 'all') {
-    query.mediaType = mediaType;
+    conditions.push({ mediaType });
   }
 
   if (search && search.trim() !== '') {
     const term = search.trim();
-    query.$or = [
-      { templateTitle: { $regex: term, $options: 'i' } },
-      { format: { $regex: term, $options: 'i' } },
-    ];
+    conditions.push({
+      $or: [
+        { templateTitle: { $regex: term, $options: 'i' } },
+        { format: { $regex: term, $options: 'i' } },
+      ],
+    });
   }
+
+  const query = conditions.length > 0 ? { $and: conditions } : {};
 
   const Creation = require('../models/Creation');
   const total = await Creation.countDocuments(query);

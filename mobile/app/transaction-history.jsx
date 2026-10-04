@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
-  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,12 +18,162 @@ import ScreenHeader from '../src/components/ScreenHeader';
 import AppRefreshControl from '../src/components/AppRefreshControl';
 import PressableScale from '../src/components/PressableScale';
 import Skeleton from '../src/components/Skeleton';
-import { COLORS, FONTS, BRUTAL } from '../src/constants/colors';
+import { COLORS, FONTS } from '../src/constants/colors';
 import { fontScale, wp, hp, CARD_SHADOW, SCREEN_PAD } from '../src/utils/responsive';
-import { hapticTap, hapticImpact } from '../src/utils/haptics';
+import { hapticTap } from '../src/utils/haptics';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useCreditBalanceSSE } from '../src/hooks/useCreditBalanceSSE';
 import API from '../src/utils/api';
+
+const dateCache = new Map();
+
+const langLocaleMap = {
+  en: 'en-IN',
+  hi: 'hi-IN',
+  mr: 'mr-IN',
+  gu: 'gu-IN',
+  ta: 'ta-IN',
+  te: 'te-IN',
+  kn: 'kn-IN',
+  bn: 'bn-IN',
+  pa: 'pa-IN',
+  ml: 'ml-IN',
+};
+
+const formatDate = (isoString, lang) => {
+  if (!isoString) return '';
+  const cacheKey = `${isoString}_${lang || 'en'}`;
+  const cached = dateCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const d = new Date(isoString);
+    const activeLocale = langLocaleMap[lang] || 'en-IN';
+    const formatted = d.toLocaleDateString(activeLocale, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    if (dateCache.size > 500) {
+      dateCache.clear();
+    }
+    dateCache.set(cacheKey, formatted);
+    return formatted;
+  } catch {
+    return '';
+  }
+};
+
+const getTransactionTitle = (tx, isCredit, t) => {
+  if (isCredit) {
+    if (tx.title) {
+      const match = tx.title.match(/(\d+)\s*AI Credits/i);
+      if (match) {
+        return `${match[1]} AI ${t('credits_abbr') || 'Credits'}`;
+      }
+    }
+    return t('credits_added') || 'Credits Added';
+  } else {
+    const rawTitle = (tx.title || '').trim().toLowerCase();
+    if (rawTitle === 'ai video') return t('ai_video') || 'AI Video';
+    if (rawTitle === 'ai image') return t('ai_image') || 'AI Image';
+    if (rawTitle === 'ai creation') return t('ai_creation') || 'AI Creation';
+    if (tx.title) return tx.title;
+    return t('ai_creation') || 'AI Creation';
+  }
+};
+
+const getTransactionDesc = (tx, isCredit, t) => {
+  if (isCredit) {
+    const priceMatch = (tx.description || '').match(/₹\s*\d+/);
+    if (priceMatch) {
+      return `${t('credit_pack_purchase') || 'Credit Pack Purchase'} (${priceMatch[0]})`;
+    }
+    return t('credit_pack_purchase') || 'Credit Pack Purchase';
+  } else {
+    if (tx.description) {
+      if (/^AI Face Swap/i.test(tx.description)) {
+        return `${t('ai_face_swap') || 'AI Face Swap'} (-${tx.amount} ${t('credits_abbr') || 'Credits'})`;
+      }
+      const credMatch = tx.description.match(/^(.*?)(\s*\(-?\d+\s*Credits\))?$/i);
+      if (credMatch && credMatch[1]) {
+        return `${credMatch[1]} (-${tx.amount} ${t('credits_abbr') || 'Credits'})`;
+      }
+      return tx.description;
+    }
+    return t('generated_asset') || 'Generated Asset';
+  }
+};
+
+const TransactionItem = React.memo(function TransactionItem({
+  tx,
+  isFirst,
+  isLast,
+  title,
+  desc,
+  dateFormatted,
+  t,
+}) {
+  const isCredit = tx.type === 'credit';
+
+  return (
+    <View
+      style={[
+        styles.txItem,
+        isFirst && styles.txItemFirst,
+        isLast && styles.txItemLast,
+      ]}
+    >
+      <View
+        style={[
+          styles.txIconBox,
+          isCredit ? styles.txIconBoxCredit : styles.txIconBoxDebit,
+        ]}
+      >
+        <Ionicons
+          name={isCredit ? 'arrow-down-circle' : 'sparkles'}
+          size={20}
+          color={isCredit ? '#16A34A' : '#E11D48'}
+        />
+      </View>
+
+      <View style={styles.txMainCol}>
+        <Text style={styles.txTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={styles.txDesc} numberOfLines={1}>
+          {desc}
+        </Text>
+        <Text style={styles.txDate}>{dateFormatted}</Text>
+      </View>
+
+      <View style={styles.txRightCol}>
+        <View
+          style={[
+            styles.txBadge,
+            isCredit ? styles.txBadgeCredit : styles.txBadgeDebit,
+          ]}
+        >
+          <Text
+            style={[
+              styles.txBadgeText,
+              isCredit ? styles.txBadgeTextCredit : styles.txBadgeTextDebit,
+            ]}
+          >
+            {isCredit ? `+${tx.amount}` : `-${tx.amount}`}
+          </Text>
+        </View>
+        {tx.balanceAfter !== undefined && (
+          <Text style={styles.txBalanceAfter}>
+            {t('balance_abbr') || 'Bal'}: {tx.balanceAfter}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+});
 
 export default function TransactionHistoryScreen() {
   const insets = useSafeAreaInsets();
@@ -47,8 +197,9 @@ export default function TransactionHistoryScreen() {
       const res = await API.get('/payments/credit-transactions');
       if (res.data?.success && res.data?.data) {
         setTransactions(res.data.data.transactions || []);
+        const currentCredits = useAuthStore.getState().user?.credits ?? 240;
         setSummary({
-          currentBalance: res.data.data.currentBalance ?? (user?.credits || 240),
+          currentBalance: res.data.data.currentBalance ?? currentCredits,
           totalBought: res.data.data.totalBought || 0,
           totalSpent: res.data.data.totalSpent || 0,
         });
@@ -62,7 +213,7 @@ export default function TransactionHistoryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, []);
 
   // Real-time balance streaming via Server-Sent Events (SSE)
   const handleSSEBalanceUpdate = useCallback(
@@ -87,13 +238,12 @@ export default function TransactionHistoryScreen() {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchTransactions();
-  };
+  }, [fetchTransactions]);
 
-  const handleBack = () => {
-    hapticTap();
+  const handleBack = useCallback(() => {
     if (params.from === 'ai-video') {
       router.replace('/ai-video');
     } else if (router.canGoBack()) {
@@ -101,84 +251,171 @@ export default function TransactionHistoryScreen() {
     } else {
       router.replace('/(tabs)/profile');
     }
-  };
+  }, [params.from, router]);
 
-  const filteredTransactions = transactions.filter((tx) => {
-    if (filter === 'bought') return tx.type === 'credit';
-    if (filter === 'spent') return tx.type === 'debit';
-    return true;
-  });
+  const filteredTransactions = useMemo(() => {
+    if (filter === 'bought') return transactions.filter((tx) => tx.type === 'credit');
+    if (filter === 'spent') return transactions.filter((tx) => tx.type === 'debit');
+    return transactions;
+  }, [transactions, filter]);
 
-  const langLocaleMap = {
-    en: 'en-IN',
-    hi: 'hi-IN',
-    mr: 'mr-IN',
-    gu: 'gu-IN',
-    ta: 'ta-IN',
-    te: 'te-IN',
-    kn: 'kn-IN',
-    bn: 'bn-IN',
-    pa: 'pa-IN',
-    ml: 'ml-IN',
-  };
+  const renderHeader = useMemo(() => {
+    return (
+      <View>
+        {/* Top Summary Balance Card */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryContentRow}>
+            {/* Left Side: Available Balance */}
+            <View style={styles.balanceLeftCol}>
+              <Text style={styles.summaryLabel} numberOfLines={1}>
+                {t('current_balance') || 'Available Balance'}
+              </Text>
+              <View style={styles.balanceRow}>
+                <View style={styles.coinIconWrap}>
+                  <Ionicons name="sparkles" size={17} color="#D97706" />
+                </View>
+                <Text style={styles.balanceNumber}>
+                  {user?.credits !== undefined ? user.credits : summary.currentBalance}
+                </Text>
+                <Text style={styles.balanceUnits} numberOfLines={1}>
+                  {t('credits_abbr') || 'Credits'}
+                </Text>
+              </View>
+            </View>
 
-  const formatDate = (isoString) => {
-    if (!isoString) return '';
-    try {
-      const d = new Date(isoString);
-      const activeLocale = langLocaleMap[i18n.language] || 'en-IN';
-      return d.toLocaleDateString(activeLocale, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return '';
+            {/* Right Side: Bought & Spent Stats */}
+            <View style={styles.statsRightContainer}>
+              <View style={styles.statRightItem}>
+                <View style={[styles.statDot, { backgroundColor: '#16A34A' }]} />
+                <Text style={styles.statRightLabel} numberOfLines={1}>
+                  {t('credits_bought') || 'Bought'}
+                </Text>
+                <Text style={[styles.statRightValue, { color: '#16A34A' }]}>
+                  +{summary.totalBought}
+                </Text>
+              </View>
+
+              <View style={styles.statRightDivider} />
+
+              <View style={styles.statRightItem}>
+                <View style={[styles.statDot, { backgroundColor: '#EE1D24' }]} />
+                <Text style={styles.statRightLabel} numberOfLines={1}>
+                  {t('credits_spent') || 'Spent'}
+                </Text>
+                <Text style={[styles.statRightValue, { color: '#EE1D24' }]}>
+                  -{summary.totalSpent}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Filter Pills */}
+        <View style={styles.filtersRow}>
+          {[
+            { id: 'all', label: t('all') || 'All' },
+            { id: 'bought', label: t('credits_bought') || 'Bought' },
+            { id: 'spent', label: t('credits_spent') || 'Spent' },
+          ].map((tab) => {
+            const active = filter === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={[styles.filterPill, active && styles.filterPillActive]}
+                onPress={() => {
+                  hapticTap();
+                  setFilter(tab.id);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }, [
+    summary.currentBalance,
+    summary.totalBought,
+    summary.totalSpent,
+    user?.credits,
+    filter,
+    t,
+  ]);
+
+  const renderEmpty = useMemo(() => {
+    if (loading) {
+      return (
+        <View style={{ marginTop: 12 }}>
+          {[1, 2, 3, 4].map((k) => (
+            <View key={k} style={styles.skeletonCard}>
+              <Skeleton width={44} height={44} borderRadius={12} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Skeleton width="60%" height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+                <Skeleton width="40%" height={10} borderRadius={4} />
+              </View>
+              <Skeleton width={50} height={20} borderRadius={8} />
+            </View>
+          ))}
+        </View>
+      );
     }
-  };
 
-  const getTransactionTitle = (tx, isCredit) => {
-    if (isCredit) {
-      if (tx.title) {
-        const match = tx.title.match(/(\d+)\s*AI Credits/i);
-        if (match) {
-          return `${match[1]} AI ${t('credits_abbr') || 'Credits'}`;
-        }
-      }
-      return t('credits_added') || 'Credits Added';
-    } else {
-      const rawTitle = (tx.title || '').trim().toLowerCase();
-      if (rawTitle === 'ai video') return t('ai_video') || 'AI Video';
-      if (rawTitle === 'ai image') return t('ai_image') || 'AI Image';
-      if (rawTitle === 'ai creation') return t('ai_creation') || 'AI Creation';
-      if (tx.title) return tx.title;
-      return t('ai_creation') || 'AI Creation';
-    }
-  };
+    return (
+      <View style={styles.emptyWrap}>
+        <View style={styles.emptyIconBox}>
+          <Ionicons name="receipt-outline" size={36} color="#9CA3AF" />
+        </View>
+        <Text style={styles.emptyTitle}>{t('no_transactions') || 'No Transactions Found'}</Text>
+        <Text style={styles.emptySubtitle}>
+          {t('no_transactions_sub') || 'Your credit purchases and spent history will appear here.'}
+        </Text>
+        <PressableScale
+          onPress={() => {
+            hapticTap();
+            router.push('/buy-credits');
+          }}
+          scaleTo={0.92}
+          style={styles.emptyCta}
+          contentStyle={styles.emptyCtaContent}
+        >
+          <Text style={styles.emptyCtaText}>{t('settings_buy_ai_credits') || 'Buy AI Credits'}</Text>
+        </PressableScale>
+      </View>
+    );
+  }, [loading, router, t]);
 
-  const getTransactionDesc = (tx, isCredit) => {
-    if (isCredit) {
-      const priceMatch = (tx.description || '').match(/₹\s*\d+/);
-      if (priceMatch) {
-        return `${t('credit_pack_purchase') || 'Credit Pack Purchase'} (${priceMatch[0]})`;
-      }
-      return t('credit_pack_purchase') || 'Credit Pack Purchase';
-    } else {
-      if (tx.description) {
-        if (/^AI Face Swap/i.test(tx.description)) {
-          return `${t('ai_face_swap') || 'AI Face Swap'} (-${tx.amount} ${t('credits_abbr') || 'Credits'})`;
-        }
-        const credMatch = tx.description.match(/^(.*?)(\s*\(-?\d+\s*Credits\))?$/i);
-        if (credMatch && credMatch[1]) {
-          return `${credMatch[1]} (-${tx.amount} ${t('credits_abbr') || 'Credits'})`;
-        }
-        return tx.description;
-      }
-      return t('generated_asset') || 'Generated Asset';
-    }
-  };
+  const renderItem = useCallback(
+    ({ item, index }) => {
+      const isFirst = index === 0;
+      const isLast = index === filteredTransactions.length - 1;
+      const isCredit = item.type === 'credit';
+      const title = getTransactionTitle(item, isCredit, t);
+      const desc = getTransactionDesc(item, isCredit, t);
+      const dateFormatted = formatDate(item.createdAt, i18n.language);
+
+      return (
+        <TransactionItem
+          tx={item}
+          isFirst={isFirst}
+          isLast={isLast}
+          title={title}
+          desc={desc}
+          dateFormatted={dateFormatted}
+          t={t}
+        />
+      );
+    },
+    [filteredTransactions.length, t, i18n.language]
+  );
+
+  const keyExtractor = useCallback(
+    (tx, idx) => String(tx._id || tx.id || idx),
+    []
+  );
 
   return (
     <AppBackground>
@@ -191,185 +428,23 @@ export default function TransactionHistoryScreen() {
           onBack={handleBack}
         />
 
-        <ScrollView
+        <FlatList
+          data={loading ? [] : filteredTransactions}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmpty}
+          ListFooterComponent={<View style={{ height: hp(0.04) }} />}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
-        >
-          {/* Top Summary Balance Card */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryContentRow}>
-              {/* Left Side: Available Balance */}
-              <View style={styles.balanceLeftCol}>
-                <Text style={styles.summaryLabel} numberOfLines={1}>
-                  {t('current_balance') || 'Available Balance'}
-                </Text>
-                <View style={styles.balanceRow}>
-                  <View style={styles.coinIconWrap}>
-                    <Ionicons name="sparkles" size={17} color="#D97706" />
-                  </View>
-                  <Text style={styles.balanceNumber}>
-                    {user?.credits !== undefined ? user.credits : summary.currentBalance}
-                  </Text>
-                  <Text style={styles.balanceUnits} numberOfLines={1}>
-                    {t('credits_abbr') || 'Credits'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Right Side: Bought & Spent Stats */}
-              <View style={styles.statsRightContainer}>
-                <View style={styles.statRightItem}>
-                  <View style={[styles.statDot, { backgroundColor: '#16A34A' }]} />
-                  <Text style={styles.statRightLabel} numberOfLines={1}>
-                    {t('credits_bought') || 'Bought'}
-                  </Text>
-                  <Text style={[styles.statRightValue, { color: '#16A34A' }]}>
-                    +{summary.totalBought}
-                  </Text>
-                </View>
-
-                <View style={styles.statRightDivider} />
-
-                <View style={styles.statRightItem}>
-                  <View style={[styles.statDot, { backgroundColor: '#EE1D24' }]} />
-                  <Text style={styles.statRightLabel} numberOfLines={1}>
-                    {t('credits_spent') || 'Spent'}
-                  </Text>
-                  <Text style={[styles.statRightValue, { color: '#EE1D24' }]}>
-                    -{summary.totalSpent}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Filter Pills */}
-          <View style={styles.filtersRow}>
-            {[
-              { id: 'all', label: t('all') || 'All' },
-              { id: 'bought', label: t('credits_bought') || 'Bought' },
-              { id: 'spent', label: t('credits_spent') || 'Spent' },
-            ].map((tab) => {
-              const active = filter === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[styles.filterPill, active && styles.filterPillActive]}
-                  onPress={() => {
-                    hapticTap();
-                    setFilter(tab.id);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Transactions List */}
-          {loading ? (
-            <View style={{ marginTop: 12 }}>
-              {[1, 2, 3, 4].map((k) => (
-                <View key={k} style={styles.skeletonCard}>
-                  <Skeleton width={44} height={44} borderRadius={12} />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Skeleton width="60%" height={14} borderRadius={4} style={{ marginBottom: 6 }} />
-                    <Skeleton width="40%" height={10} borderRadius={4} />
-                  </View>
-                  <Skeleton width={50} height={20} borderRadius={8} />
-                </View>
-              ))}
-            </View>
-          ) : filteredTransactions.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <View style={styles.emptyIconBox}>
-                <Ionicons name="receipt-outline" size={36} color="#9CA3AF" />
-              </View>
-              <Text style={styles.emptyTitle}>{t('no_transactions') || 'No Transactions Found'}</Text>
-              <Text style={styles.emptySubtitle}>
-                {t('no_transactions_sub') || 'Your credit purchases and spent history will appear here.'}
-              </Text>
-              <PressableScale
-                onPress={() => {
-                  hapticTap();
-                  router.push('/buy-credits');
-                }}
-                scaleTo={0.92}
-                style={styles.emptyCta}
-                contentStyle={styles.emptyCtaContent}
-              >
-                <Text style={styles.emptyCtaText}>{t('settings_buy_ai_credits') || 'Buy AI Credits'}</Text>
-              </PressableScale>
-            </View>
-          ) : (
-            <View style={styles.listContainer}>
-              {filteredTransactions.map((tx, idx) => {
-                const isCredit = tx.type === 'credit';
-                return (
-                  <View
-                    key={tx._id || idx}
-                    style={[
-                      styles.txItem,
-                      idx === filteredTransactions.length - 1 && { borderBottomWidth: 0 },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.txIconBox,
-                        isCredit ? styles.txIconBoxCredit : styles.txIconBoxDebit,
-                      ]}
-                    >
-                      <Ionicons
-                        name={isCredit ? 'arrow-down-circle' : 'sparkles'}
-                        size={20}
-                        color={isCredit ? '#16A34A' : '#E11D48'}
-                      />
-                    </View>
-
-                    <View style={styles.txMainCol}>
-                      <Text style={styles.txTitle} numberOfLines={1}>
-                        {getTransactionTitle(tx, isCredit)}
-                      </Text>
-                      <Text style={styles.txDesc} numberOfLines={1}>
-                        {getTransactionDesc(tx, isCredit)}
-                      </Text>
-                      <Text style={styles.txDate}>{formatDate(tx.createdAt)}</Text>
-                    </View>
-
-                    <View style={styles.txRightCol}>
-                      <View
-                        style={[
-                          styles.txBadge,
-                          isCredit ? styles.txBadgeCredit : styles.txBadgeDebit,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.txBadgeText,
-                            isCredit ? styles.txBadgeTextCredit : styles.txBadgeTextDebit,
-                          ]}
-                        >
-                          {isCredit ? `+${tx.amount}` : `-${tx.amount}`}
-                        </Text>
-                      </View>
-                      {tx.balanceAfter !== undefined && (
-                        <Text style={styles.txBalanceAfter}>
-                          {t('balance_abbr') || 'Bal'}: {tx.balanceAfter}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === 'android'}
+        />
       </View>
     </AppBackground>
   );
@@ -381,7 +456,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: SCREEN_PAD,
-    paddingBottom: hp(0.06),
+    paddingBottom: hp(0.04),
   },
 
   /* Summary Card */
@@ -506,21 +581,30 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  /* Transactions List */
-  listContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-    ...CARD_SHADOW,
-  },
+  /* Transactions Item Styles for Virtualized FlatList */
   txItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: wp(0.035),
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#E5E7EB',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+  },
+  txItemFirst: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  txItemLast: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    ...CARD_SHADOW,
   },
   txIconBox: {
     width: 42,
@@ -611,6 +695,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     paddingHorizontal: wp(0.06),
+    ...CARD_SHADOW,
   },
   emptyIconBox: {
     width: 68,

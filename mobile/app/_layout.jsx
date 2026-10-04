@@ -14,9 +14,18 @@ import {
 import { Anton_400Regular } from '@expo-google-fonts/anton';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { hydrateDownloadedCreations } from '../src/store/useCreationStore';
+import { checkHasActiveSubscription } from '../src/utils/subscription';
 import { BRUTAL } from '../src/constants/colors';
 import * as SplashScreen from 'expo-splash-screen';
+import { setAudioModeAsync } from 'expo-audio';
 import '../src/i18n';
+
+// Configure audio playback across the app (enable sound even in iOS/Android silent mode)
+try {
+  setAudioModeAsync({
+    playsInSilentMode: true,
+  }).catch(() => {});
+} catch (e) {}
 
 // Immediately dismiss native splash screen so app opens with zero delay
 try {
@@ -26,8 +35,9 @@ try {
 /**
  * Central auth guard for every route.
  *
- * If user is not signed in, redirect to the sign in page.
- * If user is signed in and accesses auth pages, redirect to main app.
+ * - If user is not signed in, redirect to the sign in page.
+ * - If user is signed in but has no active subscription, redirect to the subscription (VIP) paywall page.
+ * - If user has an active subscription, allow access to main app routes.
  */
 function AuthGate({ children }) {
   const pathname = usePathname();
@@ -45,17 +55,42 @@ function AuthGate({ children }) {
     pathname.includes('signup') ||
     pathname.includes('verify');
 
+  const isSubscriptionRoute =
+    pathname === '/vip' ||
+    pathname.startsWith('/vip') ||
+    pathname.includes('vip');
+
+  const hasActiveSub = checkHasActiveSubscription(user);
+
   useEffect(() => {
     if (isLoading) return;
 
-    if (!user && !isAuthRoute) {
-      router.replace('/(auth)/login');
-    } else if (user && isAuthRoute) {
-      router.replace('/(tabs)');
+    if (!user) {
+      if (!isAuthRoute) {
+        router.replace('/(auth)/login');
+      }
+      return;
     }
-  }, [isLoading, isAuthRoute, user, pathname, router]);
+
+    // Authenticated user with no active subscription must remain on VIP paywall
+    if (!hasActiveSub) {
+      if (!isSubscriptionRoute) {
+        router.replace('/vip');
+      }
+    } else {
+      // Authenticated user with active subscription:
+      if (isAuthRoute) {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [isLoading, isAuthRoute, isSubscriptionRoute, hasActiveSub, user, pathname, router]);
 
   if (isLoading || (!user && !isAuthRoute)) {
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
+  }
+
+  // Prevent flash of any main app page when logged in without active subscription
+  if (user && !hasActiveSub && !isSubscriptionRoute) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
@@ -65,6 +100,7 @@ function AuthGate({ children }) {
 export default function RootLayout() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
   const user = useAuthStore((state) => state.user);
+  const hasActiveSub = checkHasActiveSubscription(user);
 
   useFonts({
     Poppins_400Regular,
@@ -87,7 +123,7 @@ export default function RootLayout() {
       <React.Fragment>
         <StatusBar style="dark" backgroundColor={BRUTAL.bone} />
         <Stack
-          initialRouteName={user ? '(tabs)' : '(auth)'}
+          initialRouteName={user && hasActiveSub ? '(tabs)' : (user ? 'vip' : '(auth)')}
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: BRUTAL.bone },

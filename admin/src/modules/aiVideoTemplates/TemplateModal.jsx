@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import API from '../../services/api';
 import ModalPortal from '../../components/ModalPortal';
 import MediaUploadZone from '../../components/MediaUploadZone';
 import MultilingualNameModal from '../../components/MultilingualNameModal';
@@ -14,6 +15,18 @@ export default function TemplateModal({
   onClose,
   onSave,
 }) {
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    API.get('/categories')
+      .then((res) => {
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          setCategories(res.data.data);
+        }
+      })
+      .catch((err) => console.log('Error loading categories:', err));
+  }, []);
+
   if (!isOpen) return null;
 
   return (
@@ -82,17 +95,27 @@ export default function TemplateModal({
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="select w-full"
                     >
-                      <option value="Retro 80's">Retro 80's</option>
-                      <option value="Today's Special">Today's Special</option>
-                      <option value="Dance Video">Dance Video</option>
-                      <option value="Bappa in 80's">Bappa in 80's</option>
-                      <option value="Ganesh Chaturthi">Ganesh Chaturthi</option>
-                      <option value="Devotional">Devotional</option>
-                      <option value="Photography Video">Photography Video</option>
-                      <option value="Motivation">Motivation</option>
-                      <option value="Love">Love</option>
-                      <option value="Birthday">Birthday</option>
-                      <option value="Trending">Trending</option>
+                      {categories.length > 0 ? (
+                        categories.map((c) => (
+                          <option key={c._id || c.slug} value={c.name}>
+                            {c.icon ? `${c.icon} ` : ''}{c.name}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="Retro 80's">Retro 80's</option>
+                          <option value="Today's Special">Today's Special</option>
+                          <option value="Dance Video">Dance Video</option>
+                          <option value="Bappa in 80's">Bappa in 80's</option>
+                          <option value="Ganesh Chaturthi">Ganesh Chaturthi</option>
+                          <option value="Devotional">Devotional</option>
+                          <option value="Photography Video">Photography Video</option>
+                          <option value="Motivation">Motivation</option>
+                          <option value="Love">Love</option>
+                          <option value="Birthday">Birthday</option>
+                          <option value="Trending">Trending</option>
+                        </>
+                      )}
                     </select>
                   </div>
 

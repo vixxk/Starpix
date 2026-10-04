@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
@@ -20,7 +21,9 @@ import { fontScale, wp, hp, SCREEN_PAD } from '../src/utils/responsive';
 import { useAuthStore } from '../src/store/useAuthStore';
 import ConfirmModal from '../src/components/ConfirmModal';
 import PlanAlertModal from '../src/components/PlanAlertModal';
+import LanguageModal from '../src/components/LanguageModal';
 import API from '../src/utils/api';
+import { checkHasActiveSubscription } from '../src/utils/subscription';
 
 import {
   POSTERS,
@@ -33,26 +36,33 @@ export default function VipScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const updateUserProfile = useAuthStore((state) => state.updateUserProfile);
+  const logout = useAuthStore((state) => state.logout);
 
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [selectedPlanId, setSelectedPlanId] = useState('30days');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [purchaseDetails, setPurchaseDetails] = useState(null);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [planAlertState, setPlanAlertState] = useState({
     visible: false,
     type: 'downgrade',
   });
 
   // Active subscription verification and plan tier hierarchy
-  const now = new Date();
-  const hasActiveSub = Boolean(
-    user &&
-    user.isPremium &&
-    user.subscriptionStatus === 'active' &&
-    user.subscriptionExpiresAt &&
-    new Date(user.subscriptionExpiresAt) > now
-  );
+  const hasActiveSub = checkHasActiveSubscription(user);
+
+  // Disable hardware back button on Android when acting as mandatory paywall
+  useEffect(() => {
+    if (!hasActiveSub) {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        return true;
+      });
+      return () => backHandler.remove();
+    }
+  }, [hasActiveSub]);
 
   const activePlanName = (() => {
     if (!hasActiveSub || !user?.subscriptionPlan) return '';
@@ -153,14 +163,19 @@ export default function VipScreen() {
       try {
         const res = await API.post('/payments/subscribe', { planId: selectedPlan.id });
         if (res.data?.success && res.data?.data?.user) {
-          await updateUserProfile(res.data.data.user);
+          const freshUser = { ...user, ...res.data.data.user };
+          setUser(freshUser);
+          updateUserProfile(res.data.data.user).catch(() => {});
         } else if (user) {
-          await updateUserProfile({
+          const freshUser = {
+            ...user,
             isPremium: true,
             subscriptionStatus: 'active',
             subscriptionPlan: selectedPlan.id,
             subscriptionExpiresAt: expiryDate.toISOString(),
-          });
+          };
+          setUser(freshUser);
+          updateUserProfile(freshUser).catch(() => {});
         }
       } catch (apiErr) {
         if (apiErr.response?.data?.message) {
@@ -168,12 +183,15 @@ export default function VipScreen() {
           return;
         }
         if (user) {
-          await updateUserProfile({
+          const freshUser = {
+            ...user,
             isPremium: true,
             subscriptionStatus: 'active',
             subscriptionPlan: selectedPlan.id,
             subscriptionExpiresAt: expiryDate.toISOString(),
-          });
+          };
+          setUser(freshUser);
+          updateUserProfile(freshUser).catch(() => {});
         }
       }
 
@@ -285,14 +303,18 @@ export default function VipScreen() {
           { paddingTop: Math.max(insets.top, hp(0.015)) },
         ]}
       >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerBackBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={fontScale(22)} color="#111827" />
-        </TouchableOpacity>
+        {hasActiveSub ? (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerBackBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={fontScale(22)} color="#111827" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
 
         <View style={styles.headerCenter}>
           <View style={styles.brandTitleRow}>
@@ -307,7 +329,28 @@ export default function VipScreen() {
           <Text style={styles.brandTagline}>{t('sub_tagline')}</Text>
         </View>
 
-        <View style={{ width: wp(0.1) }} />
+        {!hasActiveSub ? (
+          <View style={styles.headerActionsRight}>
+            <TouchableOpacity
+              onPress={() => setShowLanguageModal(true)}
+              style={styles.headerActionBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="globe-outline" size={fontScale(20)} color="#4B5563" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowLogoutModal(true)}
+              style={styles.headerActionBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="log-out-outline" size={fontScale(20)} color="#DC2626" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ width: wp(0.1) }} />
+        )}
       </View>
 
       {/* Main Scrollable Content */}
@@ -325,10 +368,9 @@ export default function VipScreen() {
           {/* Left Column */}
           <View style={styles.heroLeft}>
             <Text style={styles.heroUnlockText}>{t('sub_unlock')}</Text>
-            <View style={styles.heroBrandRow}>
-              <Text style={styles.heroBrandText}>{t('sub_starpix_premium')}</Text>
-              <Text style={styles.heroCrown}>👑</Text>
-            </View>
+            <Text style={styles.heroBrandText}>
+              {t('sub_starpix_premium')} <Text style={styles.heroCrown}>👑</Text>
+            </Text>
             <Text style={styles.heroSubtitle}>{t('sub_hero_subtitle')}</Text>
 
             {/* Checklist items */}
@@ -424,7 +466,7 @@ export default function VipScreen() {
                 key={plan.id}
                 style={[
                   styles.planCard,
-                  isSelected && styles.planCardSelected,
+                  isSelected && (isUpgrade ? styles.planCardUpgradeSelected : styles.planCardSelected),
                   isCurrentPlan && styles.planCardActiveSub,
                   isLowerPlan && styles.planCardDisabled,
                 ]}
@@ -489,8 +531,8 @@ export default function VipScreen() {
                 {/* Radio Button / Status Icon */}
                 <View style={styles.radioWrap}>
                   {isCurrentPlan ? (
-                    <View style={[styles.radioCircle, { borderColor: '#16A34A', backgroundColor: '#DCFCE7' }]}>
-                      <Ionicons name="checkmark" size={fontScale(10)} color="#16A34A" />
+                    <View style={[styles.radioCircle, { borderColor: '#D97706', backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="checkmark" size={fontScale(10)} color="#D97706" />
                     </View>
                   ) : isLowerPlan ? (
                     <View style={[styles.radioCircle, { borderColor: '#9CA3AF', backgroundColor: '#F3F4F6' }]}>
@@ -500,10 +542,12 @@ export default function VipScreen() {
                     <View
                       style={[
                         styles.radioCircle,
-                        isSelected && styles.radioCircleSelected,
+                        isSelected && (isUpgrade ? { borderColor: '#16A34A' } : styles.radioCircleSelected),
                       ]}
                     >
-                      {isSelected && <View style={styles.radioDot} />}
+                      {isSelected && (
+                        <View style={[styles.radioDot, isUpgrade && { backgroundColor: '#16A34A' }]} />
+                      )}
                     </View>
                   )}
                 </View>
@@ -512,8 +556,8 @@ export default function VipScreen() {
                 <Text
                   style={[
                     styles.planPrice,
-                    isSelected && styles.planPriceSelected,
-                    isCurrentPlan && { color: '#16A34A' },
+                    isSelected && (isUpgrade ? { color: '#16A34A' } : styles.planPriceSelected),
+                    isCurrentPlan && { color: '#D97706' },
                     isLowerPlan && { color: '#9CA3AF' },
                   ]}
                   numberOfLines={1}
@@ -525,8 +569,8 @@ export default function VipScreen() {
                 <Text
                   style={[
                     styles.planPeriod,
-                    isSelected && styles.planPeriodSelected,
-                    isCurrentPlan && { color: '#16A34A' },
+                    isSelected && (isUpgrade ? { color: '#16A34A' } : styles.planPeriodSelected),
+                    isCurrentPlan && { color: '#D97706' },
                     isLowerPlan && { color: '#9CA3AF' },
                   ]}
                   numberOfLines={1}
@@ -544,7 +588,7 @@ export default function VipScreen() {
                       <Ionicons
                         name="checkmark"
                         size={fontScale(11)}
-                        color={isCurrentPlan ? '#16A34A' : isLowerPlan ? '#9CA3AF' : '#EE1D24'}
+                        color={isCurrentPlan ? '#D97706' : (isUpgrade && isSelected) ? '#16A34A' : isLowerPlan ? '#9CA3AF' : '#EE1D24'}
                         style={styles.planCheckIcon}
                       />
                       <Text
@@ -564,10 +608,11 @@ export default function VipScreen() {
           })}
         </View>
 
-        {/* Big Red CTA Button or Disabled State if highest plan active */}
+        {/* Big CTA Button or Disabled State if highest plan active */}
         <TouchableOpacity
           style={[
             styles.ctaButton,
+            currentPlanTier > 0 && getPlanTier(selectedPlan.id) > currentPlanTier && { backgroundColor: '#16A34A' },
             (currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan.id) <= currentPlanTier)) && styles.ctaButtonDisabled,
           ]}
           onPress={handlePurchase}
@@ -662,7 +707,10 @@ export default function VipScreen() {
         title={purchaseDetails ? `🎉 ${purchaseDetails.plan}` : t('sub_starpix_premium')}
         message={
           purchaseDetails
-            ? `Your subscription for ${purchaseDetails.price} is active! Enjoy unlimited status creations and watermark-free downloads.`
+            ? t('sub_purchase_success_msg', {
+                price: purchaseDetails.price,
+                defaultValue: `Your subscription for ${purchaseDetails.price} is active! Enjoy unlimited status creations and watermark-free downloads.`,
+              })
             : t('sub_hero_subtitle')
         }
         confirmText={t('got_it')}
@@ -671,11 +719,11 @@ export default function VipScreen() {
         hideCancel
         onCancel={() => {
           setShowSuccessModal(false);
-          router.back();
+          router.replace('/(tabs)');
         }}
         onConfirm={() => {
           setShowSuccessModal(false);
-          router.back();
+          router.replace('/(tabs)');
         }}
       />
 
@@ -686,6 +734,29 @@ export default function VipScreen() {
         currentPlanName={activePlanName}
         expiryDate={formattedExpiry ? `${t('active_until') || 'Active until'}: ${formattedExpiry}` : ''}
         onClose={() => setPlanAlertState((prev) => ({ ...prev, visible: false }))}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        visible={showLogoutModal}
+        title={t('confirm_logout')}
+        message={t('confirm_logout_msg')}
+        confirmText={t('settings_logout')}
+        cancelText={t('cancel')}
+        icon="log-out-outline"
+        iconColor="#DC2626"
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={async () => {
+          setShowLogoutModal(false);
+          await logout();
+          router.replace('/(auth)/login');
+        }}
+      />
+
+      {/* Language Selector Modal */}
+      <LanguageModal
+        visible={showLanguageModal}
+        onClose={() => setShowLanguageModal(false)}
       />
     </View>
   );
