@@ -89,7 +89,8 @@ jobs:
             # 3. Ensure system dependencies (FFmpeg for video compositing and Noto fonts)
             if ! command -v ffmpeg &> /dev/null; then
               echo "Installing ffmpeg and fonts..."
-              sudo apt-get update -y && sudo apt-get install -y ffmpeg fonts-noto-core
+              sudo apt-get update -y && sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra fonts-dejavu-core fontconfig
+              sudo fc-cache -fv || true
             fi
 
             # 4. Strict Dependency Installation
