@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
+  Share,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -88,6 +89,19 @@ export default function SettingsScreen() {
     Linking.openURL(url).catch(() => {
       showToast('Could not open link');
     });
+  };
+
+  const handleShareApp = async () => {
+    try {
+      hapticTap();
+      await Share.share({
+        message:
+          t('share_app_message') ||
+          'Download Starpix App for beautiful status, festival & greeting posts! https://play.google.com/store/apps/details?id=com.starpix.app',
+      });
+    } catch (err) {
+      console.warn('Share app error:', err);
+    }
   };
 
   const handleConfirmLogout = async () => {
@@ -180,6 +194,27 @@ export default function SettingsScreen() {
             label={t('settings_preferred_language') || 'Preferred Language'}
             sublabel={currentLangObj.name}
             onPress={() => setShowLanguageModal(true)}
+            isLast={true}
+          />
+        </View>
+
+        {/* Section: Support & Community */}
+        <Text style={styles.sectionHeader}>{t('settings_section_support') || 'Support & Community'}</Text>
+        <View style={styles.sectionCard}>
+          <SettingItem
+            icon="chatbubble-ellipses-outline"
+            label={t('settings_feedback_issues') || 'Feedback & Issues'}
+            onPress={() => router.push('/feedback')}
+          />
+          <SettingItem
+            icon="headset-outline"
+            label={t('settings_contact_us') || 'Contact Us'}
+            onPress={() => router.push('/contact')}
+          />
+          <SettingItem
+            icon="share-social-outline"
+            label={t('settings_share_app') || 'Share App'}
+            onPress={handleShareApp}
             isLast={true}
           />
         </View>

@@ -7,6 +7,7 @@ import { TableSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import {
   Flag,
+  ChatDots,
   MagnifyingGlass,
   FunnelSimple,
   ArrowClockwise,
@@ -138,9 +139,9 @@ export default function UserReports() {
     <div className="space-y-4">
       {/* Top Header */}
       <PageHead
-        icon={<Flag className="w-6 h-6" weight="duotone" />}
-        title="User Reports & Issues"
-        subtitle={`Tracking ${summary.totalAll} user submitted issues, offensive reports & inquiries`}
+        icon={<ChatDots className="w-6 h-6" weight="duotone" />}
+        title="Feedback & Issues"
+        subtitle={`Tracking ${summary.totalAll} user feedbacks, bug reports & support tickets`}
         actions={
           <button
             onClick={() => fetchReports(pagination.page)}
@@ -156,8 +157,8 @@ export default function UserReports() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
         <div className="panel p-3.5 sm:p-4">
           <div className="flex items-center justify-between text-ink-mute">
-            <span className="label">Total Reports</span>
-            <Flag className="w-4 h-4 text-flame-500" weight="duotone" />
+            <span className="label">Total Tickets</span>
+            <ChatDots className="w-4 h-4 text-flame-500" weight="duotone" />
           </div>
           <p className="display text-2xl sm:text-3xl text-ink mt-2">{summary.totalAll}</p>
         </div>
@@ -230,8 +231,9 @@ export default function UserReports() {
             className="select sm:w-44 font-bold text-xs uppercase"
           >
             <option value="all">All Types</option>
-            <option value="template">Template Reports</option>
+            <option value="feedback">User Feedback</option>
             <option value="issue">General Issues</option>
+            <option value="template">Template Reports</option>
           </select>
         </div>
       </div>
@@ -353,6 +355,10 @@ export default function UserReports() {
                               )}
                             </div>
                           </button>
+                        ) : report.type === 'feedback' ? (
+                          <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-400 flex items-center gap-1 w-max font-bold">
+                            <ChatDots className="w-3.5 h-3.5 text-emerald-600" /> User Feedback
+                          </span>
                         ) : (
                           <span className="badge-muted flex items-center gap-1 w-max">
                             <ChatText className="w-3.5 h-3.5 text-sky-600" /> General Issue

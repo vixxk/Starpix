@@ -35,9 +35,18 @@ export const hydrateDownloadedCreations = async () => {
           }
         }
 
+        let activePhoto = photo;
+        try {
+          const bgEnabled = await AsyncStorage.getItem('starpix_user_bg_removed_enabled');
+          const savedCutout = await AsyncStorage.getItem('starpix_user_cutout_photo');
+          if (bgEnabled === 'true' && savedCutout) {
+            activePhoto = savedCutout;
+          }
+        } catch (_) {}
+
         useCreationStore.setState({
-          defaultUserPhotoUri: photo,
-          userPhotoUri: photo,
+          defaultUserPhotoUri: activePhoto,
+          userPhotoUri: activePhoto,
           defaultUserNameText: name,
           userNameText: name,
           downloadedCreations: userDownloads,

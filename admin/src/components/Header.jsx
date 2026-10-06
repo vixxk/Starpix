@@ -12,6 +12,7 @@ const pathTitles = {
   '/reports': { title: 'Revenue Report', desc: 'Monthly totals & per-template performance' },
   '/users': { title: 'Users', desc: 'Mobile community directory' },
   '/pricing': { title: 'Pricing', desc: 'Paywall & unlock configuration' },
+  '/user-reports': { title: 'Feedback & Issues', desc: 'User feedback, bug reports & support tickets' },
 };
 
 function formatDate() {

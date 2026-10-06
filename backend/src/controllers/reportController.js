@@ -19,10 +19,13 @@ const createReport = asyncHandler(async (req, res) => {
     }
   }
 
+  const validTypes = ['template', 'issue', 'feedback'];
+  const resolvedType = validTypes.includes(type) ? type : 'issue';
+
   const report = await Report.create({
     userId: req.user._id,
-    type: type === 'template' ? 'template' : 'issue',
-    templateId: type === 'template' ? templateId : null,
+    type: resolvedType,
+    templateId: resolvedType === 'template' ? templateId : null,
     reason: reason.trim(),
     description: description ? description.trim() : '',
     status: 'pending',

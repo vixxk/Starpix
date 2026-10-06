@@ -117,7 +117,9 @@ export default function VerifyScreen() {
 
     try {
       const verifiedUser = await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
-      if (checkHasActiveSubscription(verifiedUser)) {
+      if (isNewUser === 'true') {
+        router.replace({ pathname: '/edit-profile', params: { isFirstTime: 'true' } });
+      } else if (checkHasActiveSubscription(verifiedUser)) {
         router.replace('/(tabs)');
       } else {
         router.replace('/vip');

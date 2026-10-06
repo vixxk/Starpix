@@ -119,8 +119,8 @@ export const styles = StyleSheet.create({
   },
   categoryContainer: {
     width: '100%',
-    paddingHorizontal: wp(0.025),
-    paddingTop: 3,
+    paddingHorizontal: wp(0.03),
+    paddingTop: 6,
     paddingBottom: 4,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -129,41 +129,23 @@ export const styles = StyleSheet.create({
   },
   categoryInnerWrapper: {
     width: '100%',
-    flexDirection: 'row',
-    alignItems: 'stretch',
   },
-  categoryScrollArea: {
-    flex: 1,
-  },
-  categoryScrollAreaMaxHeight: {
-    maxHeight: 104,
-  },
-  categoryScrollContent: {
-    gap: 4,
-    paddingRight: 1,
-  },
-  customScrollbarTrack: {
-    width: 3.5,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 2,
-    marginLeft: 3,
-    marginVertical: 2,
-    overflow: 'hidden',
-  },
-  customScrollbarThumb: {
+  categorySkeletonWrapper: {
     width: '100%',
-    backgroundColor: '#9F1239',
-    borderRadius: 2,
+    gap: 6,
+    paddingVertical: 2,
   },
   categoryRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'flex-start',
+    gap: 6,
+    marginBottom: 5,
   },
   chip: {
-    flexGrow: 1,
-    flexShrink: 1,
+    flexGrow: 0,
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -171,10 +153,10 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 20,
-    paddingHorizontal: 7,
-    paddingVertical: 4.5,
-    minHeight: 28,
-    gap: 3,
+    paddingHorizontal: 11,
+    paddingVertical: 5.5,
+    minHeight: 32,
+    gap: 4,
   },
   chipActive: {
     backgroundColor: '#9F1239',
@@ -184,11 +166,15 @@ export const styles = StyleSheet.create({
     borderColor: '#FECDD3',
     backgroundColor: '#FFF1F2',
   },
+  chipViewAll: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FDA4AF',
+  },
   chipIcon: {
-    fontSize: fontScale(10.5),
+    fontSize: fontScale(13),
   },
   chipText: {
-    fontSize: fontScale(10),
+    fontSize: fontScale(12.5),
     fontFamily: FONTS.semiBold,
     color: '#374151',
     includeFontPadding: false,
@@ -197,6 +183,13 @@ export const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+    includeFontPadding: false,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+  },
+  chipTextViewAll: {
+    color: '#9F1239',
     fontFamily: FONTS.bold,
     includeFontPadding: false,
     textAlign: 'center',

@@ -11,6 +11,7 @@ import TemplateRenderer from '../../src/components/TemplateRenderer';
 import PaywallModal from '../../src/components/PaywallModal';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import PaidTemplateConfirmModal from '../../src/components/PaidTemplateConfirmModal';
+import DownloadShareModal from '../../src/components/DownloadShareModal';
 import Skeleton from '../../src/components/Skeleton';
 import BackButton from '../../src/components/BackButton';
 import { COLORS, FONTS } from '../../src/constants/colors';
@@ -42,6 +43,9 @@ export default function PreviewScreen() {
   const [paidConfirmInfo, setPaidConfirmInfo] = useState(null); // { action: 'download' | 'share' }
   const [payingPaid, setPayingPaid] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [showDownloadShareModal, setShowDownloadShareModal] = useState(false);
+  const [modalActionType, setModalActionType] = useState('download');
+  const [modalLoadingOption, setModalLoadingOption] = useState(null); // 'personalized' | 'clean' | null
 
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -103,42 +107,42 @@ export default function PreviewScreen() {
     checkStatus();
   }, [activeTemplate, id, user]);
 
-  const handleDownloadHD = async () => {
-    if (!isEntitled) {
-      setPaidConfirmInfo({ action: 'download' });
-      return;
-    }
-
+  const executeDownload = async (withPersonalization = true) => {
     setDownloading(true);
     try {
-      const effectiveFooter = selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null;
+      const effectiveFooter = withPersonalization
+        ? (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null)
+        : null;
 
-      let remoteUserPhoto = userPhotoUri;
-      if (userPhotoUri && !userPhotoUri.startsWith('http://') && !userPhotoUri.startsWith('https://')) {
+      let remoteUserPhoto = withPersonalization ? userPhotoUri : null;
+      if (remoteUserPhoto && !remoteUserPhoto.startsWith('http://') && !remoteUserPhoto.startsWith('https://')) {
         try {
-          const uploaded = await uploadUserMedia(userPhotoUri, 'user-creations');
+          const uploaded = await uploadUserMedia(remoteUserPhoto, 'user-creations');
           if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
             remoteUserPhoto = uploaded;
           } else {
-            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            const b64 = await FileSystem.readAsStringAsync(remoteUserPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
             if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
           }
         } catch (uploadErr) {
           console.warn('Could not upload user photo to remote:', uploadErr);
           try {
-            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            const b64 = await FileSystem.readAsStringAsync(remoteUserPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
             if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
           } catch (b64Err) {}
         }
       }
 
+      const effectiveUserName = withPersonalization ? userNameText : '';
+      const effectiveUserQuote = withPersonalization ? userQuoteText : '';
+
       const customizationState = {
         activeTemplate,
-        userPhotoUri: remoteUserPhoto || userPhotoUri,
-        userNameText,
-        userQuoteText,
-        selectedFrame,
-        selectedEffect,
+        userPhotoUri: remoteUserPhoto,
+        userNameText: effectiveUserName,
+        userQuoteText: effectiveUserQuote,
+        selectedFrame: withPersonalization ? selectedFrame : null,
+        selectedEffect: withPersonalization ? selectedEffect : null,
         selectedFooter: effectiveFooter,
         photoScale,
         photoOffsetX,
@@ -160,10 +164,11 @@ export default function PreviewScreen() {
 
       try {
         const res = await API.post(`/creations/${activeTemplate._id}/download`, {
-          userNameText,
-          userQuoteText,
-          userPhotoUri: remoteUserPhoto || userPhotoUri,
+          userNameText: effectiveUserName,
+          userQuoteText: effectiveUserQuote,
+          userPhotoUri: remoteUserPhoto,
           selectedFooter: effectiveFooter,
+          withPersonalization,
           photoTransform: {
             scale: photoScale,
             rotation: photoRotation,
@@ -231,8 +236,8 @@ export default function PreviewScreen() {
         const res = await API.post('/creations/save-download', {
           templateId: activeTemplate._id,
           imageUrl: downloadUrl || targetUri,
-          editedText: userNameText || userQuoteText || '',
-          editedPhoto: remoteUserPhoto || userPhotoUri || '',
+          editedText: effectiveUserName || effectiveUserQuote || '',
+          editedPhoto: remoteUserPhoto || '',
           customizationState,
         });
         if (res.data && res.data.data && res.data.data._id) {
@@ -252,19 +257,19 @@ export default function PreviewScreen() {
         localUri: targetUri,
         image: downloadUrl || targetUri,
         mediaUrl: downloadUrl || targetUri,
-        editedText: userNameText || userQuoteText || '',
-        editedPhoto: remoteUserPhoto || userPhotoUri || '',
+        editedText: effectiveUserName || effectiveUserQuote || '',
+        editedPhoto: remoteUserPhoto || '',
         customizationState,
         activeTemplate,
         template: activeTemplate,
         footers: activeTemplate?.footers || [],
         selectedFooter: effectiveFooter,
         canvasConfig: activeTemplate?.canvasConfig || null,
-        userPhotoUri: remoteUserPhoto || userPhotoUri,
-        userNameText,
-        userQuoteText,
-        selectedFrame,
-        selectedEffect,
+        userPhotoUri: remoteUserPhoto,
+        userNameText: effectiveUserName,
+        userQuoteText: effectiveUserQuote,
+        selectedFrame: withPersonalization ? selectedFrame : null,
+        selectedEffect: withPersonalization ? selectedEffect : null,
         photoScale,
         photoOffsetX,
         photoOffsetY,
@@ -297,42 +302,51 @@ export default function PreviewScreen() {
     }
   };
 
-  const handleShareDirect = async () => {
+  const handleDownloadHD = () => {
     if (!isEntitled) {
-      setPaidConfirmInfo({ action: 'share' });
+      setPaidConfirmInfo({ action: 'download' });
       return;
     }
+    setModalActionType('download');
+    setShowDownloadShareModal(true);
+  };
 
+  const executeShare = async (withPersonalization = true) => {
     setSharing(true);
     try {
-      const effectiveFooter = selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null;
+      const effectiveFooter = withPersonalization
+        ? (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null)
+        : null;
 
-      let remoteUserPhoto = userPhotoUri;
-      if (userPhotoUri && !userPhotoUri.startsWith('http://') && !userPhotoUri.startsWith('https://')) {
+      let remoteUserPhoto = withPersonalization ? userPhotoUri : null;
+      if (remoteUserPhoto && !remoteUserPhoto.startsWith('http://') && !remoteUserPhoto.startsWith('https://')) {
         try {
-          const uploaded = await uploadUserMedia(userPhotoUri, 'user-creations');
+          const uploaded = await uploadUserMedia(remoteUserPhoto, 'user-creations');
           if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
             remoteUserPhoto = uploaded;
           } else {
-            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            const b64 = await FileSystem.readAsStringAsync(remoteUserPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
             if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
           }
         } catch (uploadErr) {
           console.warn('Could not upload user photo to remote:', uploadErr);
           try {
-            const b64 = await FileSystem.readAsStringAsync(userPhotoUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+            const b64 = await FileSystem.readAsStringAsync(remoteUserPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
             if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
           } catch (b64Err) {}
         }
       }
 
+      const effectiveUserName = withPersonalization ? userNameText : '';
+      const effectiveUserQuote = withPersonalization ? userQuoteText : '';
+
       const customizationState = {
         activeTemplate,
-        userPhotoUri: remoteUserPhoto || userPhotoUri,
-        userNameText,
-        userQuoteText,
-        selectedFrame,
-        selectedEffect,
+        userPhotoUri: remoteUserPhoto,
+        userNameText: effectiveUserName,
+        userQuoteText: effectiveUserQuote,
+        selectedFrame: withPersonalization ? selectedFrame : null,
+        selectedEffect: withPersonalization ? selectedEffect : null,
         selectedFooter: effectiveFooter,
         photoScale,
         photoOffsetX,
@@ -359,10 +373,11 @@ export default function PreviewScreen() {
 
       try {
         const res = await API.post(`/creations/${activeTemplate._id}/download`, {
-          userNameText,
-          userQuoteText,
-          userPhotoUri: remoteUserPhoto || userPhotoUri,
+          userNameText: effectiveUserName,
+          userQuoteText: effectiveUserQuote,
+          userPhotoUri: remoteUserPhoto,
           selectedFooter: effectiveFooter,
+          withPersonalization,
           photoTransform: {
             scale: photoScale,
             rotation: photoRotation,
@@ -388,9 +403,9 @@ export default function PreviewScreen() {
         console.warn('Personalized share endpoint notice:', shareErrApi?.message);
         try {
           const fallbackRes = await API.post(`/creations/${activeTemplate._id}/share`, {
-            userNameText,
-            userQuoteText,
-            userPhotoUri: remoteUserPhoto || userPhotoUri,
+            userNameText: effectiveUserName,
+            userQuoteText: effectiveUserQuote,
+            userPhotoUri: remoteUserPhoto,
             selectedFooter: effectiveFooter,
             photoTransform: {
               scale: photoScale,
@@ -459,8 +474,8 @@ export default function PreviewScreen() {
         const res = await API.post('/creations/save-download', {
           templateId: activeTemplate._id,
           imageUrl: downloadUrl || targetUri,
-          editedText: userNameText || userQuoteText || '',
-          editedPhoto: remoteUserPhoto || userPhotoUri || '',
+          editedText: effectiveUserName || effectiveUserQuote || '',
+          editedPhoto: remoteUserPhoto || '',
           customizationState,
         });
         if (res.data && res.data.data && res.data.data._id) {
@@ -477,19 +492,19 @@ export default function PreviewScreen() {
         localUri: targetUri,
         image: downloadUrl || targetUri,
         mediaUrl: downloadUrl || targetUri,
-        editedText: userNameText || userQuoteText || '',
-        editedPhoto: remoteUserPhoto || userPhotoUri || '',
+        editedText: effectiveUserName || effectiveUserQuote || '',
+        editedPhoto: remoteUserPhoto || '',
         customizationState,
         activeTemplate,
         template: activeTemplate,
         footers: activeTemplate?.footers || [],
         selectedFooter: effectiveFooter,
         canvasConfig: activeTemplate?.canvasConfig || null,
-        userPhotoUri: remoteUserPhoto || userPhotoUri,
-        userNameText,
-        userQuoteText,
-        selectedFrame,
-        selectedEffect,
+        userPhotoUri: remoteUserPhoto,
+        userNameText: effectiveUserName,
+        userQuoteText: effectiveUserQuote,
+        selectedFrame: withPersonalization ? selectedFrame : null,
+        selectedEffect: withPersonalization ? selectedEffect : null,
         photoScale,
         photoOffsetX,
         photoOffsetY,
@@ -506,6 +521,31 @@ export default function PreviewScreen() {
       console.log('Direct share error:', e);
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleShareDirect = () => {
+    if (!isEntitled) {
+      setPaidConfirmInfo({ action: 'share' });
+      return;
+    }
+    setModalActionType('share');
+    setShowDownloadShareModal(true);
+  };
+
+  const handleModalOptionSelect = async (withPersonalization) => {
+    setModalLoadingOption(withPersonalization ? 'personalized' : 'clean');
+    try {
+      if (modalActionType === 'share') {
+        await executeShare(withPersonalization);
+      } else {
+        await executeDownload(withPersonalization);
+      }
+    } catch (err) {
+      console.warn('Option execution error:', err);
+    } finally {
+      setModalLoadingOption(null);
+      setShowDownloadShareModal(false);
     }
   };
 
@@ -739,6 +779,35 @@ export default function PreviewScreen() {
             </View>
           )}
         </View>
+
+        <DownloadShareModal
+          visible={showDownloadShareModal}
+          actionType={modalActionType}
+          activeTemplate={activeTemplate}
+          userPhotoUri={userPhotoUri}
+          userNameText={userNameText}
+          userQuoteText={userQuoteText}
+          selectedFooter={selectedFooter}
+          selectedEffect={selectedEffect}
+          photoTransform={{
+            scale: photoScale,
+            offsetX: photoOffsetX,
+            offsetY: photoOffsetY,
+            rotation: photoRotation,
+          }}
+          nameTransform={{
+            offsetX: nameOffsetX,
+            offsetY: nameOffsetY,
+            fontSizeScale: nameFontSizeScale,
+          }}
+          onClose={() => {
+            if (!modalLoadingOption) {
+              setShowDownloadShareModal(false);
+            }
+          }}
+          onSelect={handleModalOptionSelect}
+          loadingOption={modalLoadingOption}
+        />
 
         <PaidTemplateConfirmModal
           key={`paid_confirm_${i18n.language}`}

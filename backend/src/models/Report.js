@@ -9,7 +9,7 @@ const reportSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['template', 'issue'],
+      enum: ['template', 'issue', 'feedback'],
       default: 'issue',
     },
     templateId: {

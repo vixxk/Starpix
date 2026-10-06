@@ -77,37 +77,3 @@ export const DEFAULT_REELS = [
 export const FRAME_OPTIONS = [
   { id: 'none', isNone: true, thumb: null },
 ];
-
-export const CATEGORY_CHIPS = [
-  // Row 1 (2 items)
-  [
-    { id: 'special', icon: '⭐', labelKey: 'todays_special', isSpecial: true },
-    { id: 'trending', icon: '🔥', labelKey: 'trending' },
-  ],
-  // Row 2 (2 items)
-  [
-    { id: 'durga_puja', icon: '🪷', labelKey: 'durga_puja' },
-    { id: 'good_morning', icon: '☀️', labelKey: 'good_morning' },
-  ],
-  // Row 3 (3 items)
-  [
-    { id: 'bhakti', icon: '🕉', labelKey: 'bhakti' },
-    { id: 'dance_video', icon: '🎵', labelKey: 'dance_video' },
-    { id: 'all', icon: '⊞', labelKey: 'all' },
-  ],
-  // Row 4 (3 items)
-  [
-    { id: 'retro_80s', icon: '📻', labelKey: 'retro_80s' },
-    { id: 'tomorrow', icon: '📅', labelKey: 'tomorrow' },
-    { id: 'festivals', icon: '🎉', labelKey: 'festivals' },
-  ],
-  // Row 5 (2 items)
-  [
-    { id: 'devotional', icon: '🙏', labelKey: 'devotional', name: 'Devotional' },
-    { id: 'love', icon: '❤️', labelKey: 'love', name: 'Love & Romance' },
-  ],
-  // Row 6 (1 item)
-  [
-    { id: 'birthday', icon: '🎂', labelKey: 'birthday', name: 'Birthday Wishes' },
-  ],
-];

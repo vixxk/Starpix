@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 const TAB_KEYS = {
   index: { translationKey: 'nav_home', active: 'home', inactive: 'home-outline' },
+  search: { translationKey: 'nav_search', active: 'search', inactive: 'search-outline' },
   downloads: { translationKey: 'nav_downloads', active: 'time', inactive: 'time-outline' },
   profile: { translationKey: 'settings_title', active: 'settings', inactive: 'settings-outline' },
 };
@@ -90,6 +91,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="index" focused={focused} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{ tabBarIcon: ({ focused, color }) => <TabIcon route="search" focused={focused} color={color} /> }}
       />
       <Tabs.Screen
         name="downloads"

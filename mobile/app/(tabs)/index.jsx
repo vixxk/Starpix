@@ -43,78 +43,94 @@ import { useCreationStore } from '../../src/store/useCreationStore';
 import { checkHasActiveSubscription, checkCanAccessTemplate, checkIsTemplatePurchased } from '../../src/utils/subscription';
 import { SUPPORTED_LANGUAGES } from '../../src/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AllCategoriesModal from '../../src/components/AllCategoriesModal';
 
 import {
   S3_BASE,
   FRAME_OPTIONS,
-  CATEGORY_CHIPS,
   styles,
 } from '../../src/modules/home';
 
 const normalizeCat = (c) => (c || '').toString().toLowerCase().replace(/[-_\s]/g, '');
 
-const packCategoryRows = (itemsList, currentLang) => {
-  if (!itemsList || itemsList.length === 0) return [];
-  const rows = [];
-  let currentRow = [];
-  let currentChars = 0;
+const estimateChipWidth = (cat, currentLang) => {
+  const label =
+    (cat.nameTranslations && cat.nameTranslations[currentLang]) ||
+    cat.name ||
+    cat.label ||
+    cat.id ||
+    '';
+  const hasIcon = Boolean(cat.icon);
+  const iconExtra = hasIcon ? 20 : 0;
+  const textWidth = Math.ceil((label.length || 4) * fontScale(8.2));
+  return 24 + iconExtra + textWidth;
+};
 
-  for (let i = 0; i < itemsList.length; i++) {
-    const cat = itemsList[i];
-    const label =
-      (cat.nameTranslations && cat.nameTranslations[currentLang]) ||
-      cat.label ||
-      cat.name ||
-      cat.id;
-    const len = (label || '').length;
+const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth) => {
+  if (!categoriesList || categoriesList.length === 0) return [];
 
-    // Never break if currentRow is empty
-    if (currentRow.length === 0) {
-      currentRow.push(cat);
-      currentChars = len;
-      continue;
-    }
+  const GAP = 6;
+  const VIEW_ALL_CHIP = {
+    id: '__view_all__',
+    isViewAll: true,
+    name: 'View All',
+    labelKey: 'view_all',
+    icon: 'grid-outline',
+  };
+  const viewAllWidth = Math.round(fontScale(94));
 
-    // Never leave a row with only 1 item! (User rule: multiple categories in 1 line, never single)
-    if (currentRow.length === 1) {
-      currentRow.push(cat);
-      currentChars += len;
-      continue;
-    }
+  const lines = [[], [], []];
+  let lineIdx = 0;
+  let currentLineWidth = 0;
+  let unplacedIdx = 0;
 
-    // Current row has 2 items. Check if adding 3rd item leaves a single item at the end
-    const remainingItems = itemsList.length - i;
-    const leaveForNext = remainingItems === 1;
+  for (let i = 0; i < categoriesList.length; i++) {
+    const cat = categoriesList[i];
+    const width = estimateChipWidth(cat, currentLang);
 
-    // Add 3rd item if combined length is reasonable (<= 34 chars) and it doesn't orphan a single item
-    if (currentRow.length === 2 && !leaveForNext && (currentChars + len <= 34)) {
-      currentRow.push(cat);
-      rows.push(currentRow);
-      currentRow = [];
-      currentChars = 0;
-    } else {
-      rows.push(currentRow);
-      currentRow = [cat];
-      currentChars = len;
-    }
-  }
-
-  if (currentRow.length > 0) {
-    if (currentRow.length === 1 && rows.length > 0) {
-      // Rebalance: borrow from previous row so both rows have at least 2 items
-      const prevRow = rows[rows.length - 1];
-      if (prevRow.length > 2) {
-        currentRow.unshift(prevRow.pop());
-        rows.push(currentRow);
+    if (lineIdx === 0) {
+      if (currentLineWidth === 0 || currentLineWidth + GAP + width <= availableWidth) {
+        lines[0].push(cat);
+        currentLineWidth += (currentLineWidth === 0 ? 0 : GAP) + width;
       } else {
-        prevRow.push(currentRow[0]);
+        lineIdx = 1;
+        lines[1].push(cat);
+        currentLineWidth = width;
       }
-    } else {
-      rows.push(currentRow);
+    } else if (lineIdx === 1) {
+      if (currentLineWidth === 0 || currentLineWidth + GAP + width <= availableWidth) {
+        lines[1].push(cat);
+        currentLineWidth += (currentLineWidth === 0 ? 0 : GAP) + width;
+      } else {
+        lineIdx = 2;
+        currentLineWidth = 0;
+        unplacedIdx = i;
+        break;
+      }
     }
   }
 
-  return rows;
+  // Line 3: Must fit remaining items up to (availableWidth - GAP - viewAllWidth)
+  const line3MaxWidth = Math.max(availableWidth - GAP - viewAllWidth, 80);
+  let line3Width = 0;
+
+  if (lineIdx === 2) {
+    for (let i = unplacedIdx; i < categoriesList.length; i++) {
+      const cat = categoriesList[i];
+      const width = estimateChipWidth(cat, currentLang);
+      if (line3Width === 0 || line3Width + GAP + width <= line3MaxWidth) {
+        lines[2].push(cat);
+        line3Width += (line3Width === 0 ? 0 : GAP) + width;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Always append VIEW_ALL_CHIP as the last button of Line 3
+  lines[2].push(VIEW_ALL_CHIP);
+
+  return lines.filter((l) => l.length > 0);
 };
 
 export default function HomeScreen() {
@@ -139,12 +155,11 @@ export default function HomeScreen() {
 
   const [actionLoading, setActionLoading] = useState(null); // { type: 'download' | 'share', id: string }
 
-  const [activeCategory, setActiveCategory] = useState('special');
-  const [categoryRows, setCategoryRows] = useState(CATEGORY_CHIPS);
+  const [activeCategory, setActiveCategory] = useState('');
+  const [categoryRows, setCategoryRows] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [rawCategories, setRawCategories] = useState([]);
-  const [categoryScrollOffset, setCategoryScrollOffset] = useState(0);
-  const [categoryContentHeight, setCategoryContentHeight] = useState(1);
-  const [categoryContainerHeight, setCategoryContainerHeight] = useState(1);
+  const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
@@ -153,35 +168,48 @@ export default function HomeScreen() {
   const [isFeedMuted, setIsFeedMuted] = useState(false);
   const [activeReelPlaybackReady, setActiveReelPlaybackReady] = useState(false);
 
-  // Fetch admin-configured categories dynamically from backend
+  // Fetch admin-configured categories dynamically from backend (no hardcoding)
   useEffect(() => {
+    setLoadingCategories(true);
     API.get('/categories', { params: { active: true } })
       .then((res) => {
         if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
           const cats = res.data.data;
           const formatted = cats.map((c) => ({
             id: c.slug || c._id,
+            _id: c._id,
+            slug: c.slug,
             name: c.name,
             icon: c.icon || '✨',
             nameTranslations: c.nameTranslations || {},
             labelKey: c.slug,
             isSpecial: c.slug === 'special' || (c.name && c.name.toLowerCase().includes('special')),
+            sortOrder: c.sortOrder ?? 0,
           }));
           setRawCategories(formatted);
+          if (!activeCategory) {
+            const specialCat = formatted.find((c) => c.isSpecial);
+            setActiveCategory(specialCat ? specialCat.id : formatted[0].id);
+          }
         }
       })
       .catch((err) => {
         console.log('Error fetching categories for HomeScreen:', err?.message);
+      })
+      .finally(() => {
+        setLoadingCategories(false);
       });
   }, []);
 
-  // Dynamically re-pack categories whenever categories list or app language changes
+  // Dynamically re-pack categories into 3 lines with View All as the last button
   useEffect(() => {
-    const listToPack = rawCategories && rawCategories.length > 0
-      ? rawCategories
-      : CATEGORY_CHIPS.flat();
-    const packed = packCategoryRows(listToPack, i18n.language);
-    setCategoryRows(packed);
+    if (rawCategories && rawCategories.length > 0) {
+      const availWidth = Dimensions.get('window').width - wp(0.06);
+      const packed = packThreeLinesWithViewAll(rawCategories, i18n.language, availWidth);
+      setCategoryRows(packed);
+    } else {
+      setCategoryRows([]);
+    }
   }, [rawCategories, i18n.language]);
 
   // Synchronize playback: hold playback at frame 0 for a brief 350ms so background, footer, name & avatar all mount together before motion starts
@@ -458,8 +486,14 @@ export default function HomeScreen() {
     }
   };
 
-  const handleCategoryPress = (catId) => {
+  const handleCategoryPress = (chip) => {
     hapticTap();
+    if (!chip) return;
+    if (chip.isViewAll || chip.id === '__view_all__') {
+      setShowAllCategoriesModal(true);
+      return;
+    }
+    const catId = typeof chip === 'string' ? chip : chip.id;
     setActiveCategory(catId);
     setCurrentReelIndex(0);
     flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -1306,101 +1340,69 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Category / Filter Chips at Top */}
+      {/* Category / Filter Chips at Top (Exactly 3 Lines, no scrolling, no elongation, Skeleton Loading) */}
       <View style={styles.categoryContainer}>
         <View style={styles.categoryInnerWrapper}>
-          <ScrollView
-            style={[
-              styles.categoryScrollArea,
-              categoryRows.length > 3 && styles.categoryScrollAreaMaxHeight,
-            ]}
-            contentContainerStyle={styles.categoryScrollContent}
-            showsVerticalScrollIndicator={false}
-            persistentScrollbar={false}
-            nestedScrollEnabled={true}
-            onScroll={(e) => {
-              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-              setCategoryScrollOffset(contentOffset?.y || 0);
-              setCategoryContentHeight(contentSize?.height || 1);
-              setCategoryContainerHeight(layoutMeasurement?.height || 1);
-            }}
-            scrollEventThrottle={16}
-          >
-            {categoryRows.map((row, rowIdx) => (
-              <View key={`row_${rowIdx}`} style={styles.categoryRow}>
+          {loadingCategories ? (
+            <View style={styles.categorySkeletonWrapper}>
+              <View style={styles.categoryRow}>
+                <Skeleton width={wp(0.36)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.32)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.22)} height={32} borderRadius={20} />
+              </View>
+              <View style={styles.categoryRow}>
+                <Skeleton width={wp(0.28)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.28)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.26)} height={32} borderRadius={20} />
+              </View>
+              <View style={styles.categoryRow}>
+                <Skeleton width={wp(0.30)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.28)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.24)} height={32} borderRadius={20} />
+              </View>
+            </View>
+          ) : (
+            categoryRows.map((row, rowIdx) => (
+              <View key={`cat_row_${rowIdx}`} style={styles.categoryRow}>
                 {row.map((chip) => {
-                  const isSelected = activeCategory === chip.id;
-                  const label =
-                    (chip.nameTranslations && chip.nameTranslations[i18n.language]) ||
-                    (chip.labelKey && i18n.exists(chip.labelKey) ? t(chip.labelKey) : (chip.name || chip.id));
+                  const isViewAll = chip.isViewAll || chip.id === '__view_all__';
+                  const isSelected = !isViewAll && activeCategory === chip.id;
+                  const label = isViewAll
+                    ? (t('view_all') || 'View All')
+                    : (chip.nameTranslations && chip.nameTranslations[i18n.language]) ||
+                      (chip.labelKey && i18n.exists(chip.labelKey) ? t(chip.labelKey) : (chip.name || chip.id));
 
                   return (
                     <TouchableOpacity
                       key={chip.id}
                       activeOpacity={0.75}
-                      onPress={() => handleCategoryPress(chip.id)}
+                      onPress={() => handleCategoryPress(chip)}
                       style={[
                         styles.chip,
                         isSelected && styles.chipActive,
                         chip.isSpecial && !isSelected && styles.chipSpecialInactive,
+                        isViewAll && styles.chipViewAll,
                       ]}
                     >
-                      {chip.icon ? (
+                      {isViewAll ? (
+                        <Ionicons name="grid" size={fontScale(12.5)} color="#9F1239" />
+                      ) : chip.icon ? (
                         <Text style={styles.chipIcon}>{chip.icon}</Text>
                       ) : null}
                       <Text
                         style={[
                           styles.chipText,
                           isSelected && styles.chipTextActive,
+                          isViewAll && styles.chipTextViewAll,
                         ]}
                       >
                         {label}
                       </Text>
-                      {chip.chevron ? (
-                        <Ionicons
-                          name="chevron-down"
-                          size={fontScale(11)}
-                          color={isSelected ? '#FFFFFF' : '#E11D48'}
-                          style={{ marginLeft: 2 }}
-                        />
-                      ) : null}
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            ))}
-          </ScrollView>
-
-          {/* Visible Scrollbar on the Right if more than 3 rows */}
-          {categoryRows.length > 3 && (
-            <View style={styles.customScrollbarTrack}>
-              <View
-                style={[
-                  styles.customScrollbarThumb,
-                  {
-                    height: Math.max(
-                      18,
-                      categoryContentHeight > 0
-                        ? (categoryContainerHeight / categoryContentHeight) * categoryContainerHeight
-                        : 28
-                    ),
-                    transform: [
-                      {
-                        translateY:
-                          categoryContentHeight > categoryContainerHeight
-                            ? (categoryScrollOffset / (categoryContentHeight - categoryContainerHeight)) *
-                              (categoryContainerHeight -
-                                Math.max(
-                                  18,
-                                  (categoryContainerHeight / categoryContentHeight) * categoryContainerHeight
-                                ))
-                            : 0,
-                      },
-                    ],
-                  },
-                ]}
-              />
-            </View>
+            ))
           )}
         </View>
       </View>
@@ -1526,6 +1528,19 @@ export default function HomeScreen() {
         visible={showLanguageModal}
         onClose={() => setShowLanguageModal(false)}
         onSelectLanguage={handleChangeLanguage}
+      />
+
+      {/* All Categories Bottom Sheet Popup */}
+      <AllCategoriesModal
+        visible={showAllCategoriesModal}
+        categories={rawCategories}
+        activeCategoryId={activeCategory}
+        onSelectCategory={(catId) => {
+          setActiveCategory(catId);
+          setCurrentReelIndex(0);
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        }}
+        onClose={() => setShowAllCategoriesModal(false)}
       />
 
 
