@@ -19,6 +19,7 @@ import ExploreCta from '../../src/components/ExploreCta';
 import { COLORS } from '../../src/constants/colors';
 import { SCREEN_PAD, hp } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
+import { resolveMediaUrl } from '../../src/utils/media';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import { useAuthStore } from '../../src/store/useAuthStore';
 
@@ -275,9 +276,14 @@ export default function DownloadsScreen() {
       let shareUri = fileOrUrl;
 
       if (fileOrUrl.startsWith('http://') || fileOrUrl.startsWith('https://')) {
-        const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
-        const downloaded = await FileSystem.downloadAsync(fileOrUrl, fileUri);
-        shareUri = downloaded.uri;
+        try {
+          const proxyUrl = resolveMediaUrl(fileOrUrl);
+          const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
+          const downloaded = await FileSystem.downloadAsync(proxyUrl, fileUri);
+          shareUri = downloaded.uri;
+        } catch (shareErr) {
+          console.warn('[Downloads] Share download notice:', shareErr.message);
+        }
       }
 
       if (await Sharing.isAvailableAsync()) {
@@ -326,7 +332,8 @@ export default function DownloadsScreen() {
 
       if (uri.startsWith('http://') || uri.startsWith('https://')) {
         const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.${ext}`;
-        const downloaded = await FileSystem.downloadAsync(uri, targetPath);
+        const downloadSourceUrl = resolveMediaUrl(uri);
+        const downloaded = await FileSystem.downloadAsync(downloadSourceUrl, targetPath);
         localPath = downloaded.uri;
       }
 

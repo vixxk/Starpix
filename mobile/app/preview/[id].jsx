@@ -110,9 +110,14 @@ export default function PreviewScreen() {
   const executeDownload = async (withPersonalization = true) => {
     setDownloading(true);
     try {
-      const effectiveFooter = withPersonalization
-        ? (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null)
-        : null;
+      const isNoneFooter =
+        selectedFooter === 'none' ||
+        selectedFooter === null ||
+        selectedFooter === false ||
+        selectedFooter?.isNone === true;
+      const effectiveFooter = isNoneFooter
+        ? null
+        : (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null);
 
       let remoteUserPhoto = withPersonalization ? userPhotoUri : null;
       if (remoteUserPhoto && !remoteUserPhoto.startsWith('http://') && !remoteUserPhoto.startsWith('https://')) {
@@ -181,7 +186,7 @@ export default function PreviewScreen() {
             fontSizeScale: nameFontSizeScale,
           },
           customizationState,
-        }, { timeout: 60000 });
+        }, { timeout: 120000 });
 
         if (res.data && res.data.data && res.data.data.downloadUrl) {
           downloadUrl = res.data.data.downloadUrl;
@@ -214,7 +219,8 @@ export default function PreviewScreen() {
         // Native iOS / Android download flow
         if (downloadUrl && (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://'))) {
           const fileUri = `${FileSystem.documentDirectory}starpix_${Date.now()}.${ext}`;
-          const downloaded = await FileSystem.downloadAsync(downloadUrl, fileUri);
+          const downloadSourceUrl = resolveMediaUrl(downloadUrl);
+          const downloaded = await FileSystem.downloadAsync(downloadSourceUrl, fileUri);
           targetUri = downloaded.uri;
         }
 
@@ -314,9 +320,14 @@ export default function PreviewScreen() {
   const executeShare = async (withPersonalization = true) => {
     setSharing(true);
     try {
-      const effectiveFooter = withPersonalization
-        ? (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null)
-        : null;
+      const isNoneFooter =
+        selectedFooter === 'none' ||
+        selectedFooter === null ||
+        selectedFooter === false ||
+        selectedFooter?.isNone === true;
+      const effectiveFooter = isNoneFooter
+        ? null
+        : (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null);
 
       let remoteUserPhoto = withPersonalization ? userPhotoUri : null;
       if (remoteUserPhoto && !remoteUserPhoto.startsWith('http://') && !remoteUserPhoto.startsWith('https://')) {
@@ -390,7 +401,7 @@ export default function PreviewScreen() {
             fontSizeScale: nameFontSizeScale,
           },
           customizationState,
-        }, { timeout: 60000 });
+        }, { timeout: 120000 });
 
         if (res.data && res.data.data) {
           const link = res.data.data.downloadUrl || res.data.data.shareUrl;
@@ -451,7 +462,8 @@ export default function PreviewScreen() {
       } else {
         if (downloadUrl && (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://'))) {
           const fileUri = `${FileSystem.documentDirectory}starpix_share_${Date.now()}.${ext}`;
-          const downloaded = await FileSystem.downloadAsync(downloadUrl, fileUri);
+          const downloadSourceUrl = resolveMediaUrl(downloadUrl);
+          const downloaded = await FileSystem.downloadAsync(downloadSourceUrl, fileUri);
           targetUri = downloaded.uri;
         }
 

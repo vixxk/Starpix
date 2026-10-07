@@ -206,6 +206,14 @@ export default function ReelPersonalizationOverlay({
           const left = (textNameLayer.x ?? defaultTextX) * cardWidth - lWidth / 2;
           const top = (textNameLayer.y ?? 0.75) * cardHeight - lHeight / 2;
           const computedFontSize = Math.max(12, (textNameLayer.fontSize || 22) * (cardWidth / 375));
+          const isDarkColor = Boolean(
+            textNameLayer.fontColor &&
+            (textNameLayer.fontColor.toLowerCase() === '#000000' ||
+             textNameLayer.fontColor.toLowerCase() === '#000' ||
+             textNameLayer.fontColor.toLowerCase() === 'black' ||
+             textNameLayer.fontColor.toLowerCase() === '#111827' ||
+             textNameLayer.fontColor.toLowerCase() === '#1e293b')
+          );
 
           return (
             <View
@@ -235,9 +243,9 @@ export default function ReelPersonalizationOverlay({
                   color: textNameLayer.fontColor || '#FFFFFF',
                   fontFamily: FONTS.bold,
                   textAlign: textNameLayer.textAlign || 'center',
-                  textShadowColor: 'rgba(0, 0, 0, 0.95)',
+                  textShadowColor: isDarkColor ? 'transparent' : 'rgba(0, 0, 0, 0.95)',
                   textShadowOffset: { width: 0, height: 1.5 },
-                  textShadowRadius: 3.5,
+                  textShadowRadius: isDarkColor ? 0 : 3.5,
                 }}
                 numberOfLines={1}
                 adjustsFontSizeToFit

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Linking,
+  Share,
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import AppBackground from '../../src/components/AppBackground';
 import PressableScale from '../../src/components/PressableScale';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import LanguageModal from '../../src/components/LanguageModal';
+import IssueFeedbackModal from '../../src/components/IssueFeedbackModal';
 import AppRefreshControl from '../../src/components/AppRefreshControl';
 import Toast from '../../src/components/Toast';
 import { COLORS, FONTS, BRUTAL } from '../../src/constants/colors';
@@ -75,6 +77,7 @@ export default function SettingsScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -149,6 +152,19 @@ export default function SettingsScreen() {
       }
     } catch {
       showToast(url);
+    }
+  };
+
+  const handleShareApp = async () => {
+    try {
+      hapticTap();
+      await Share.share({
+        message:
+          t('share_app_message') ||
+          'Download Starpix App for beautiful status, festival & greeting posts! https://play.google.com/store/apps/details?id=com.starpix.app',
+      });
+    } catch (err) {
+      console.warn('Share app error:', err);
     }
   };
 
@@ -250,7 +266,28 @@ export default function SettingsScreen() {
             />
           </View>
 
-          {/* Section 2: Legal */}
+          {/* Section 2: Support & Community */}
+          <Text style={styles.sectionHeader}>{t('settings_section_support') || 'Support & Community'}</Text>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon="chatbubble-ellipses-outline"
+              label={t('settings_issues_feedbacks') || t('settings_feedback_issues') || 'Issues & Feedback'}
+              onPress={() => setShowFeedbackModal(true)}
+            />
+            <SettingItem
+              icon="headset-outline"
+              label={t('settings_contact_us') || 'Contact Us'}
+              onPress={() => router.push('/contact')}
+            />
+            <SettingItem
+              icon="share-social-outline"
+              label={t('settings_share_app') || 'Share App'}
+              onPress={handleShareApp}
+              isLast={true}
+            />
+          </View>
+
+          {/* Section 3: Legal */}
           <Text style={styles.sectionHeader}>{t('settings_section_legal') || 'Legal'}</Text>
           <View style={styles.sectionCard}>
             <SettingItem
@@ -349,6 +386,12 @@ export default function SettingsScreen() {
         confirmLoading={deleteLoading}
         onCancel={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmDeleteAccount}
+      />
+
+      {/* Issues & Feedback Modal Popup */}
+      <IssueFeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
       />
     </AppBackground>
   );

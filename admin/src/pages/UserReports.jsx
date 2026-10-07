@@ -140,7 +140,7 @@ export default function UserReports() {
       {/* Top Header */}
       <PageHead
         icon={<ChatDots className="w-6 h-6" weight="duotone" />}
-        title="Feedback & Issues"
+        title="Issues & Feedbacks"
         subtitle={`Tracking ${summary.totalAll} user feedbacks, bug reports & support tickets`}
         actions={
           <button

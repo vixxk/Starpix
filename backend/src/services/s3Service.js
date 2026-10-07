@@ -100,4 +100,5 @@ const getSignedDownloadUrl = async (objectKeyOrUrl, expiresInSeconds = 300) => {
 module.exports = {
   uploadToS3,
   getSignedDownloadUrl,
+  saveLocally,
 };

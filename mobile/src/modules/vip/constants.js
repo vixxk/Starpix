@@ -27,7 +27,7 @@ export const DEFAULT_PLANS = [
   {
     id: '30days',
     name: '30 Days Access',
-    price: 99,
+    price: 119,
     durationDays: 30,
     periodKey: 'sub_plan_30_days',
     ctaKey: 'sub_cta_30_days',
@@ -60,3 +60,14 @@ export const DEFAULT_PLANS = [
     ],
   },
 ];
+
+export const DEFAULT_CHECKLIST = [
+  { id: 'templates', text: 'Thousands of Premium Templates', textKey: 'sub_feat_thousands', iconType: 'p_box' },
+  { id: 'morning_night', text: 'Good Morning & Good Night Special', textKey: 'sub_feat_morning_night', iconType: 'sun' },
+  { id: 'festival_devotional', text: 'Festival & Devotional Special', textKey: 'sub_feat_festival_devotional', iconType: 'flower' },
+  { id: 'trending_viral', text: 'Trending & Viral Designs', textKey: 'sub_feat_trending_viral', iconType: 'trending' },
+  { id: 'personalization', text: 'Name & Photo Personalization', textKey: 'sub_feat_name_photo', iconType: 'person' },
+  { id: 'download_share', text: 'HD Download & Fast Share', textKey: 'sub_feat_download_share', iconType: 'download' },
+  { id: 'new_content', text: 'Daily New Content Added', textKey: 'sub_feat_new_content', iconType: 'sparkles' },
+];
+

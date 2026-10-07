@@ -28,6 +28,18 @@ export const resolveMediaUrl = (
     );
   }
 
+  // Route S3 assets through backend proxy to bypass mobile DNS resolution failures
+  if (
+    (resolved.includes('starpix-media-production.s3.ap-south-1.amazonaws.com') ||
+     resolved.includes('d3arutsevouzgm.cloudfront.net')) &&
+    !resolved.includes('/api/uploads/proxy-image')
+  ) {
+    const host = API.defaults.baseURL
+      ? API.defaults.baseURL.replace(/\/api\/?$/, '')
+      : 'http://localhost:5000';
+    resolved = `${host}/api/uploads/proxy-image?url=${encodeURIComponent(resolved)}`;
+  }
+
   // Relative path resolution
   if (resolved.startsWith('/')) {
     const host = API.defaults.baseURL

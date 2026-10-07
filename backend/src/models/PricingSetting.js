@@ -75,6 +75,21 @@ const pricingSettingSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    posters: {
+      type: [String],
+      default: [],
+    },
+    checklist: {
+      type: [
+        {
+          id: { type: String, default: '' },
+          text: { type: String, default: '' },
+          textKey: { type: String, default: '' },
+          iconType: { type: String, default: 'checkmark' },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,

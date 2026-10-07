@@ -23,13 +23,31 @@ import ConfirmModal from '../src/components/ConfirmModal';
 import PlanAlertModal from '../src/components/PlanAlertModal';
 import LanguageModal from '../src/components/LanguageModal';
 import API from '../src/utils/api';
+import Skeleton from '../src/components/Skeleton';
 import { checkHasActiveSubscription } from '../src/utils/subscription';
 
 import {
   POSTERS,
   DEFAULT_PLANS,
+  DEFAULT_CHECKLIST,
   styles,
 } from '../src/modules/vip';
+
+const FEATURE_TEXT_KEY_MAP = {
+  'All Premium Templates': 'sub_feat_all_premium',
+  'Daily New Content': 'sub_feat_daily_new',
+  'No Ads': 'sub_feat_no_ads',
+  'Full Access for 30 Days': 'sub_feat_full_access_30',
+  'Full Access for 1 Year': 'sub_feat_full_access_year',
+  'Exclusive Festival Collections': 'sub_feat_exclusive_festivals',
+  'Thousands of Premium Templates': 'sub_feat_thousands',
+  'Good Morning & Good Night Special': 'sub_feat_morning_night',
+  'Festival & Devotional Special': 'sub_feat_festival_devotional',
+  'Trending & Viral Designs': 'sub_feat_trending_viral',
+  'Name & Photo Personalization': 'sub_feat_name_photo',
+  'HD Download & Fast Share': 'sub_feat_download_share',
+  'Daily New Content Added': 'sub_feat_new_content',
+};
 
 export default function VipScreen() {
   const insets = useSafeAreaInsets();
@@ -40,8 +58,12 @@ export default function VipScreen() {
   const updateUserProfile = useAuthStore((state) => state.updateUserProfile);
   const logout = useAuthStore((state) => state.logout);
 
-  const [plans, setPlans] = useState(DEFAULT_PLANS);
-  const [selectedPlanId, setSelectedPlanId] = useState('30days');
+  const [plans, setPlans] = useState([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [currencySymbol, setCurrencySymbol] = useState('₹');
+  const [heroPosters, setHeroPosters] = useState(POSTERS);
+  const [featureChecklist, setFeatureChecklist] = useState(DEFAULT_CHECKLIST);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [purchaseDetails, setPurchaseDetails] = useState(null);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -50,6 +72,21 @@ export default function VipScreen() {
     visible: false,
     type: 'downgrade',
   });
+
+  const formatPrice = (val) => {
+    if (val === undefined || val === null) return '';
+    const s = String(val).trim();
+    if (s.startsWith('₹') || s.startsWith('$')) return s;
+    return `${currencySymbol}${s}`;
+  };
+
+  const resolveFeatureText = (feat) => {
+    if (!feat) return '';
+    if (i18n.exists(feat)) return t(feat);
+    const mappedKey = FEATURE_TEXT_KEY_MAP[feat];
+    if (mappedKey && i18n.exists(mappedKey)) return t(mappedKey);
+    return feat;
+  };
 
   // Active subscription verification and plan tier hierarchy
   const hasActiveSub = checkHasActiveSubscription(user);
@@ -66,6 +103,13 @@ export default function VipScreen() {
 
   const activePlanName = (() => {
     if (!hasActiveSub || !user?.subscriptionPlan) return '';
+    const matched = plans.find((p) => p.id === user.subscriptionPlan);
+    if (matched) {
+      if (matched.periodKey && i18n.exists(matched.periodKey)) {
+        return t(matched.periodKey);
+      }
+      if (matched.name) return matched.name;
+    }
     const sp = String(user.subscriptionPlan).toLowerCase();
     if (sp.includes('year') || sp.includes('annual') || sp.includes('365')) {
       return t('sub_plan_1_year') || '1 Year Plan';
@@ -89,6 +133,13 @@ export default function VipScreen() {
 
   const getPlanTier = (pid) => {
     if (!pid) return 0;
+    const match = plans.find((p) => p.id === pid);
+    if (match?.durationDays) {
+      if (match.durationDays >= 300) return 3;
+      if (match.durationDays >= 25) return 2;
+      return 1;
+    }
+    if (match?.sortOrder) return match.sortOrder;
     const s = String(pid).toLowerCase();
     if (s.includes('year') || s.includes('annual') || s.includes('365')) return 3;
     if (s.includes('30') || s.includes('month')) return 2;
@@ -98,27 +149,52 @@ export default function VipScreen() {
 
   const currentPlanTier = hasActiveSub ? getPlanTier(user.subscriptionPlan) : 0;
 
-  // Auto-select valid upgrade plan if current plan is active
-  useEffect(() => {
-    if (currentPlanTier === 1) {
-      setSelectedPlanId('30days');
-    } else if (currentPlanTier === 2) {
-      setSelectedPlanId('1year');
-    } else if (currentPlanTier >= 3) {
-      setSelectedPlanId('1year');
-    }
-  }, [currentPlanTier]);
-
   useEffect(() => {
     let isMounted = true;
     const fetchPlans = async () => {
       try {
         const res = await API.get('/payments/plans');
-        if (isMounted && res.data && res.data.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-          setPlans(res.data.data);
+        if (isMounted && res.data && res.data.success) {
+          if (res.data.currencySymbol) {
+            setCurrencySymbol(res.data.currencySymbol);
+          }
+          if (Array.isArray(res.data.data) && res.data.data.length > 0) {
+            const activePlans = res.data.data;
+            setPlans(activePlans);
+            setSelectedPlanId((prevId) => {
+              if (prevId && activePlans.some((p) => p.id === prevId)) return prevId;
+              const popular = activePlans.find((p) => p.badgeType === 'popular' || p.badgeKey === 'sub_most_popular');
+              if (popular) return popular.id;
+              const midIdx = Math.floor(activePlans.length / 2);
+              return activePlans[midIdx]?.id || activePlans[0]?.id;
+            });
+          } else {
+            setPlans(DEFAULT_PLANS);
+            setSelectedPlanId('30days');
+          }
+
+          if (Array.isArray(res.data.posters) && res.data.posters.length >= 5) {
+            setHeroPosters({
+              durgaPuja: res.data.posters[0],
+              goodMorning: res.data.posters[1],
+              goodNight: res.data.posters[2],
+              togetherAlways: res.data.posters[3],
+              happyDiwali: res.data.posters[4],
+            });
+          }
+          if (Array.isArray(res.data.checklist) && res.data.checklist.length > 0) {
+            setFeatureChecklist(res.data.checklist);
+          }
         }
       } catch (err) {
-        // Fallback gracefully to default plans
+        if (isMounted) {
+          setPlans(DEFAULT_PLANS);
+          setSelectedPlanId('30days');
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingPlans(false);
+        }
       }
     };
     fetchPlans();
@@ -127,7 +203,18 @@ export default function VipScreen() {
     };
   }, []);
 
-  const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[1] || plans[0] || DEFAULT_PLANS[1];
+  // Auto-select valid upgrade plan if current plan is active
+  useEffect(() => {
+    if (!plans || plans.length === 0) return;
+    if (currentPlanTier > 0) {
+      const upgrade = plans.find((p) => getPlanTier(p.id) > currentPlanTier);
+      if (upgrade) {
+        setSelectedPlanId(upgrade.id);
+      }
+    }
+  }, [currentPlanTier, plans]);
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) || plans[0] || null;
 
   const handleSelectPlan = (planId) => {
     const planTier = getPlanTier(planId);
@@ -201,9 +288,7 @@ export default function VipScreen() {
 
       setPurchaseDetails({
         plan: planName,
-        price: typeof selectedPlan.price === 'number' || !String(selectedPlan.price).startsWith('₹')
-          ? `₹${selectedPlan.price}`
-          : selectedPlan.price,
+        price: formatPrice(selectedPlan.price),
       });
       setShowSuccessModal(true);
     } catch {
@@ -221,44 +306,6 @@ export default function VipScreen() {
       console.warn('Failed to open link:', e);
     }
   };
-
-  const featureChecklist = [
-    {
-      id: 'templates',
-      iconType: 'p_box',
-      labelKey: 'sub_feat_thousands',
-    },
-    {
-      id: 'morning_night',
-      iconType: 'sun',
-      labelKey: 'sub_feat_morning_night',
-    },
-    {
-      id: 'festival_devotional',
-      iconType: 'flower',
-      labelKey: 'sub_feat_festival_devotional',
-    },
-    {
-      id: 'trending_viral',
-      iconType: 'trending',
-      labelKey: 'sub_feat_trending_viral',
-    },
-    {
-      id: 'personalization',
-      iconType: 'person',
-      labelKey: 'sub_feat_name_photo',
-    },
-    {
-      id: 'download_share',
-      iconType: 'download',
-      labelKey: 'sub_feat_download_share',
-    },
-    {
-      id: 'new_content',
-      iconType: 'sparkles',
-      labelKey: 'sub_feat_new_content',
-    },
-  ];
 
   const renderFeatureIcon = (type) => {
     switch (type) {
@@ -375,16 +422,23 @@ export default function VipScreen() {
 
             {/* Checklist items */}
             <View style={styles.checklist}>
-              {featureChecklist.map((item) => (
-                <View key={item.id} style={styles.checkItemRow}>
-                  <View style={styles.checkIconBox}>
-                    {renderFeatureIcon(item.iconType)}
+              {featureChecklist.map((item) => {
+                const label = item.textKey && i18n.exists(item.textKey)
+                  ? t(item.textKey)
+                  : item.labelKey && i18n.exists(item.labelKey)
+                  ? t(item.labelKey)
+                  : resolveFeatureText(item.text || item.textKey || item.labelKey || '');
+                return (
+                  <View key={item.id || item.text} style={styles.checkItemRow}>
+                    <View style={styles.checkIconBox}>
+                      {renderFeatureIcon(item.iconType)}
+                    </View>
+                    <Text style={styles.checkItemText} numberOfLines={2}>
+                      {label}
+                    </Text>
                   </View>
-                  <Text style={styles.checkItemText} numberOfLines={2}>
-                    {t(item.labelKey)}
-                  </Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
 
@@ -393,7 +447,7 @@ export default function VipScreen() {
             {/* Card 1: Durga Puja (Top left, tilted -6deg) */}
             <View style={[styles.posterCard, styles.poster1]}>
               <Image
-                source={{ uri: POSTERS.durgaPuja }}
+                source={{ uri: heroPosters.durgaPuja || POSTERS.durgaPuja }}
                 style={styles.posterImg}
                 resizeMode="cover"
               />
@@ -402,7 +456,7 @@ export default function VipScreen() {
             {/* Card 2: Good Morning (Top right, tilted +8deg) */}
             <View style={[styles.posterCard, styles.poster2]}>
               <Image
-                source={{ uri: POSTERS.goodMorning }}
+                source={{ uri: heroPosters.goodMorning || POSTERS.goodMorning }}
                 style={styles.posterImg}
                 resizeMode="cover"
               />
@@ -411,7 +465,7 @@ export default function VipScreen() {
             {/* Card 3: Good Night (Middle left, tilted -4deg) */}
             <View style={[styles.posterCard, styles.poster3]}>
               <Image
-                source={{ uri: POSTERS.goodNight }}
+                source={{ uri: heroPosters.goodNight || POSTERS.goodNight }}
                 style={styles.posterImg}
                 resizeMode="cover"
               />
@@ -420,7 +474,7 @@ export default function VipScreen() {
             {/* Card 4: Together Always (Middle right, tilted +6deg) */}
             <View style={[styles.posterCard, styles.poster4]}>
               <Image
-                source={{ uri: POSTERS.togetherAlways }}
+                source={{ uri: heroPosters.togetherAlways || POSTERS.togetherAlways }}
                 style={styles.posterImg}
                 resizeMode="cover"
               />
@@ -429,7 +483,7 @@ export default function VipScreen() {
             {/* Card 5: Happy Diwali (Bottom center-left, tilted -3deg) */}
             <View style={[styles.posterCard, styles.poster5]}>
               <Image
-                source={{ uri: POSTERS.happyDiwali }}
+                source={{ uri: heroPosters.happyDiwali || POSTERS.happyDiwali }}
                 style={styles.posterImg}
                 resizeMode="cover"
               />
@@ -439,207 +493,259 @@ export default function VipScreen() {
 
         {/* 3 Subscription Plan Cards */}
         <View style={styles.plansContainer}>
-          {plans.map((plan) => {
-            const planTier = getPlanTier(plan.id);
-            const isCurrentPlan = currentPlanTier > 0 && planTier === currentPlanTier;
-            const isLowerPlan = currentPlanTier > 0 && planTier < currentPlanTier;
-            const isUpgrade = currentPlanTier > 0 && planTier > currentPlanTier;
-            const isDisabled = isCurrentPlan || isLowerPlan;
-            const isSelected = selectedPlanId === plan.id && !isDisabled;
-
-            const hasBadge = plan.badgeKey || plan.badgeText || plan.badgeType;
-            const badgeLabel = plan.badgeKey && i18n.exists(plan.badgeKey)
-              ? t(plan.badgeKey)
-              : (plan.badgeText || (plan.badgeType === 'popular' ? t('sub_most_popular') : plan.badgeType === 'best_value' ? t('sub_best_value') : ''));
-            const isPopular = plan.badgeType === 'popular' || plan.id === '30days';
-
-            const formattedPrice = typeof plan.price === 'number' || !String(plan.price).startsWith('₹')
-              ? `₹${plan.price}`
-              : plan.price;
-
-            const periodTitle = plan.periodKey && i18n.exists(plan.periodKey)
-              ? t(plan.periodKey)
-              : (plan.name || `${plan.durationDays || 30} Days Access`);
-
-            return (
-              <TouchableOpacity
-                key={plan.id}
+          {loadingPlans ? (
+            [1, 2, 3].map((skeletonIdx) => (
+              <View
+                key={`skeleton-plan-${skeletonIdx}`}
                 style={[
                   styles.planCard,
-                  isSelected && (isUpgrade ? styles.planCardUpgradeSelected : styles.planCardSelected),
-                  isCurrentPlan && styles.planCardActiveSub,
-                  isLowerPlan && styles.planCardDisabled,
+                  styles.planCardSkeleton,
+                  skeletonIdx === 2 && styles.planCardSelected,
                 ]}
-                onPress={() => handleSelectPlan(plan.id)}
-                activeOpacity={isDisabled ? 0.9 : 0.88}
               >
-                {/* Top Badge: Active Plan / Lower Plan / Upgrade / Most Popular / Best Value */}
-                {isCurrentPlan ? (
-                  <View style={[styles.planBadge, styles.activePlanBadge]}>
-                    <Ionicons name="checkmark-circle" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
-                    <Text style={[styles.planBadgeText, styles.activePlanBadgeText]} numberOfLines={1}>
-                      {t('sub_current_active_plan') || 'CURRENT PLAN'}
-                    </Text>
-                  </View>
-                ) : isLowerPlan ? (
-                  <View style={[styles.planBadge, styles.lockedPlanBadge]}>
-                    <Ionicons name="lock-closed" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
-                    <Text style={[styles.planBadgeText, styles.lockedPlanBadgeText]} numberOfLines={1}>
-                      {t('sub_lower_plan_locked') || 'LOWER PLAN'}
-                    </Text>
-                  </View>
-                ) : isUpgrade ? (
-                  <View style={[styles.planBadge, styles.upgradePlanBadge]}>
-                    <Ionicons name="arrow-up-circle" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
-                    <Text style={[styles.planBadgeText, styles.upgradePlanBadgeText]} numberOfLines={1}>
-                      {t('sub_upgrade_plan') || 'UPGRADE'}
-                    </Text>
-                  </View>
-                ) : Boolean(hasBadge && badgeLabel) ? (
-                  <View
-                    style={[
-                      styles.planBadge,
-                      isPopular
-                        ? styles.popularBadge
-                        : styles.bestValueBadge,
-                    ]}
-                  >
-                    {isPopular ? (
-                      <Ionicons
-                        name="flash"
-                        size={fontScale(9)}
-                        color="#FACC15"
-                        style={styles.badgeIcon}
-                      />
-                    ) : (
-                      <Text style={styles.badgeCrownIcon}>👑</Text>
-                    )}
-                    <Text
-                      style={[
-                        styles.planBadgeText,
-                        isPopular
-                          ? styles.popularBadgeText
-                          : styles.bestValueBadgeText,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {badgeLabel}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Radio Button / Status Icon */}
-                <View style={styles.radioWrap}>
-                  {isCurrentPlan ? (
-                    <View style={[styles.radioCircle, { borderColor: '#D97706', backgroundColor: '#FEF3C7' }]}>
-                      <Ionicons name="checkmark" size={fontScale(10)} color="#D97706" />
-                    </View>
-                  ) : isLowerPlan ? (
-                    <View style={[styles.radioCircle, { borderColor: '#9CA3AF', backgroundColor: '#F3F4F6' }]}>
-                      <Ionicons name="lock-closed" size={fontScale(9)} color="#6B7280" />
-                    </View>
-                  ) : (
-                    <View
-                      style={[
-                        styles.radioCircle,
-                        isSelected && (isUpgrade ? { borderColor: '#16A34A' } : styles.radioCircleSelected),
-                      ]}
-                    >
-                      {isSelected && (
-                        <View style={[styles.radioDot, isUpgrade && { backgroundColor: '#16A34A' }]} />
-                      )}
-                    </View>
-                  )}
+                {/* Skeleton Badge */}
+                <View style={styles.skeletonBadgeWrap}>
+                  <Skeleton width={wp(0.24)} height={hp(0.02)} borderRadius={wp(0.03)} />
                 </View>
 
-                {/* Price */}
-                <Text
-                  style={[
-                    styles.planPrice,
-                    isSelected && (isUpgrade ? { color: '#16A34A' } : styles.planPriceSelected),
-                    isCurrentPlan && { color: '#D97706' },
-                    isLowerPlan && { color: '#9CA3AF' },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {formattedPrice}
-                </Text>
+                {/* Skeleton Radio */}
+                <View style={styles.radioWrap}>
+                  <Skeleton width={wp(0.045)} height={wp(0.045)} borderRadius={wp(0.025)} />
+                </View>
 
-                {/* Period */}
-                <Text
-                  style={[
-                    styles.planPeriod,
-                    isSelected && (isUpgrade ? { color: '#16A34A' } : styles.planPeriodSelected),
-                    isCurrentPlan && { color: '#D97706' },
-                    isLowerPlan && { color: '#9CA3AF' },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {periodTitle}
-                </Text>
+                {/* Skeleton Price */}
+                <View style={{ alignItems: 'center', marginTop: hp(0.005), marginBottom: hp(0.004) }}>
+                  <Skeleton width={wp(0.18)} height={hp(0.032)} borderRadius={4} />
+                </View>
+
+                {/* Skeleton Period */}
+                <View style={{ alignItems: 'center', marginBottom: hp(0.01) }}>
+                  <Skeleton width={wp(0.16)} height={hp(0.016)} borderRadius={4} />
+                </View>
 
                 {/* Divider */}
                 <View style={styles.planCardDivider} />
 
-                {/* Feature Bullet Points */}
-                <View style={styles.planFeaturesList}>
-                  {(plan.features || []).map((feat, fIdx) => (
-                    <View key={`${plan.id}-feat-${fIdx}`} style={styles.planFeatureRow}>
-                      <Ionicons
-                        name="checkmark"
-                        size={fontScale(11)}
-                        color={isCurrentPlan ? '#D97706' : (isUpgrade && isSelected) ? '#16A34A' : isLowerPlan ? '#9CA3AF' : '#EE1D24'}
-                        style={styles.planCheckIcon}
-                      />
-                      <Text
-                        style={[
-                          styles.planFeatureText,
-                          isLowerPlan && { color: '#9CA3AF' },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {i18n.exists(feat) ? t(feat) : feat}
-                      </Text>
+                {/* Skeleton Features */}
+                <View style={styles.skeletonFeaturesList}>
+                  {[1, 2, 3].map((f) => (
+                    <View key={`skel-feat-${f}`} style={styles.skeletonFeatureRow}>
+                      <Skeleton width={wp(0.03)} height={wp(0.03)} borderRadius={wp(0.015)} />
+                      <Skeleton width={wp(0.2)} height={hp(0.014)} borderRadius={3} style={{ marginLeft: wp(0.012) }} />
                     </View>
                   ))}
                 </View>
-              </TouchableOpacity>
-            );
-          })}
+              </View>
+            ))
+          ) : (
+            plans.map((plan) => {
+              const planTier = getPlanTier(plan.id);
+              const isCurrentPlan = currentPlanTier > 0 && planTier === currentPlanTier;
+              const isLowerPlan = currentPlanTier > 0 && planTier < currentPlanTier;
+              const isUpgrade = currentPlanTier > 0 && planTier > currentPlanTier;
+              const isDisabled = isCurrentPlan || isLowerPlan;
+              const isSelected = selectedPlanId === plan.id && !isDisabled;
+
+              const hasBadge = plan.badgeKey || plan.badgeText || plan.badgeType;
+              const badgeLabel = plan.badgeKey && i18n.exists(plan.badgeKey)
+                ? t(plan.badgeKey)
+                : (plan.badgeText || (plan.badgeType === 'popular' ? t('sub_most_popular') : plan.badgeType === 'best_value' ? t('sub_best_value') : ''));
+              const isPopular = plan.badgeType === 'popular' || plan.id === '30days';
+
+              const formattedPrice = formatPrice(plan.price);
+
+              const periodTitle = plan.periodKey && i18n.exists(plan.periodKey)
+                ? t(plan.periodKey)
+                : (plan.name || `${plan.durationDays || 30} Days Access`);
+
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[
+                    styles.planCard,
+                    isSelected && (isUpgrade ? styles.planCardUpgradeSelected : styles.planCardSelected),
+                    isCurrentPlan && styles.planCardActiveSub,
+                    isLowerPlan && styles.planCardDisabled,
+                  ]}
+                  onPress={() => handleSelectPlan(plan.id)}
+                  activeOpacity={isDisabled ? 0.9 : 0.88}
+                >
+                  {/* Top Badge: Active Plan / Lower Plan / Upgrade / Most Popular / Best Value */}
+                  {isCurrentPlan ? (
+                    <View style={[styles.planBadge, styles.activePlanBadge]}>
+                      <Ionicons name="checkmark-circle" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
+                      <Text style={[styles.planBadgeText, styles.activePlanBadgeText]} numberOfLines={1}>
+                        {t('sub_current_active_plan') || 'CURRENT PLAN'}
+                      </Text>
+                    </View>
+                  ) : isLowerPlan ? (
+                    <View style={[styles.planBadge, styles.lockedPlanBadge]}>
+                      <Ionicons name="lock-closed" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
+                      <Text style={[styles.planBadgeText, styles.lockedPlanBadgeText]} numberOfLines={1}>
+                        {t('sub_lower_plan_locked') || 'LOWER PLAN'}
+                      </Text>
+                    </View>
+                  ) : isUpgrade ? (
+                    <View style={[styles.planBadge, styles.upgradePlanBadge]}>
+                      <Ionicons name="arrow-up-circle" size={fontScale(9)} color="#FFFFFF" style={styles.badgeIcon} />
+                      <Text style={[styles.planBadgeText, styles.upgradePlanBadgeText]} numberOfLines={1}>
+                        {t('sub_upgrade_plan') || 'UPGRADE'}
+                      </Text>
+                    </View>
+                  ) : Boolean(hasBadge && badgeLabel) ? (
+                    <View
+                      style={[
+                        styles.planBadge,
+                        isPopular
+                          ? styles.popularBadge
+                          : styles.bestValueBadge,
+                      ]}
+                    >
+                      {isPopular ? (
+                        <Ionicons
+                          name="flash"
+                          size={fontScale(9)}
+                          color="#FACC15"
+                          style={styles.badgeIcon}
+                        />
+                      ) : (
+                        <Text style={styles.badgeCrownIcon}>👑</Text>
+                      )}
+                      <Text
+                        style={[
+                          styles.planBadgeText,
+                          isPopular
+                            ? styles.popularBadgeText
+                            : styles.bestValueBadgeText,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {badgeLabel}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Radio Button / Status Icon */}
+                  <View style={styles.radioWrap}>
+                    {isCurrentPlan ? (
+                      <View style={[styles.radioCircle, { borderColor: '#D97706', backgroundColor: '#FEF3C7' }]}>
+                        <Ionicons name="checkmark" size={fontScale(10)} color="#D97706" />
+                      </View>
+                    ) : isLowerPlan ? (
+                      <View style={[styles.radioCircle, { borderColor: '#9CA3AF', backgroundColor: '#F3F4F6' }]}>
+                        <Ionicons name="lock-closed" size={fontScale(9)} color="#6B7280" />
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.radioCircle,
+                          isSelected && (isUpgrade ? { borderColor: '#16A34A' } : styles.radioCircleSelected),
+                        ]}
+                      >
+                        {isSelected && (
+                          <View style={[styles.radioDot, isUpgrade && { backgroundColor: '#16A34A' }]} />
+                        )}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Price */}
+                  <Text
+                    style={[
+                      styles.planPrice,
+                      isSelected && (isUpgrade ? { color: '#16A34A' } : styles.planPriceSelected),
+                      isCurrentPlan && { color: '#D97706' },
+                      isLowerPlan && { color: '#9CA3AF' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {formattedPrice}
+                  </Text>
+
+                  {/* Period */}
+                  <Text
+                    style={[
+                      styles.planPeriod,
+                      isSelected && (isUpgrade ? { color: '#16A34A' } : styles.planPeriodSelected),
+                      isCurrentPlan && { color: '#D97706' },
+                      isLowerPlan && { color: '#9CA3AF' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {periodTitle}
+                  </Text>
+
+                  {/* Divider */}
+                  <View style={styles.planCardDivider} />
+
+                  {/* Feature Bullet Points */}
+                  <View style={styles.planFeaturesList}>
+                    {(plan.features || []).map((feat, fIdx) => (
+                      <View key={`${plan.id}-feat-${fIdx}`} style={styles.planFeatureRow}>
+                        <Ionicons
+                          name="checkmark"
+                          size={fontScale(11)}
+                          color={isCurrentPlan ? '#D97706' : (isUpgrade && isSelected) ? '#16A34A' : isLowerPlan ? '#9CA3AF' : '#EE1D24'}
+                          style={styles.planCheckIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.planFeatureText,
+                            isLowerPlan && { color: '#9CA3AF' },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {resolveFeatureText(feat)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
         {/* Big CTA Button or Disabled State if highest plan active */}
-        <TouchableOpacity
-          style={[
-            styles.ctaButton,
-            currentPlanTier > 0 && getPlanTier(selectedPlan.id) > currentPlanTier && { backgroundColor: '#16A34A' },
-            (currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan.id) <= currentPlanTier)) && styles.ctaButtonDisabled,
-          ]}
-          onPress={handlePurchase}
-          disabled={currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan.id) <= currentPlanTier)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.ctaButtonText}>
-            {(() => {
-              if (currentPlanTier >= 3) {
-                return t('highest_plan_active') || 'VIP Active • Highest Plan Unlocked';
-              }
-              const activePlan = selectedPlan || DEFAULT_PLANS[1];
-              const priceVal = activePlan?.price ?? 99;
-              const formattedPrice = typeof priceVal === 'number' || !String(priceVal).startsWith('₹')
-                ? `₹${priceVal}`
-                : priceVal;
+        {loadingPlans ? (
+          <View style={styles.ctaButtonSkeleton}>
+            <Skeleton width="100%" height="100%" borderRadius={wp(0.07)} />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.ctaButton,
+              currentPlanTier > 0 && getPlanTier(selectedPlan?.id) > currentPlanTier && { backgroundColor: '#16A34A' },
+              (currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan?.id) <= currentPlanTier)) && styles.ctaButtonDisabled,
+            ]}
+            onPress={handlePurchase}
+            disabled={currentPlanTier >= 3 || (currentPlanTier > 0 && getPlanTier(selectedPlan?.id) <= currentPlanTier)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaButtonText}>
+              {(() => {
+                if (currentPlanTier >= 3) {
+                  return t('highest_plan_active') || 'VIP Active • Highest Plan Unlocked';
+                }
+                const activePlan = selectedPlan || plans[0] || DEFAULT_PLANS[1];
+                const priceVal = activePlan?.price ?? 99;
+                const formattedPrice = formatPrice(priceVal);
 
-              if (activePlan?.ctaKey && i18n?.exists && i18n.exists(activePlan.ctaKey)) {
-                return t(activePlan.ctaKey).replace(/₹\s*\d+/g, formattedPrice);
-              }
-              const planTitle = activePlan?.periodKey && i18n?.exists && i18n.exists(activePlan.periodKey)
-                ? t(activePlan.periodKey)
-                : (activePlan?.name || `${activePlan?.durationDays || 30} Days`);
-              return `Get ${planTitle} for ${formattedPrice} →`;
-            })()}
-          </Text>
-        </TouchableOpacity>
+                if (activePlan?.ctaKey && i18n?.exists && i18n.exists(activePlan.ctaKey)) {
+                  return t(activePlan.ctaKey).replace(/[₹$]\s*[\d০-৯]+/g, formattedPrice);
+                }
+                const planTitle = activePlan?.periodKey && i18n?.exists && i18n.exists(activePlan.periodKey)
+                  ? t(activePlan.periodKey)
+                  : (activePlan?.name || `${activePlan?.durationDays || 30} Days`);
+
+                if (i18n?.exists && i18n.exists('sub_cta_get_plan')) {
+                  return t('sub_cta_get_plan', { plan: planTitle, price: formattedPrice });
+                }
+                return `Get ${planTitle} for ${formattedPrice} →`;
+              })()}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Disclaimers */}
         <View style={styles.disclaimersWrap}>

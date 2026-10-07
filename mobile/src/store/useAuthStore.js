@@ -80,10 +80,10 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  verifyOtp: async (phoneNumber, countryCode = '+91', otp = '123456', name = '', isNewUser = false, email = '') => {
+  verifyOtp: async (phoneNumber, countryCode = '+91', otp = '123456', name = '', isNewUser = false, email = '', profilePhoto = '') => {
     set({ isAuthenticating: true, error: null });
     try {
-      const res = await API.post('/auth/verify-otp', { phoneNumber, countryCode, otp, name, email, isNewUser });
+      const res = await API.post('/auth/verify-otp', { phoneNumber, countryCode, otp, name, email, isNewUser, profilePhoto });
       const { user, token } = res.data.data;
 
       await AsyncStorage.setItem('starpix_user_token', token);

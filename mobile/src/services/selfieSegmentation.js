@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
+import API from '../utils/api';
+import { resolveMediaUrl } from '../utils/media';
 
 // In-memory cache for fast toggling during active sessions
 const memoryCutoutCache = new Map();
@@ -73,52 +75,110 @@ export async function removeBackground(sourceUri) {
 
   const key = getCacheKey(sourceUri);
   const targetCachePath = `${FileSystem.cacheDirectory}starpix_cutout_${key}.png`;
+  const isRemote = sourceUri.startsWith('http://') || sourceUri.startsWith('https://');
 
-  // 2. Ensure we have a local file:// path for native ML Kit processing
-  let localInputPath = sourceUri;
-  if (sourceUri.startsWith('http://') || sourceUri.startsWith('https://')) {
-    const tempInput = `${FileSystem.cacheDirectory}input_${Date.now()}.jpg`;
-    const downloadRes = await FileSystem.downloadAsync(sourceUri, tempInput);
-    localInputPath = downloadRes.uri;
+  // 2. Ensure we have a local file:// path if testing native ML Kit processing
+  let localInputPath = isRemote ? null : sourceUri;
+  if (isRemote) {
+    try {
+      const resolved = resolveMediaUrl(sourceUri);
+      const tempInput = `${FileSystem.cacheDirectory}input_${Date.now()}.jpg`;
+      const downloadRes = await FileSystem.downloadAsync(resolved, tempInput);
+      localInputPath = downloadRes.uri;
+    } catch (dlErr) {
+      console.warn('[SelfieSegmentation] Direct download notice (will process via server):', dlErr.message);
+    }
   }
 
-  // 3. Attempt Native Google ML Kit / MediaPipe Segmentation
+  // 3. Attempt Native Google ML Kit / MediaPipe Segmentation if local file is present
   let resultUri = null;
 
-  try {
-    // Attempt to load native wrapper if present in native build
-    let bgRemover = null;
+  if (localInputPath) {
     try {
-      // @six33/react-native-bg-removal uses Android MLKit Subject Segmentation & iOS Vision
-      bgRemover = require('@six33/react-native-bg-removal');
-    } catch (_) {
+      let bgRemover = null;
       try {
-        bgRemover = require('rn-remove-image-bg');
-      } catch (__) {}
-    }
-
-    if (bgRemover && (bgRemover.removeBackground || typeof bgRemover === 'function')) {
-      const fn = bgRemover.removeBackground || bgRemover;
-      const rawNativeResult = await fn(localInputPath, { trim: false });
-      if (rawNativeResult) {
-        resultUri = typeof rawNativeResult === 'string' ? rawNativeResult : rawNativeResult.uri;
+        bgRemover = require('@six33/react-native-bg-removal');
+      } catch (_) {
+        try {
+          bgRemover = require('rn-remove-image-bg');
+        } catch (__) {}
       }
+
+      if (bgRemover && (bgRemover.removeBackground || typeof bgRemover === 'function')) {
+        const fn = bgRemover.removeBackground || bgRemover;
+        const rawNativeResult = await fn(localInputPath, { trim: false });
+        if (rawNativeResult) {
+          resultUri = typeof rawNativeResult === 'string' ? rawNativeResult : rawNativeResult.uri;
+        }
+      }
+    } catch (nativeErr) {
+      console.warn('[SelfieSegmentation] Native ML Kit module notice:', nativeErr.message);
     }
-  } catch (nativeErr) {
-    console.warn('[SelfieSegmentation] Native ML Kit module encountered an issue, trying fallback:', nativeErr.message);
   }
 
-  // 4. Fallback handler: If native module is not compiled into the current binary (e.g. Expo Go / web / dev client without prebuild),
-  // copy/normalize to transparent PNG destination to allow smooth UI operation without crash
+  // 4. Server AI Segmentation Fallback (Works seamlessly in Expo Go and web)
   if (!resultUri) {
     try {
-      await FileSystem.copyAsync({
-        from: localInputPath,
-        to: targetCachePath,
-      });
-      resultUri = targetCachePath;
+      const base = API.defaults.baseURL ? API.defaults.baseURL.replace(/\/+$/, '') : 'http://localhost:5000/api';
+      const endpoint = `${base}/uploads/remove-bg`;
+      console.log('[SelfieSegmentation] Processing AI background removal via server:', endpoint);
+
+      let parsedData = null;
+
+      // If we have a local file path, upload via multipart
+      if (localInputPath) {
+        const uploadResult = await FileSystem.uploadAsync(endpoint, localInputPath, {
+          fieldName: 'file',
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        });
+
+        if (uploadResult.status === 200 && uploadResult.body) {
+          const parsed = JSON.parse(uploadResult.body);
+          if (parsed.success && parsed.data) {
+            parsedData = parsed.data;
+          }
+        }
+      } else if (isRemote) {
+        // If image is remote, send imageUrl directly to backend
+        const res = await API.post('/uploads/remove-bg', { imageUrl: sourceUri });
+        if (res.data?.success && res.data?.data) {
+          parsedData = res.data.data;
+        }
+      }
+
+      if (parsedData) {
+        if (parsedData.base64) {
+          const b64Data = parsedData.base64.replace(/^data:image\/\w+;base64,/, '');
+          await FileSystem.writeAsStringAsync(targetCachePath, b64Data, {
+            encoding: FileSystem.EncodingType?.Base64 || 'base64',
+          });
+          resultUri = targetCachePath;
+        } else if (parsedData.url) {
+          const resolvedCutoutUrl = resolveMediaUrl(parsedData.url);
+          const dl = await FileSystem.downloadAsync(resolvedCutoutUrl, targetCachePath);
+          resultUri = dl.uri;
+        }
+      }
+    } catch (serverErr) {
+      console.warn('[SelfieSegmentation] Server AI background removal notice:', serverErr.message);
+    }
+  }
+
+  // 5. Final fallback if server was unavailable
+  if (!resultUri) {
+    try {
+      if (localInputPath) {
+        await FileSystem.copyAsync({
+          from: localInputPath,
+          to: targetCachePath,
+        });
+        resultUri = targetCachePath;
+      } else {
+        resultUri = sourceUri;
+      }
     } catch (fallbackErr) {
-      resultUri = localInputPath;
+      resultUri = localInputPath || sourceUri;
     }
   } else if (resultUri !== targetCachePath) {
     // Persist to predictable cache directory

@@ -9,11 +9,15 @@ import {
   TouchableOpacity,
   ScrollView,
   Linking,
+  Image,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as ImagePicker from 'expo-image-picker';
 
 import AuthHeader from '../../src/components/AuthHeader';
 import ConfirmModal from '../../src/components/ConfirmModal';
@@ -23,6 +27,7 @@ import { fontScale, wp, hp } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { hapticTap } from '../../src/utils/haptics';
+import API from '../../src/utils/api';
 
 export default function SignupScreen() {
   const { t } = useTranslation();
@@ -36,6 +41,10 @@ export default function SignupScreen() {
   // Step 1 fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [profilePhotoUri, setProfilePhotoUri] = useState(null);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
 
   // Step 2 fields
@@ -58,6 +67,94 @@ export default function SignupScreen() {
   useEffect(() => {
     if (clearError) clearError();
   }, [clearError]);
+
+  const uploadPhoto = async (uri) => {
+    setIsUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'profile.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      formData.append('file', {
+        uri,
+        name: filename,
+        type,
+      });
+      formData.append('folder', 'user-profiles');
+      const res = await API.post('/uploads', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data?.data?.url) {
+        setUploadedPhotoUrl(res.data.data.url);
+      }
+    } catch (err) {
+      console.warn('Background avatar upload in signup:', err);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    setShowPhotoModal(false);
+    hapticTap();
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        setAlertMessage(t('camera_permission_required') || 'Camera permission is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]?.uri) {
+        const uri = result.assets[0].uri;
+        setProfilePhotoUri(uri);
+        uploadPhoto(uri);
+      }
+    } catch (err) {
+      console.error('Error taking photo in signup:', err);
+      setAlertMessage(t('failed_pick_image') || 'Failed to capture photo');
+    }
+  };
+
+  const handleChooseFromGallery = async () => {
+    setShowPhotoModal(false);
+    hapticTap();
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        setAlertMessage(t('gallery_permission_required') || 'Gallery access permission is required!');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]?.uri) {
+        const uri = result.assets[0].uri;
+        setProfilePhotoUri(uri);
+        uploadPhoto(uri);
+      }
+    } catch (err) {
+      console.error('Error choosing gallery photo in signup:', err);
+      setAlertMessage(t('failed_pick_image') || 'Failed to pick photo');
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setShowPhotoModal(false);
+    hapticTap();
+    setProfilePhotoUri(null);
+    setUploadedPhotoUrl(null);
+  };
 
   const handleContinueProfile = () => {
     hapticTap();
@@ -101,6 +198,7 @@ export default function SignupScreen() {
           countryCode: selectedCountry.dialCode,
           name: name.trim(),
           email: email.trim(),
+          profilePhoto: uploadedPhotoUrl || profilePhotoUri || '',
           isNewUser: 'true',
         },
       });
@@ -158,6 +256,73 @@ export default function SignupScreen() {
                 {/* Step 1: Create Your Profile */}
                 <Text style={styles.title}>{t('auth_create_profile_title')}</Text>
                 <Text style={styles.subtitle}>{t('auth_create_profile_subtitle')}</Text>
+
+                {/* Profile Photo Avatar Section */}
+                <View style={styles.avatarSection}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      hapticTap();
+                      setShowPhotoModal(true);
+                    }}
+                    style={styles.avatarWrapper}
+                  >
+                    {profilePhotoUri ? (
+                      <View style={styles.avatarImageContainer}>
+                        <Image
+                          source={{ uri: profilePhotoUri }}
+                          style={styles.avatarImage}
+                          resizeMode="cover"
+                        />
+                        {isUploadingPhoto && (
+                          <View style={styles.uploadingOverlay}>
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="person-outline" size={fontScale(34)} color="#9CA3AF" />
+                      </View>
+                    )}
+
+                    {/* Floating Camera Badge */}
+                    <View style={styles.cameraBadge}>
+                      <Ionicons
+                        name={profilePhotoUri ? 'camera' : 'add'}
+                        size={fontScale(14)}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Caption / Action Text */}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      hapticTap();
+                      setShowPhotoModal(true);
+                    }}
+                    style={styles.avatarLabelRow}
+                  >
+                    <Text style={styles.avatarActionText}>
+                      {profilePhotoUri
+                        ? (t('change_photo') || 'Change Photo')
+                        : (t('auth_profile_photo_hint') || 'Add Profile Photo (Optional)')}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {profilePhotoUri && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={handleRemovePhoto}
+                      style={styles.removePhotoBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.removePhotoText}>{t('remove_photo') || 'Remove Photo'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
                 {/* Full Name Input */}
                 <Text style={styles.inputLabel}>{t('full_name')}</Text>
@@ -344,6 +509,89 @@ export default function SignupScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Photo Picker Options Modal */}
+      <Modal
+        visible={showPhotoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPhotoModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowPhotoModal(false)}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.photoSheet, { paddingBottom: Math.max(insets.bottom, 16) + 10 }]}
+          >
+            {/* Top Pill Handle Indicator */}
+            <View style={styles.sheetHandle} />
+
+            {/* Modal Title */}
+            <Text style={styles.sheetTitle}>{t('add_photo') || 'Add Photo'}</Text>
+
+            {/* Options Group */}
+            <View style={styles.sheetOptionsGroup}>
+              {/* Option 1: Take Photo */}
+              <TouchableOpacity
+                style={styles.sheetOptionRow}
+                activeOpacity={0.7}
+                onPress={handleTakePhoto}
+              >
+                <View style={styles.sheetOptionIconCircle}>
+                  <Ionicons name="camera" size={fontScale(18)} color="#EE1D24" />
+                </View>
+                <Text style={styles.sheetOptionText}>{t('take_photo') || 'Take Photo'}</Text>
+                <Ionicons name="chevron-forward" size={fontScale(16)} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              {/* Option 2: Choose from Gallery */}
+              <TouchableOpacity
+                style={[
+                  styles.sheetOptionRow,
+                  !profilePhotoUri && { borderBottomWidth: 0 },
+                ]}
+                activeOpacity={0.7}
+                onPress={handleChooseFromGallery}
+              >
+                <View style={styles.sheetOptionIconCircle}>
+                  <Ionicons name="image" size={fontScale(18)} color="#EE1D24" />
+                </View>
+                <Text style={styles.sheetOptionText}>{t('choose_from_gallery') || 'Choose from Gallery'}</Text>
+                <Ionicons name="chevron-forward" size={fontScale(16)} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              {/* Option 3: Remove Photo (if selected) */}
+              {profilePhotoUri && (
+                <TouchableOpacity
+                  style={[styles.sheetOptionRow, { borderBottomWidth: 0 }]}
+                  activeOpacity={0.7}
+                  onPress={handleRemovePhoto}
+                >
+                  <View style={[styles.sheetOptionIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="trash" size={fontScale(18)} color="#DC2626" />
+                  </View>
+                  <Text style={[styles.sheetOptionText, { color: '#DC2626' }]}>
+                    {t('remove_photo') || 'Remove Photo'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={fontScale(16)} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={styles.sheetCancelBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowPhotoModal(false)}
+            >
+              <Text style={styles.sheetCancelText}>{t('cancel') || 'Cancel'}</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Country Picker Modal */}
       <CountryPickerModal
@@ -626,5 +874,162 @@ const styles = StyleSheet.create({
     color: '#EE1D24',
     fontFamily: FONTS.semibold,
     textDecorationLine: 'underline',
+  },
+
+  /* Avatar Upload Section */
+  avatarSection: {
+    alignItems: 'center',
+    marginVertical: hp(0.018),
+  },
+  avatarWrapper: {
+    position: 'relative',
+    shadowColor: '#EE1D24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  avatarImageContainer: {
+    width: wp(0.24),
+    height: wp(0.24),
+    borderRadius: wp(0.12),
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPlaceholder: {
+    width: wp(0.24),
+    height: wp(0.24),
+    borderRadius: wp(0.12),
+    borderWidth: 2,
+    borderColor: '#FCA5A5',
+    borderStyle: 'dashed',
+    backgroundColor: '#FFF1F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: wp(0.076),
+    height: wp(0.076),
+    borderRadius: wp(0.038),
+    backgroundColor: '#EE1D24',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+  },
+  avatarLabelRow: {
+    marginTop: hp(0.008),
+    paddingHorizontal: wp(0.02),
+    paddingVertical: hp(0.004),
+  },
+  avatarActionText: {
+    fontSize: fontScale(12.5),
+    fontFamily: FONTS.semibold,
+    color: '#EE1D24',
+    textAlign: 'center',
+  },
+  removePhotoBtn: {
+    marginTop: hp(0.002),
+    paddingHorizontal: wp(0.02),
+    paddingVertical: hp(0.003),
+  },
+  removePhotoText: {
+    fontSize: fontScale(11.5),
+    fontFamily: FONTS.medium,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+
+  /* Photo Sheet Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  photoSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: wp(0.05),
+    alignItems: 'center',
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    marginBottom: hp(0.016),
+  },
+  sheetTitle: {
+    fontSize: fontScale(17),
+    fontFamily: FONTS.bold,
+    color: '#111827',
+    marginBottom: hp(0.02),
+  },
+  sheetOptionsGroup: {
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    overflow: 'hidden',
+    marginBottom: hp(0.018),
+  },
+  sheetOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: hp(0.016),
+    paddingHorizontal: wp(0.04),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sheetOptionIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: wp(0.035),
+  },
+  sheetOptionText: {
+    flex: 1,
+    fontSize: fontScale(14),
+    fontFamily: FONTS.semibold,
+    color: '#1F2937',
+  },
+  sheetCancelBtn: {
+    width: '100%',
+    paddingVertical: hp(0.016),
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCancelText: {
+    fontSize: fontScale(14),
+    fontFamily: FONTS.semibold,
+    color: '#4B5563',
   },
 });

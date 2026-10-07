@@ -521,4 +521,40 @@ export const styles = StyleSheet.create({
     color: '#EE1D24',
     textDecorationLine: 'underline',
   },
+
+  /* Skeleton Loading Styles */
+  planCardSkeleton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: wp(0.035),
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: wp(0.018),
+    paddingTop: hp(0.016),
+    paddingBottom: hp(0.014),
+    alignItems: 'center',
+    position: 'relative',
+    minHeight: hp(0.24),
+  },
+  skeletonBadgeWrap: {
+    position: 'absolute',
+    top: -hp(0.012),
+    alignSelf: 'center',
+    zIndex: 2,
+  },
+  skeletonFeaturesList: {
+    width: '100%',
+    gap: hp(0.007),
+  },
+  skeletonFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wp(0.012),
+  },
+  ctaButtonSkeleton: {
+    height: hp(0.056),
+    marginTop: hp(0.02),
+    borderRadius: wp(0.07),
+    overflow: 'hidden',
+  },
 });

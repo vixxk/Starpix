@@ -182,16 +182,41 @@ const downloadCreation = asyncHandler(async (req, res) => {
     photoTransform,
     nameTransform,
     customizationState,
+    withPersonalization,
   } = { ...(req.query || {}), ...(req.body || {}) };
 
   const customState = customizationState || {};
-  const effectiveUserName = userNameText || customState.userNameText || (req.user ? (req.user.name || req.user.displayName) : '');
-  const effectiveUserPhoto = userPhotoUri || customState.userPhotoUri || (req.user ? req.user.profilePhoto : null);
-  const effectiveFooter = (selectedFooter === 'none' || customState.selectedFooter === 'none')
+  const isPersonalized = withPersonalization !== false && withPersonalization !== 'false';
+  const effectiveUserName = !isPersonalized
+    ? ''
+    : (userNameText !== undefined
+        ? userNameText
+        : (customState.userNameText !== undefined
+            ? customState.userNameText
+            : (req.user ? (req.user.name || req.user.displayName) : '')));
+  const effectiveUserPhoto = !isPersonalized
     ? null
-    : (selectedFooter !== undefined
+    : (userPhotoUri !== undefined
+        ? userPhotoUri
+        : (customState.userPhotoUri !== undefined
+            ? customState.userPhotoUri
+            : (req.user ? req.user.profilePhoto : null)));
+  const isNoneFooter =
+    selectedFooter === 'none' ||
+    selectedFooter === null ||
+    selectedFooter === false ||
+    selectedFooter?.isNone === true ||
+    customState.selectedFooter === 'none' ||
+    customState.selectedFooter === null ||
+    customState.selectedFooter === false ||
+    customState.selectedFooter?.isNone === true ||
+    customState.selectedFrame === 'none';
+
+  const effectiveFooter = isNoneFooter
+    ? null
+    : (selectedFooter !== undefined && selectedFooter !== null
         ? selectedFooter
-        : (customState.selectedFooter !== undefined
+        : (customState.selectedFooter !== undefined && customState.selectedFooter !== null
             ? customState.selectedFooter
             : (template.footers && template.footers.length > 0 ? template.footers[0] : null)));
 
@@ -206,6 +231,7 @@ const downloadCreation = asyncHandler(async (req, res) => {
       userQuoteText: userQuoteText || customState.userQuoteText || '',
       userPhotoUri: effectiveUserPhoto,
       selectedFooter: effectiveFooter,
+      withPersonalization: isPersonalized,
       photoTransform: photoTransform || customState.photoTransform || {},
       nameTransform: nameTransform || customState.nameTransform || {},
       req,

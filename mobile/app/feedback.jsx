@@ -23,6 +23,7 @@ import AppRefreshControl from '../src/components/AppRefreshControl';
 import { COLORS, FONTS } from '../src/constants/colors';
 import { fontScale, wp, hp } from '../src/utils/responsive';
 import { hapticTap, hapticSuccess } from '../src/utils/haptics';
+import { useLocalSearchParams } from 'expo-router';
 import API from '../src/utils/api';
 
 const FEEDBACK_CATEGORIES = [
@@ -36,7 +37,6 @@ const ISSUE_CATEGORIES = [
   { id: 'app_bug', key: 'cat_app_bug', label: 'App Bug / Crash' },
   { id: 'download_issue', key: 'cat_download_issue', label: 'Download Issue' },
   { id: 'billing_problem', key: 'cat_billing_problem', label: 'Payment Problem' },
-  { id: 'account_problem', key: 'cat_account_problem', label: 'Account Issue' },
   { id: 'other_issue', key: 'cat_other_issue', label: 'Other Issue' },
 ];
 
@@ -49,10 +49,13 @@ const fmtDate = (iso) => {
 export default function FeedbackAndIssuesScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const params = useLocalSearchParams();
 
-  const [activeTab, setActiveTab] = useState('new'); // 'new' | 'history'
-  const [submissionType, setSubmissionType] = useState('feedback'); // 'feedback' | 'issue'
-  const [selectedCategory, setSelectedCategory] = useState(FEEDBACK_CATEGORIES[0].id);
+  const [activeTab, setActiveTab] = useState(params?.tab === 'history' ? 'history' : 'new'); // 'new' | 'history'
+  const [submissionType, setSubmissionType] = useState(params?.type === 'issue' ? 'issue' : 'feedback'); // 'feedback' | 'issue'
+  const [selectedCategory, setSelectedCategory] = useState(
+    params?.type === 'issue' ? ISSUE_CATEGORIES[0].id : FEEDBACK_CATEGORIES[0].id
+  );
   const [customReason, setCustomReason] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -178,7 +181,7 @@ export default function FeedbackAndIssuesScreen() {
       <View style={[styles.topHeader, { paddingTop: Math.max(insets.top, hp(0.015)) + hp(0.008) }]}>
         <BackButton />
         <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>{t('settings_feedback_issues') || 'Feedback & Issues'}</Text>
+          <Text style={styles.headerTitle}>{t('settings_issues_feedbacks') || t('settings_feedback_issues') || 'Issues & Feedback'}</Text>
           <Text style={styles.headerSubtitle}>
             {t('feedback_header_subtitle') || 'Help us improve Starpix'}
           </Text>
@@ -321,7 +324,7 @@ export default function FeedbackAndIssuesScreen() {
               placeholder={
                 submissionType === 'feedback'
                   ? (t('feedback_placeholder_idea') || 'Describe your idea or what you love about Starpix...')
-                  : (t('feedback_placeholder_issue') || 'Describe what happened and how we can reproduce it...')
+                  : (t('feedback_placeholder_issue') || 'Describe what happened...')
               }
               placeholderTextColor="#9CA3AF"
               value={description}
@@ -505,6 +508,8 @@ const styles = StyleSheet.create({
     fontSize: fontScale(13),
     fontFamily: FONTS.semibold,
     color: '#6B7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   segmentTextActive: {
     color: '#111827',

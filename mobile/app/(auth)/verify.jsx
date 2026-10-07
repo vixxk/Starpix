@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { hapticTap } from '../../src/utils/haptics';
 
 export default function VerifyScreen() {
-  const { phone = '9876543210', countryCode = '+91', name = '', email = '', isNewUser = 'false' } = useLocalSearchParams();
+  const { phone = '9876543210', countryCode = '+91', name = '', email = '', isNewUser = 'false', profilePhoto = '' } = useLocalSearchParams();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -116,7 +116,7 @@ export default function VerifyScreen() {
     }
 
     try {
-      const verifiedUser = await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email);
+      const verifiedUser = await verifyOtp(phone, countryCode, otpCode, name, isNewUser === 'true', email, profilePhoto);
       if (isNewUser === 'true') {
         router.replace({ pathname: '/edit-profile', params: { isFirstTime: 'true' } });
       } else if (checkHasActiveSubscription(verifiedUser)) {

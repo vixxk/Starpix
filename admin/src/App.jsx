@@ -75,6 +75,9 @@ export default function App() {
           <Route path="/purchases" element={<Purchases />} />
           <Route path="/subscriptions" element={<SubscriptionsPage />} />
           <Route path="/user-reports" element={<UserReports />} />
+          <Route path="/issues-feedbacks" element={<UserReports />} />
+          <Route path="/issues" element={<UserReports />} />
+          <Route path="/feedback" element={<UserReports />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/pricing" element={<Pricing />} />

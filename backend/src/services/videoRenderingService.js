@@ -4,10 +4,20 @@ const os = require('os');
 const { execSync } = require('child_process');
 const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
-const { uploadToS3 } = require('./s3Service');
+const { uploadToS3, getSignedDownloadUrl, saveLocally } = require('./s3Service');
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
+
+/**
+ * Safely normalizes coordinate / dimension value.
+ * Values > 3 are treated as 0-100 percentages (e.g. 100, 40).
+ * Values <= 3 are treated as normalized coordinates (e.g. 0.5, 1.0, 1.01, 1.5).
+ */
+const parseNorm = (val, def) => {
+  if (typeof val !== 'number' || isNaN(val)) return def;
+  return val > 3 ? val / 100 : val;
+};
 
 /**
  * Checks whether a URL or path represents a video file
@@ -205,31 +215,7 @@ async function processUserPhoto(photoBuffer, w, h, shape = 'rectangle') {
   const maskSvg = getShapeMaskSvg(shape, w, h);
 
   if (!photoBuffer) {
-    // Generate default avatar placeholder matching mobile ShapeClippedPhoto:
-    // Base dark background #1E293B, persona icon in #94A3B8, and outer stroke border
-    const avatarSvg = `
-      <svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <clipPath id="shapeClip_${shape}">
-            ${maskSvg}
-          </clipPath>
-        </defs>
-        <g clip-path="url(#shapeClip_${shape})">
-          <rect x="0" y="0" width="${w}" height="${h}" fill="#1E293B" />
-          <g transform="translate(${w / 2 - minDim * 0.22}, ${h / 2 - minDim * 0.22})">
-            <circle cx="${minDim * 0.22}" cy="${minDim * 0.16}" r="${minDim * 0.12}" fill="#94A3B8" />
-            <rect x="${minDim * 0.06}" y="${minDim * 0.32}" width="${minDim * 0.32}" height="${minDim * 0.2}" rx="${minDim * 0.1}" fill="#94A3B8" />
-          </g>
-        </g>
-        ${strokeSvg}
-      </svg>
-    `;
-    try {
-      return await sharp(Buffer.from(avatarSvg)).png().toBuffer();
-    } catch (e) {
-      console.warn('[Renderer] Error generating avatar placeholder:', e.message);
-      return null;
-    }
+    return null;
   }
 
   try {
@@ -265,11 +251,12 @@ function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFF
   const trimmedText = text.trim();
   const escapedText = escapeXml(trimmedText);
 
-  // Auto-fit font size if text exceeds width (mimicking adjustsFontSizeToFit)
+  // Auto-fit font size if text exceeds width (clamped to realistic canvas limits)
   let effFontSize = fontSize;
   const approxTextWidth = trimmedText.length * fontSize * 0.58;
-  if (approxTextWidth > width && width > 0) {
-    effFontSize = Math.max(16, Math.floor((width / approxTextWidth) * fontSize));
+  const renderWidth = Math.min(CANVAS_WIDTH, Math.max(100, width));
+  if (approxTextWidth > renderWidth && renderWidth > 0) {
+    effFontSize = Math.max(16, Math.floor((renderWidth / approxTextWidth) * fontSize));
   }
 
   let anchor = 'middle';
@@ -278,20 +265,44 @@ function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFF
   if (textAlign === 'left') {
     anchor = 'start';
     textX = x;
+    if (textX < 20) textX = 20;
+    if (textX > CANVAS_WIDTH - 100) textX = Math.round(0.1 * CANVAS_WIDTH);
   } else if (textAlign === 'right') {
     anchor = 'end';
     textX = x + width;
+    if (textX > CANVAS_WIDTH - 20) textX = CANVAS_WIDTH - 20;
+    if (textX < 100) textX = Math.round(0.9 * CANVAS_WIDTH);
+  } else {
+    if (textX < 50 || textX > CANVAS_WIDTH - 50) {
+      textX = CANVAS_WIDTH / 2;
+    }
   }
 
   const textY = Math.round(y + height / 2 + effFontSize * 0.35);
 
-  const svgContent = `
-    <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  const isDarkColor = Boolean(
+    fontColor &&
+    (fontColor.toLowerCase() === '#000000' ||
+     fontColor.toLowerCase() === '#000' ||
+     fontColor.toLowerCase() === 'black' ||
+     fontColor.toLowerCase() === '#111827' ||
+     fontColor.toLowerCase() === '#1e293b')
+  );
+
+  const shadowFilter = isDarkColor
+    ? ''
+    : `
       <defs>
         <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
           <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.95" />
         </filter>
-      </defs>
+      </defs>`;
+
+  const filterAttr = isDarkColor ? '' : 'filter="url(#textShadow)"';
+
+  const svgContent = `
+    <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      ${shadowFilter}
       <text
         x="${textX}"
         y="${textY}"
@@ -300,7 +311,7 @@ function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFF
         font-weight="${fontWeight}"
         fill="${fontColor}"
         text-anchor="${anchor}"
-        filter="url(#textShadow)"
+        ${filterAttr}
       >
         ${escapedText}
       </text>
@@ -308,6 +319,35 @@ function generateTextSvg(text, x, y, width, height, fontSize, fontColor = '#FFFF
   `;
 
   return Buffer.from(svgContent);
+}
+
+/**
+ * Safely adds a buffer to the sharp composites list by clamping and cropping to canvas bounds [0, 0, CANVAS_WIDTH, CANVAS_HEIGHT].
+ * Prevents Sharp from failing with "Image to composite must have same dimensions or smaller" or when left/top are negative.
+ */
+async function safeAddComposite(composites, inputBuffer, targetLeft, targetTop, targetWidth, targetHeight) {
+  if (!inputBuffer || targetWidth <= 0 || targetHeight <= 0) return;
+
+  const srcLeft = Math.max(0, -targetLeft);
+  const srcTop = Math.max(0, -targetTop);
+  const dstLeft = Math.max(0, targetLeft);
+  const dstTop = Math.max(0, targetTop);
+  const cropW = Math.min(targetWidth - srcLeft, CANVAS_WIDTH - dstLeft);
+  const cropH = Math.min(targetHeight - srcTop, CANVAS_HEIGHT - dstTop);
+
+  if (cropW > 0 && cropH > 0) {
+    let finalBuf = inputBuffer;
+    if (srcLeft > 0 || srcTop > 0 || cropW < targetWidth || cropH < targetHeight) {
+      finalBuf = await sharp(inputBuffer)
+        .extract({ left: srcLeft, top: srcTop, width: cropW, height: cropH })
+        .toBuffer();
+    }
+    composites.push({
+      input: finalBuf,
+      left: dstLeft,
+      top: dstTop,
+    });
+  }
 }
 
 /**
@@ -336,11 +376,7 @@ async function buildOverlayPng({
         .png()
         .toBuffer();
 
-      composites.push({
-        input: resizedFooter,
-        left: footerRect.left,
-        top: footerRect.top,
-      });
+      await safeAddComposite(composites, resizedFooter, footerRect.left, footerRect.top, footerRect.width, footerRect.height);
     } catch (e) {
       console.warn('[Renderer] Error preparing image footer:', e.message);
     }
@@ -354,13 +390,12 @@ async function buildOverlayPng({
     const photoLeft = Math.round(photoLayer.x * CANVAS_WIDTH - photoW / 2 + (photoTransform?.offsetX || 0));
     const photoTop = Math.round(photoLayer.y * CANVAS_HEIGHT - photoH / 2 + (photoTransform?.offsetY || 0));
 
-    const shaped = await processUserPhoto(photoBuffer, photoW, photoH, photoLayer.shape || 'rectangle');
-    if (shaped) {
-      composites.push({
-        input: shaped,
-        left: photoLeft,
-        top: photoTop,
-      });
+    // Only process if photo is on-screen
+    if (photoLeft < CANVAS_WIDTH && photoTop < CANVAS_HEIGHT && (photoLeft + photoW) > 0 && (photoTop + photoH) > 0) {
+      const shaped = await processUserPhoto(photoBuffer, photoW, photoH, photoLayer.shape || 'rectangle');
+      if (shaped) {
+        await safeAddComposite(composites, shaped, photoLeft, photoTop, photoW, photoH);
+      }
     }
   }
 
@@ -419,6 +454,7 @@ async function renderPersonalizedTemplate({
   userQuoteText = '',
   userPhotoUri = null,
   selectedFooter = null,
+  withPersonalization = true,
   photoTransform = {},
   nameTransform = {},
   req = null,
@@ -427,15 +463,38 @@ async function renderPersonalizedTemplate({
   const tempFilesToClean = [tempDir];
 
   try {
+    const effectiveWithPersonalization = withPersonalization !== false && req?.body?.withPersonalization !== false && req?.query?.withPersonalization !== 'false';
+
     // 1. Identify active footer
     const templateFooters = template.footers || [];
     let activeFooter = null;
 
-    if (selectedFooter === 'none' || selectedFooter === null) {
-      activeFooter = null;
-    } else if (selectedFooter) {
+    const isNoneFooter =
+      selectedFooter === 'none' ||
+      selectedFooter === null ||
+      selectedFooter === false ||
+      selectedFooter?.isNone === true;
+
+    if (!isNoneFooter && selectedFooter) {
       if (typeof selectedFooter === 'object') {
-        activeFooter = { ...selectedFooter };
+        const targetId = selectedFooter._id || selectedFooter.id;
+        const dbMatch = templateFooters.find(
+          (f) => (targetId && String(f._id || f.id) === String(targetId)) || f.name === selectedFooter.name
+        );
+        if (dbMatch) {
+          const dbObj = typeof dbMatch.toObject === 'function' ? dbMatch.toObject() : dbMatch;
+          // Database configuration created by the Admin defines exact geometry, shape and position
+          activeFooter = {
+            ...selectedFooter,
+            ...dbObj,
+            userPhotoPosition: dbObj.userPhotoPosition || null,
+            userNamePosition: dbObj.userNamePosition || null,
+            userPhotoShape: dbObj.userPhotoShape || dbObj.shape || dbObj.userPhotoPosition?.shape || null,
+            shape: dbObj.userPhotoShape || dbObj.shape || dbObj.userPhotoPosition?.shape || null,
+          };
+        } else {
+          activeFooter = { ...selectedFooter };
+        }
       } else if (typeof selectedFooter === 'string') {
         const found = templateFooters.find(
           (f) => String(f._id || f.id) === String(selectedFooter) || f.name === selectedFooter
@@ -444,90 +503,102 @@ async function renderPersonalizedTemplate({
           activeFooter = typeof found.toObject === 'function' ? found.toObject() : { ...found };
         }
       }
-    } else if (selectedFooter === undefined && templateFooters.length > 0) {
-      const f = templateFooters[0];
-      activeFooter = typeof f.toObject === 'function' ? f.toObject() : { ...f };
     }
 
-    // Merge with DB footer definition if available to ensure all admin properties are present
-    if (activeFooter && (activeFooter._id || activeFooter.id)) {
-      const dbMatch = templateFooters.find(
-        (f) => String(f._id || f.id) === String(activeFooter._id || activeFooter.id) || f.name === activeFooter.name
-      );
-      if (dbMatch) {
-        const dbObj = typeof dbMatch.toObject === 'function' ? dbMatch.toObject() : dbMatch;
-        activeFooter = {
-          ...dbObj,
-          ...activeFooter,
-          userPhotoPosition: activeFooter.userPhotoPosition || dbObj.userPhotoPosition || null,
-          userNamePosition: activeFooter.userNamePosition || dbObj.userNamePosition || null,
-          userPhotoShape: activeFooter.userPhotoShape || dbObj.userPhotoShape || activeFooter.shape || dbObj.shape || null,
-        };
-      }
+    const rawFooterAsset = activeFooter ? (activeFooter.videoAsset || activeFooter.asset || activeFooter.imageUrl) : null;
+    const hasFooterToRender = Boolean(activeFooter && rawFooterAsset);
+
+    // Fast-path: If no footer is selected and personalization is not chosen, return clean template directly
+    if (!hasFooterToRender && !effectiveWithPersonalization) {
+      const rawBgImage = (template.canvasConfig && template.canvasConfig.backgroundImage) || template.mainMedia || template.previewAsset || template.thumbnail;
+      const isVid = Boolean(template.type === 'video' || isVideoMedia(rawBgImage));
+      const downloadUrl = await getSignedDownloadUrl(rawBgImage, 300);
+      return {
+        downloadUrl: downloadUrl || rawBgImage,
+        isVideo: isVid,
+        format: isVid ? 'mp4' : 'jpg',
+      };
     }
 
     // 2. Identify Layers from CanvasConfig & Active Footer
-    const canvasConfig = template.canvasConfig || req?.body?.customizationState?.canvasConfig || {};
+    let photoBuffer = null;
+    if (effectiveWithPersonalization && userPhotoUri && typeof userPhotoUri === 'string' && userPhotoUri.trim() !== '') {
+      photoBuffer = await getMediaBuffer(userPhotoUri);
+    }
+
+    const canvasConfig = template.canvasConfig || {};
     const canvasLayers = canvasConfig.layers || [];
 
     const basePhotoLayer = canvasLayers.find((l) => l.type === 'photo');
     const footerPhotoPos = activeFooter?.userPhotoPosition;
-    const footerPhotoShape = activeFooter?.userPhotoShape || activeFooter?.shape || activeFooter?.userPhotoPosition?.shape;
+    const footerPhotoShape = activeFooter?.userPhotoShape || activeFooter?.shape || footerPhotoPos?.shape;
 
-    let effectivePhotoLayer = (basePhotoLayer || footerPhotoPos || footerPhotoShape || userPhotoUri)
-      ? {
-          x: footerPhotoPos?.x !== undefined
-            ? (footerPhotoPos.x > 1 ? footerPhotoPos.x / 100 : footerPhotoPos.x)
-            : (basePhotoLayer?.x !== undefined ? (basePhotoLayer.x > 1 ? basePhotoLayer.x / 100 : basePhotoLayer.x) : 0.25),
-          y: footerPhotoPos?.y !== undefined
-            ? (footerPhotoPos.y > 1 ? footerPhotoPos.y / 100 : footerPhotoPos.y)
-            : (basePhotoLayer?.y !== undefined ? (basePhotoLayer.y > 1 ? basePhotoLayer.y / 100 : basePhotoLayer.y) : 0.8),
-          width: footerPhotoPos?.width !== undefined
-            ? (footerPhotoPos.width > 1 ? footerPhotoPos.width / 100 : footerPhotoPos.width)
-            : (basePhotoLayer?.width !== undefined ? (basePhotoLayer.width > 1 ? basePhotoLayer.width / 100 : basePhotoLayer.width) : 0.35),
-          height: footerPhotoPos?.height !== undefined
-            ? (footerPhotoPos.height > 1 ? footerPhotoPos.height / 100 : footerPhotoPos.height)
-            : (basePhotoLayer?.height !== undefined ? (basePhotoLayer.height > 1 ? basePhotoLayer.height / 100 : basePhotoLayer.height) : 0.22),
-          shape: footerPhotoShape || footerPhotoPos?.shape || basePhotoLayer?.shape || 'circle',
-        }
-      : null;
+    let effectivePhotoLayer = null;
+    if (effectiveWithPersonalization && photoBuffer) {
+      if (basePhotoLayer || footerPhotoPos) {
+        const rawX = footerPhotoPos?.x !== undefined ? footerPhotoPos.x : basePhotoLayer?.x;
+        const rawY = footerPhotoPos?.y !== undefined ? footerPhotoPos.y : basePhotoLayer?.y;
+        const rawW = footerPhotoPos?.width !== undefined ? footerPhotoPos.width : basePhotoLayer?.width;
+        const rawH = footerPhotoPos?.height !== undefined ? footerPhotoPos.height : basePhotoLayer?.height;
 
-    const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && l.fieldName === 'name') || canvasLayers.find((l) => l.type === 'text');
+        effectivePhotoLayer = {
+          x: parseNorm(rawX, 0.25),
+          y: parseNorm(rawY, 0.8),
+          width: parseNorm(rawW, 0.35),
+          height: parseNorm(rawH, 0.22),
+          shape: footerPhotoShape || basePhotoLayer?.shape || 'rectangle',
+        };
+      }
+    }
+
+    const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && (l.fieldName === 'name' || !l.fieldName)) || canvasLayers.find((l) => l.type === 'text');
     const footerTextPos = activeFooter?.userNamePosition;
-    const defaultTextX = effectivePhotoLayer?.x !== undefined ? effectivePhotoLayer.x : 0.5;
 
-    let effectiveTextLayer = (baseTextNameLayer || footerTextPos || userNameText)
-      ? {
-          x: footerTextPos?.x !== undefined
-            ? (footerTextPos.x > 1 ? footerTextPos.x / 100 : footerTextPos.x)
-            : (baseTextNameLayer?.x !== undefined ? (baseTextNameLayer.x > 1 ? baseTextNameLayer.x / 100 : baseTextNameLayer.x) : defaultTextX),
-          y: footerTextPos?.y !== undefined
-            ? (footerTextPos.y > 1 ? footerTextPos.y / 100 : footerTextPos.y)
-            : (baseTextNameLayer?.y !== undefined ? (baseTextNameLayer.y > 1 ? baseTextNameLayer.y / 100 : baseTextNameLayer.y) : 0.75),
-          width: footerTextPos?.width !== undefined
-            ? (footerTextPos.width > 1 ? footerTextPos.width / 100 : footerTextPos.width)
-            : (baseTextNameLayer?.width !== undefined ? (baseTextNameLayer.width > 1 ? baseTextNameLayer.width / 100 : baseTextNameLayer.width) : 0.6),
-          height: footerTextPos?.height !== undefined
-            ? (footerTextPos.height > 1 ? footerTextPos.height / 100 : footerTextPos.height)
-            : (baseTextNameLayer?.height !== undefined ? (baseTextNameLayer.height > 1 ? baseTextNameLayer.height / 100 : baseTextNameLayer.height) : 0.1),
+    let effectiveTextLayer = null;
+    const effectiveName = effectiveWithPersonalization && userNameText && typeof userNameText === 'string' && userNameText.trim() !== ''
+      ? userNameText.trim()
+      : '';
+
+    if (effectiveWithPersonalization && effectiveName) {
+      if (baseTextNameLayer || footerTextPos) {
+        const defaultTextX = effectivePhotoLayer?.x !== undefined ? effectivePhotoLayer.x : 0.5;
+        const rawX = footerTextPos?.x !== undefined ? footerTextPos.x : baseTextNameLayer?.x;
+        const rawY = footerTextPos?.y !== undefined ? footerTextPos.y : baseTextNameLayer?.y;
+        const rawW = footerTextPos?.width !== undefined ? footerTextPos.width : baseTextNameLayer?.width;
+        const rawH = footerTextPos?.height !== undefined ? footerTextPos.height : baseTextNameLayer?.height;
+
+        effectiveTextLayer = {
+          x: parseNorm(rawX, defaultTextX),
+          y: parseNorm(rawY, 0.75),
+          width: parseNorm(rawW, 0.6),
+          height: parseNorm(rawH, 0.1),
           fontSize: footerTextPos?.fontSize !== undefined
             ? footerTextPos.fontSize
             : (baseTextNameLayer?.fontSize !== undefined ? baseTextNameLayer.fontSize : 22),
           fontColor: footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#FFFFFF',
           textAlign: footerTextPos?.textAlign || baseTextNameLayer?.textAlign || 'center',
           fontWeight: footerTextPos?.fontWeight || baseTextNameLayer?.fontWeight || 'bold',
-        }
-      : null;
+        };
+      }
+    }
 
-    const effectiveName = userNameText || effectiveTextLayer?.defaultValue || '';
+    // If no footer to render and no valid personalization layers exist, return clean raw media
+    if (!hasFooterToRender && !effectivePhotoLayer && !effectiveTextLayer) {
+      const rawBgImage = (template.canvasConfig && template.canvasConfig.backgroundImage) || template.mainMedia || template.previewAsset || template.thumbnail;
+      const isVid = Boolean(template.type === 'video' || isVideoMedia(rawBgImage));
+      const downloadUrl = await getSignedDownloadUrl(rawBgImage, 300);
+      return {
+        downloadUrl: downloadUrl || rawBgImage,
+        isVideo: isVid,
+        format: isVid ? 'mp4' : 'jpg',
+      };
+    }
 
     // 3. Determine media types
     const rawBgImage = canvasConfig.backgroundImage || template.mainMedia || template.previewAsset || template.thumbnail;
     const isBaseVideo = Boolean(template.type === 'video' || isVideoMedia(rawBgImage));
 
-    const rawFooterAsset = activeFooter ? (activeFooter.videoAsset || activeFooter.asset) : null;
     const isFooterVideo = Boolean(rawFooterAsset && (activeFooter.type === 'video' || isVideoMedia(rawFooterAsset)));
-
     const isOutputVideo = isBaseVideo || isFooterVideo;
 
     // 4. Download / Fetch resources
@@ -537,46 +608,45 @@ async function renderPersonalizedTemplate({
     }
     tempFilesToClean.push(baseMediaPath);
 
-    let photoBuffer = null;
-    if (userPhotoUri) {
-      photoBuffer = await getMediaBuffer(userPhotoUri);
-    }
-
-    // 5. Calculate Footer Geometry matching mobile index.jsx
+    // 5. Calculate Footer Geometry matching mobile TemplateRenderer / index.jsx
     let footerRect = null;
     let footerVideoPath = null;
     let imageFooterBuffer = null;
 
     if (activeFooter && rawFooterAsset) {
       const heightVal = activeFooter.height !== undefined
-        ? activeFooter.height
-        : (activeFooter.heightPercent ? activeFooter.heightPercent / 100 : 0.4);
-      const heightNorm = typeof heightVal === 'number'
-        ? (heightVal > 1 ? heightVal / 100 : heightVal)
-        : 0.4;
+        ? parseNorm(activeFooter.height, null)
+        : (typeof activeFooter.heightPercent === 'number' ? activeFooter.heightPercent / 100 : null);
+      const heightNorm = heightVal !== null ? heightVal : 0.4;
 
-      const widthVal = activeFooter.width !== undefined ? activeFooter.width : 1.0;
-      const widthNorm = typeof widthVal === 'number'
-        ? (widthVal > 1 ? widthVal / 100 : widthVal)
+      const widthVal = activeFooter.width !== undefined
+        ? parseNorm(activeFooter.width, 1.0)
         : 1.0;
+      const widthNorm = widthVal !== null ? widthVal : 1.0;
 
-      const fWidth = Math.round(widthNorm * CANVAS_WIDTH);
-      const fHeight = Math.round(heightNorm * CANVAS_HEIGHT);
+      const xNorm = activeFooter.x !== undefined
+        ? parseNorm(activeFooter.x, 0.5)
+        : 0.5;
 
-      const xVal = activeFooter.x !== undefined ? activeFooter.x : 0.5;
-      const xNorm = typeof xVal === 'number' ? (xVal > 1 ? xVal / 100 : xVal) : 0.5;
+      const yNorm = activeFooter.y !== undefined
+        ? parseNorm(activeFooter.y, 1 - heightNorm / 2)
+        : (1 - heightNorm / 2);
 
-      const yVal = activeFooter.y !== undefined ? activeFooter.y : (1 - heightNorm / 2);
-      const yNorm = typeof yVal === 'number' ? (yVal > 1 ? yVal / 100 : yVal) : (1 - heightNorm / 2);
+      const isFullOverlay = heightNorm >= 0.75 || (typeof activeFooter.heightPercent === 'number' && activeFooter.heightPercent >= 75);
 
-      const fLeft = Math.round(xNorm * CANVAS_WIDTH - fWidth / 2);
-      const fTop = Math.round(yNorm * CANVAS_HEIGHT - fHeight / 2);
+      const fWidth = CANVAS_WIDTH;
+      const fHeight = isFullOverlay ? CANVAS_HEIGHT : Math.round(heightNorm * CANVAS_HEIGHT);
+      const fLeft = 0;
+      let fTop = isFullOverlay ? 0 : Math.round(yNorm * CANVAS_HEIGHT - fHeight / 2);
 
-      const fitMode = activeFooter.objectFit === 'cover'
-        ? 'cover'
-        : activeFooter.objectFit === 'fill'
+      if (!isFullOverlay) {
+        if (fTop + fHeight > CANVAS_HEIGHT) fTop = CANVAS_HEIGHT - fHeight;
+        if (fTop < 0) fTop = 0;
+      }
+
+      const fitMode = isFullOverlay
         ? 'fill'
-        : 'contain';
+        : (activeFooter.objectFit === 'cover' ? 'cover' : (activeFooter.objectFit === 'contain' ? 'contain' : 'fill'));
 
       footerRect = {
         width: fWidth,
@@ -652,16 +722,16 @@ async function renderPersonalizedTemplate({
           }
 
           if (overlayPngPath) {
-            ffmpegCmd = `ffmpeg -y -threads 2 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
-            ffmpegCmd = `ffmpeg -y -threads 2 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           }
         } else {
           // Base is video, footer is static image or no footer (overlayPngPath already has footer, photo, text)
           if (overlayPngPath) {
-            ffmpegCmd = `ffmpeg -y -threads 2 -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
-            ffmpegCmd = `ffmpeg -y -threads 2 -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           }
         }
       } else {
@@ -690,9 +760,9 @@ async function renderPersonalizedTemplate({
         }
 
         if (overlayPngPath) {
-          ffmpegCmd = `ffmpeg -y -threads 2 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         } else {
-          ffmpegCmd = `ffmpeg -y -threads 2 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         }
       }
 
@@ -704,10 +774,26 @@ async function renderPersonalizedTemplate({
       }
 
       const videoBuffer = fs.readFileSync(outputVideoPath);
-      const s3Url = await uploadToS3(videoBuffer, `status_${Date.now()}.mp4`, 'video/mp4', 'user-creations', req);
+      let localUrl = null;
+      try {
+        localUrl = saveLocally(videoBuffer, `status_${Date.now()}.mp4`, 'user-creations', req);
+      } catch (lErr) {
+        console.warn('[Renderer] Local video save notice:', lErr.message);
+      }
+
+      let s3Url = null;
+      try {
+        s3Url = await uploadToS3(videoBuffer, `status_${Date.now()}.mp4`, 'video/mp4', 'user-creations', req);
+      } catch (sErr) {
+        console.warn('[Renderer] S3 video upload notice:', sErr.message);
+      }
+
+      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
+      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
+      const finalUrl = (isLocalHost && localUrl) ? localUrl : (s3Url || localUrl);
 
       return {
-        downloadUrl: s3Url,
+        downloadUrl: finalUrl,
         format: 'mp4',
         isVideo: true,
       };
@@ -722,10 +808,26 @@ async function renderPersonalizedTemplate({
       }
 
       const finalJpgBuffer = await sharpCanvas.jpeg({ quality: 95 }).toBuffer();
-      const s3Url = await uploadToS3(finalJpgBuffer, `status_${Date.now()}.jpg`, 'image/jpeg', 'user-creations', req);
+      let localUrl = null;
+      try {
+        localUrl = saveLocally(finalJpgBuffer, `status_${Date.now()}.jpg`, 'user-creations', req);
+      } catch (lErr) {
+        console.warn('[Renderer] Local image save notice:', lErr.message);
+      }
+
+      let s3Url = null;
+      try {
+        s3Url = await uploadToS3(finalJpgBuffer, `status_${Date.now()}.jpg`, 'image/jpeg', 'user-creations', req);
+      } catch (sErr) {
+        console.warn('[Renderer] S3 image upload notice:', sErr.message);
+      }
+
+      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
+      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
+      const finalUrl = (isLocalHost && localUrl) ? localUrl : (s3Url || localUrl);
 
       return {
-        downloadUrl: s3Url,
+        downloadUrl: finalUrl,
         format: 'jpg',
         isVideo: false,
       };

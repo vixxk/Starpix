@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import Pricing from './Pricing';
 import PageHead from '../components/PageHead';
 import API from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -24,6 +26,7 @@ import {
   ArrowSquareOut,
   X,
   Sparkle,
+  Tag,
 } from '@phosphor-icons/react';
 
 export default function SubscriptionsPage() {
@@ -36,6 +39,9 @@ export default function SubscriptionsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'subscribers';
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [vipModalOpen, setVipModalOpen] = useState(false);
@@ -91,18 +97,78 @@ export default function SubscriptionsPage() {
       {/* Page Header */}
       <PageHead
         icon={<Crown className="w-6 h-6 text-amber-500" weight="duotone" />}
-        title="User Subscriptions"
-        subtitle={`Showing page ${pagination.page} of ${pagination.totalPages} (${summary.totalSubscriptions} total subscribers)`}
+        title={currentTab === 'plans' ? 'Subscription Plans & Paywall' : 'User Subscriptions'}
+        subtitle={
+          currentTab === 'plans'
+            ? 'Configure mobile subscription packs, hero posters, and VIP benefits checklist'
+            : `Showing page ${pagination.page} of ${pagination.totalPages} (${summary.totalSubscriptions} total subscribers)`
+        }
         actions={
-          <button
-            onClick={() => fetchSubscriptions(page)}
-            className="btn-secondary w-full sm:w-auto"
-          >
-            <ArrowClockwise className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh Data
-          </button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            {currentTab === 'plans' ? (
+              <button
+                type="button"
+                onClick={() => setSearchParams({ tab: 'subscribers' })}
+                className="btn-secondary w-full sm:w-auto flex items-center justify-center gap-1.5"
+              >
+                <Crown className="w-4 h-4" weight="bold" />
+                View Subscribers List
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSearchParams({ tab: 'plans' })}
+                  className="btn-primary w-full sm:w-auto flex items-center justify-center gap-1.5"
+                >
+                  <Tag className="w-4 h-4" weight="bold" />
+                  Configure Plans & Paywall
+                </button>
+                <button
+                  onClick={() => fetchSubscriptions(page)}
+                  className="btn-secondary w-full sm:w-auto flex items-center justify-center gap-1.5"
+                >
+                  <ArrowClockwise className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh Data
+                </button>
+              </>
+            )}
+          </div>
         }
       />
+
+      {/* Top Level Section Tabs: Subscribers vs Plans & Paywall */}
+      <div className="flex border-b-2 border-ink bg-paper-100 p-1.5 gap-2 rounded-[2px]">
+        <button
+          type="button"
+          onClick={() => setSearchParams({ tab: 'subscribers' })}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-[2px] ${
+            currentTab !== 'plans'
+              ? 'bg-ink text-paper-50 shadow-hard'
+              : 'text-ink-mute hover:text-ink hover:bg-paper-200/50'
+          }`}
+        >
+          <Crown className="w-4 h-4" weight={currentTab !== 'plans' ? 'fill' : 'bold'} />
+          All Subscribers ({summary.totalSubscriptions})
+        </button>
+        <button
+          type="button"
+          onClick={() => setSearchParams({ tab: 'plans' })}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-[2px] ${
+            currentTab === 'plans'
+              ? 'bg-ink text-paper-50 shadow-hard'
+              : 'text-ink-mute hover:text-ink hover:bg-paper-200/50'
+          }`}
+        >
+          <Tag className="w-4 h-4" weight={currentTab === 'plans' ? 'fill' : 'bold'} />
+          Subscription Plans, Posters & Checklist
+        </button>
+      </div>
+
+      {currentTab === 'plans' ? (
+        <Pricing embedded={true} />
+      ) : (
+        <>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -395,6 +461,8 @@ export default function SubscriptionsPage() {
             </div>
           </div>
         </ModalPortal>
+      )}
+        </>
       )}
     </div>
   );

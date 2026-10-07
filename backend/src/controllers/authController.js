@@ -58,7 +58,7 @@ const requestOtp = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/verify-otp
 // @access  Public
 const verifyOtp = asyncHandler(async (req, res) => {
-  const { phoneNumber, countryCode = '+91', otp, name, email, isNewUser } = req.body;
+  const { phoneNumber, countryCode = '+91', otp, name, email, isNewUser, profilePhoto } = req.body;
 
   if (!phoneNumber) {
     return res.status(400).json({ success: false, message: 'Phone number is required' });
@@ -172,11 +172,29 @@ const verifyOtp = asyncHandler(async (req, res) => {
     await User.deleteOne({ _id: user._id });
   }
 
+  let photoVal = profilePhoto || '';
+  if (typeof photoVal === 'string' && photoVal.startsWith('data:image/')) {
+    try {
+      const { uploadToS3 } = require('../services/s3Service');
+      const mimeType = photoVal.match(/^data:(image\/[a-zA-Z+]+);base64,/)?.[1] || 'image/jpeg';
+      const ext = mimeType.split('/')[1] || 'jpg';
+      const base64Data = photoVal.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const s3Url = await uploadToS3(buffer, `user_signup_${Date.now()}.${ext}`, mimeType, 'user-profiles');
+      if (s3Url && (s3Url.startsWith('http://') || s3Url.startsWith('https://'))) {
+        photoVal = s3Url;
+      }
+    } catch (uploadErr) {
+      console.error('[AuthController] Error saving base64 profile photo in verifyOtp:', uploadErr?.message);
+    }
+  }
+
   user = await User.create({
     phoneNumber: fullPhone,
     countryCode,
     name: trimmedName,
     email: trimmedEmail,
+    profilePhoto: photoVal || null,
     lastLoginAt: new Date(),
   });
 

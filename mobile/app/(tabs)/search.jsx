@@ -42,11 +42,119 @@ import { useAuthStore } from '../../src/store/useAuthStore';
 import { useCreationStore } from '../../src/store/useCreationStore';
 import { checkCanAccessTemplate } from '../../src/utils/subscription';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const GRID_PADDING = wp(0.04);
 const GRID_GAP = 12;
 const CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
 const CARD_HEIGHT = CARD_WIDTH * 1.45;
+
+const SearchViewerMediaCard = React.memo(function SearchViewerMediaCard({
+  item,
+  cardWidth,
+  cardHeight,
+  shouldPlayMedia,
+  isMuted,
+}) {
+  const contentUri =
+    item.contentUrl ||
+    item.mediaUrl ||
+    (item.rawTemplate &&
+      (item.rawTemplate.mainMedia ||
+        item.rawTemplate.previewAsset ||
+        item.rawTemplate.contentUrl)) ||
+    item.mainMedia ||
+    item.previewAsset ||
+    '';
+  const resolvedContentUri = resolveMediaUrl(contentUri);
+  const isVideo =
+    item.mediaType === 'video' ||
+    (typeof resolvedContentUri === 'string' &&
+      Boolean(resolvedContentUri.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+  const [mediaReady, setMediaReady] = useState(false);
+
+  const itemId = item.id || item._id;
+
+  useEffect(() => {
+    setMediaReady(false);
+    // Timeout safety fallback: reveal after 3.5s in case of slow connection/delayed event
+    const timer = setTimeout(() => {
+      setMediaReady(true);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [itemId, resolvedContentUri]);
+
+  return (
+    <View
+      style={{
+        width: cardWidth,
+        height: cardHeight,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        overflow: 'hidden',
+        borderRadius: wp(0.045),
+        backgroundColor: '#07140B',
+      }}
+    >
+      {/* Show Skeleton loading until template content is fully ready, NEVER thumbnail */}
+      {!mediaReady ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: cardWidth,
+            height: cardHeight,
+            zIndex: 10,
+          }}
+          pointerEvents="none"
+        >
+          <Skeleton
+            width={cardWidth}
+            height={cardHeight}
+            borderRadius={wp(0.045)}
+            style={{ backgroundColor: '#E2E8F0' }}
+          />
+        </View>
+      ) : null}
+
+      {isVideo && resolvedContentUri ? (
+        <AppVideo
+          source={{ uri: resolvedContentUri }}
+          style={{
+            width: cardWidth,
+            height: cardHeight,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+          }}
+          resizeMode={ResizeMode.STRETCH}
+          shouldPlay={shouldPlayMedia}
+          isLooping
+          isMuted={isMuted}
+          onReadyForDisplay={() => setMediaReady(true)}
+          onLoad={() => setMediaReady(true)}
+          onError={() => setMediaReady(true)}
+        />
+      ) : resolvedContentUri ? (
+        <Image
+          source={{ uri: resolvedContentUri }}
+          style={{
+            width: cardWidth,
+            height: cardHeight,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+          }}
+          resizeMode="stretch"
+          onLoad={() => setMediaReady(true)}
+          onLoadEnd={() => setMediaReady(true)}
+          onError={() => setMediaReady(true)}
+        />
+      ) : null}
+    </View>
+  );
+});
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -107,8 +215,10 @@ export default function SearchScreen() {
               item.category ||
               'trending';
 
-            const contentSource = item.mainMedia || item.previewAsset || item.mediaUrl;
-            const thumbSource = item.thumbnail || contentSource;
+            const contentSource = item.mainMedia || item.previewAsset || item.mediaUrl || item.thumbnail || '';
+            const thumbSource = item.thumbnail || item.previewAsset || item.mainMedia || contentSource;
+            const resolvedContent = resolveMediaUrl(contentSource);
+            const resolvedThumb = resolveMediaUrl(thumbSource) || resolvedContent;
 
             const isVideo =
               item.type === 'video' ||
@@ -155,10 +265,10 @@ export default function SearchScreen() {
               category: catRaw,
               categoryId: item.categoryId,
               mediaType: isVideo ? 'video' : 'image',
-              contentUrl: resolveMediaUrl(contentSource),
-              mediaUrl: resolveMediaUrl(contentSource),
-              posterUrl: resolveMediaUrl(thumbSource),
-              thumbnailUrl: resolveMediaUrl(thumbSource),
+              contentUrl: resolvedContent || resolvedThumb,
+              mediaUrl: resolvedContent || resolvedThumb,
+              posterUrl: resolvedThumb || resolvedContent,
+              thumbnailUrl: resolvedThumb || resolvedContent,
               defaultFrame: templateFooters.length > 0 ? templateFooters[0].id : 'none',
               footers: templateFooters,
               canvasConfig: item.canvasConfig || null,
@@ -218,12 +328,16 @@ export default function SearchScreen() {
 
   const handleCloseViewer = () => {
     hapticTap();
+    setIsViewerPlaying(false);
     setSelectedTemplate(null);
   };
 
   const activeFooter = useMemo(() => {
     if (!selectedTemplate || selectedFooterId === 'none') return null;
-    return (selectedTemplate.footers || []).find((f) => f.id === selectedFooterId) || null;
+    const footers = (selectedTemplate.footers && selectedTemplate.footers.length > 0)
+      ? selectedTemplate.footers
+      : (selectedTemplate.rawTemplate?.footers || []);
+    return footers.find((f) => String(f.id || f._id) === String(selectedFooterId)) || null;
   }, [selectedTemplate, selectedFooterId]);
 
   // Download & Share Handlers
@@ -242,7 +356,10 @@ export default function SearchScreen() {
   const executeDownloadAction = async (withPersonalization) => {
     if (!selectedTemplate) return;
     try {
-      const targetFooter = withPersonalization ? activeFooter : null;
+      const targetFooter = activeFooter;
+      const footerPayload = targetFooter
+        ? (targetFooter._id || targetFooter.id || targetFooter)
+        : 'none';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
 
       let downloadUrl = selectedTemplate.mediaUrl || selectedTemplate.contentUrl || selectedTemplate.posterUrl;
@@ -253,9 +370,15 @@ export default function SearchScreen() {
         const res = await API.post(`/creations/${selectedTemplate.id}/download`, {
           userNameText: withPersonalization ? displayName : '',
           userPhotoUri: remoteUserPhoto,
-          selectedFooter: targetFooter,
+          selectedFooter: footerPayload,
           withPersonalization,
-        }, { timeout: 45000 });
+          customizationState: {
+            userNameText: withPersonalization ? displayName : '',
+            userPhotoUri: remoteUserPhoto,
+            selectedFrame: selectedFooterId,
+            selectedFooter: footerPayload,
+          },
+        }, { timeout: 120000 });
         if (res.data?.data?.downloadUrl) {
           downloadUrl = res.data.data.downloadUrl;
           if (typeof res.data.data.isVideo === 'boolean') isVideo = res.data.data.isVideo;
@@ -267,7 +390,8 @@ export default function SearchScreen() {
       let targetUri = downloadUrl;
       if (downloadUrl && downloadUrl.startsWith('http')) {
         const fileUri = `${FileSystem.documentDirectory}starpix_${Date.now()}.${ext}`;
-        const dl = await FileSystem.downloadAsync(downloadUrl, fileUri);
+        const downloadSourceUrl = resolveMediaUrl(downloadUrl);
+        const dl = await FileSystem.downloadAsync(downloadSourceUrl, fileUri);
         targetUri = dl.uri;
       }
 
@@ -304,7 +428,10 @@ export default function SearchScreen() {
   const executeShareAction = async (withPersonalization) => {
     if (!selectedTemplate) return;
     try {
-      const targetFooter = withPersonalization ? activeFooter : null;
+      const targetFooter = activeFooter;
+      const footerPayload = targetFooter
+        ? (targetFooter._id || targetFooter.id || targetFooter)
+        : 'none';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
 
       let downloadUrl = selectedTemplate.mediaUrl || selectedTemplate.contentUrl || selectedTemplate.posterUrl;
@@ -314,9 +441,15 @@ export default function SearchScreen() {
         const res = await API.post(`/creations/${selectedTemplate.id}/download`, {
           userNameText: withPersonalization ? displayName : '',
           userPhotoUri: remoteUserPhoto,
-          selectedFooter: targetFooter,
+          selectedFooter: footerPayload,
           withPersonalization,
-        }, { timeout: 45000 });
+          customizationState: {
+            userNameText: withPersonalization ? displayName : '',
+            userPhotoUri: remoteUserPhoto,
+            selectedFrame: selectedFooterId,
+            selectedFooter: footerPayload,
+          },
+        }, { timeout: 120000 });
         if (res.data?.data?.downloadUrl) {
           downloadUrl = res.data.data.downloadUrl;
           if (typeof res.data.data.isVideo === 'boolean') isVideo = res.data.data.isVideo;
@@ -327,7 +460,8 @@ export default function SearchScreen() {
       let targetUri = downloadUrl;
       if (downloadUrl && downloadUrl.startsWith('http')) {
         const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
-        const dl = await FileSystem.downloadAsync(downloadUrl, fileUri);
+        const downloadSourceUrl = resolveMediaUrl(downloadUrl);
+        const dl = await FileSystem.downloadAsync(downloadSourceUrl, fileUri);
         targetUri = dl.uri;
       }
 
@@ -364,9 +498,16 @@ export default function SearchScreen() {
     router.push(`/template/${selectedTemplate.id}`);
   };
 
-  // Dimensions for Viewer Card (matching Home page 9:16 aspect ratio)
-  const viewerCardWidth = Math.min(SCREEN_WIDTH * 0.76, 290);
-  const viewerCardHeight = Math.round(viewerCardWidth * (16 / 9));
+  // Dimensions for Viewer Card (smart sideways stretch matching Home page)
+  const viewerMaxAvailableHeight = Math.max(260, SCREEN_HEIGHT - insets.top - insets.bottom - 175);
+  let viewerCardWidth = Math.min(Math.floor(SCREEN_WIDTH * 0.92), SCREEN_WIDTH - 28);
+  let viewerCardHeight = Math.min(viewerMaxAvailableHeight, Math.round(viewerCardWidth * 1.45));
+  if (viewerCardHeight < viewerMaxAvailableHeight && viewerMaxAvailableHeight <= Math.round(viewerCardWidth * 1.55)) {
+    viewerCardHeight = viewerMaxAvailableHeight;
+  }
+  if (viewerCardWidth > Math.floor(viewerCardHeight / 1.22)) {
+    viewerCardWidth = Math.floor(viewerCardHeight / 1.22);
+  }
 
   return (
     <AppBackground>
@@ -376,7 +517,9 @@ export default function SearchScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t('nav_search') || 'Search'}</Text>
           <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color="#64748B" style={{ marginRight: 8 }} />
+            <View style={styles.searchIconWrap}>
+              <Ionicons name="search-outline" size={19} color="#64748B" />
+            </View>
             <TextInput
               style={styles.searchInput}
               placeholder={t('search_templates_placeholder') || 'Search templates by name, festival...'}
@@ -390,6 +533,7 @@ export default function SearchScreen() {
               <TouchableOpacity
                 onPress={() => setSearchQuery('')}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.searchClearBtn}
               >
                 <Ionicons name="close-circle" size={18} color="#94A3B8" />
               </TouchableOpacity>
@@ -599,44 +743,107 @@ export default function SearchScreen() {
                       { width: viewerCardWidth, height: viewerCardHeight },
                     ]}
                   >
-                    {/* Media Layer */}
-                    {selectedTemplate.mediaType === 'video' ? (
-                      <AppVideo
-                        source={{ uri: selectedTemplate.mediaUrl || selectedTemplate.contentUrl }}
-                        style={StyleSheet.absoluteFillObject}
-                        resizeMode={ResizeMode.COVER}
-                        shouldPlay={isViewerPlaying}
-                        isLooping
-                        isMuted={isViewerMuted}
-                      />
-                    ) : (
-                      <Image
-                        source={{ uri: selectedTemplate.contentUrl || selectedTemplate.posterUrl }}
-                        style={StyleSheet.absoluteFillObject}
-                        resizeMode="cover"
-                      />
-                    )}
+                    {/* Background Media: shows real template content with skeleton loading, never thumbnail */}
+                    <SearchViewerMediaCard
+                      item={selectedTemplate}
+                      cardWidth={viewerCardWidth}
+                      cardHeight={viewerCardHeight}
+                      shouldPlayMedia={isViewerPlaying}
+                      isMuted={isViewerMuted}
+                    />
 
-                    {/* Attached Footer Layer */}
-                    {activeFooter && activeFooter.asset && (
-                      <View
-                        pointerEvents="none"
-                        style={[
-                          styles.viewerFooterLayer,
-                          {
-                            width: viewerCardWidth,
-                            height: Math.round(viewerCardHeight * ((activeFooter.heightPercent || 40) / 100)),
-                            bottom: 0,
-                          },
-                        ]}
-                      >
-                        <Image
-                          source={{ uri: resolveMediaUrl(activeFooter.asset) }}
-                          style={{ width: '100%', height: '100%' }}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    )}
+                    {/* Attached Footer Layer (stretched to cover width of template) */}
+                    {activeFooter && (activeFooter.asset || activeFooter.videoAsset || activeFooter.imageUrl) && (() => {
+                      const footerAsset = activeFooter.videoAsset || activeFooter.asset || activeFooter.imageUrl || '';
+                      if (!footerAsset) return null;
+                      const isVideoFooter = Boolean(
+                        footerAsset && (
+                          activeFooter.type === 'video' ||
+                          footerAsset.endsWith('.mp4') ||
+                          footerAsset.endsWith('.webm') ||
+                          footerAsset.includes('.mp4?') ||
+                          footerAsset.includes('/video/')
+                        )
+                      );
+                      const footerUri = resolveMediaUrl(footerAsset);
+                      if (!footerUri) return null;
+
+                      const parseNorm = (val) => {
+                        if (typeof val !== 'number' || isNaN(val)) return null;
+                        return val > 3 ? val / 100 : val;
+                      };
+
+                      const heightVal = activeFooter.height !== undefined
+                        ? parseNorm(activeFooter.height)
+                        : (typeof activeFooter.heightPercent === 'number' ? activeFooter.heightPercent / 100 : null);
+                      const heightNorm = heightVal !== null ? heightVal : 0.4;
+
+                      const widthVal = activeFooter.width !== undefined
+                        ? parseNorm(activeFooter.width)
+                        : 1.0;
+                      const widthNorm = widthVal !== null ? widthVal : 1.0;
+
+                      const xNorm = activeFooter.x !== undefined
+                        ? (parseNorm(activeFooter.x) ?? 0.5)
+                        : 0.5;
+
+                      const yNorm = activeFooter.y !== undefined
+                        ? (parseNorm(activeFooter.y) ?? (1 - heightNorm / 2))
+                        : (1 - heightNorm / 2);
+
+                      const isFullOverlay = heightNorm >= 0.75 || (typeof activeFooter.heightPercent === 'number' && activeFooter.heightPercent >= 75);
+
+                      const fWidth = viewerCardWidth;
+                      const fLeft = 0;
+                      const fHeight = isFullOverlay ? viewerCardHeight : Math.round(viewerCardHeight * heightNorm);
+
+                      let fTop = isFullOverlay ? 0 : Math.round(yNorm * viewerCardHeight - fHeight / 2);
+
+                      if (!isFullOverlay) {
+                        if (fTop + fHeight > viewerCardHeight) fTop = viewerCardHeight - fHeight;
+                        if (fTop < 0) fTop = 0;
+                      }
+
+                      const fitMode = activeFooter.objectFit === 'cover' ? 'cover' : 'stretch';
+                      const videoResizeMode = activeFooter.objectFit === 'cover' ? ResizeMode.COVER : ResizeMode.STRETCH;
+
+                      return (
+                        <View
+                          pointerEvents="none"
+                          style={[
+                            styles.viewerFooterLayer,
+                            {
+                              width: fWidth,
+                              height: fHeight,
+                              left: fLeft,
+                              top: fTop,
+                              overflow: 'hidden',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              zIndex: activeFooter.zIndex || 10,
+                              elevation: 12,
+                            },
+                          ]}
+                        >
+                          {isVideoFooter ? (
+                            <AppVideo
+                              source={{ uri: footerUri }}
+                              style={{ width: fWidth, height: fHeight }}
+                              resizeMode={videoResizeMode}
+                              shouldPlay={isViewerPlaying}
+                              isLooping
+                              isMuted
+                            />
+                          ) : (
+                            <Image
+                              source={{ uri: footerUri }}
+                              style={{ width: fWidth, height: fHeight }}
+                              resizeMode={fitMode}
+                            />
+                          )}
+                        </View>
+                      );
+                    })()}
 
                     {/* User Info & Overlay */}
                     <ReelPersonalizationOverlay
@@ -741,7 +948,11 @@ export default function SearchScreen() {
             <DownloadShareModal
               visible={showDownloadShareModal}
               actionType={modalActionType}
-              activeTemplate={selectedTemplate?.rawTemplate || selectedTemplate}
+              activeTemplate={selectedTemplate ? {
+                ...(selectedTemplate.rawTemplate || {}),
+                ...selectedTemplate,
+                footers: selectedTemplate.footers || selectedTemplate.rawTemplate?.footers || [],
+              } : null}
               userPhotoUri={displayPhoto}
               userNameText={displayName}
               selectedFooter={activeFooter}
@@ -792,11 +1003,28 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  searchIconWrap: {
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 9,
+  },
   searchInput: {
     flex: 1,
+    height: '100%',
+    paddingVertical: 0,
     fontSize: fontScale(13.5),
     fontFamily: FONTS.medium,
     color: '#0F172A',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    lineHeight: Platform.OS === 'ios' ? 20 : undefined,
+  },
+  searchClearBtn: {
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: 6,
   },
   categoryRowWrap: {
     marginBottom: 8,

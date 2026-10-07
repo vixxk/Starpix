@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '../src/i18n';
 import LanguageModal from '../src/components/LanguageModal';
 import ConfirmModal from '../src/components/ConfirmModal';
+import IssueFeedbackModal from '../src/components/IssueFeedbackModal';
 import BackButton from '../src/components/BackButton';
 import Toast from '../src/components/Toast';
 import { hapticTap, hapticImpact } from '../src/utils/haptics';
@@ -71,6 +72,7 @@ export default function SettingsScreen() {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -203,8 +205,8 @@ export default function SettingsScreen() {
         <View style={styles.sectionCard}>
           <SettingItem
             icon="chatbubble-ellipses-outline"
-            label={t('settings_feedback_issues') || 'Feedback & Issues'}
-            onPress={() => router.push('/feedback')}
+            label={t('settings_issues_feedbacks') || t('settings_feedback_issues') || 'Issues & Feedback'}
+            onPress={() => setShowFeedbackModal(true)}
           />
           <SettingItem
             icon="headset-outline"
@@ -321,6 +323,12 @@ export default function SettingsScreen() {
         confirmLoading={deleteLoading}
         onCancel={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmDeleteAccount}
+      />
+
+      {/* Issues & Feedback Modal Popup */}
+      <IssueFeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
       />
 
       {/* Toast */}

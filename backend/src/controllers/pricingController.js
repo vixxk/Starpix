@@ -61,6 +61,24 @@ const DEFAULT_PLANS = [
   },
 ];
 
+const DEFAULT_POSTERS = [
+  'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/f30784b5-3698-40f5-9f55-4eae4622fcd4.jpg',
+  'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/ccead801-2abb-4d74-8f50-7bee9c53fa7a.jpg',
+  'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/eb57459c-c20d-4bbb-8fee-5f5464efb57d.jpg',
+  'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/d81f4913-f71e-433f-b803-c3f27777967c.jpg',
+  'https://starpix-media-production.s3.ap-south-1.amazonaws.com/subscription/6adc6e37-9b98-4470-9a27-e2915e73b4e3.jpg',
+];
+
+const DEFAULT_CHECKLIST = [
+  { id: 'templates', text: 'Thousands of Premium Templates', textKey: 'sub_feat_thousands', iconType: 'p_box' },
+  { id: 'morning_night', text: 'Good Morning & Good Night Special', textKey: 'sub_feat_morning_night', iconType: 'sun' },
+  { id: 'festival_devotional', text: 'Festival & Devotional Special', textKey: 'sub_feat_festival_devotional', iconType: 'flower' },
+  { id: 'trending_viral', text: 'Trending & Viral Designs', textKey: 'sub_feat_trending_viral', iconType: 'trending' },
+  { id: 'personalization', text: 'Name & Photo Personalization', textKey: 'sub_feat_name_photo', iconType: 'person' },
+  { id: 'download_share', text: 'HD Download & Fast Share', textKey: 'sub_feat_download_share', iconType: 'download' },
+  { id: 'new_content', text: 'Daily New Content Added', textKey: 'sub_feat_new_content', iconType: 'sparkles' },
+];
+
 // Helper to get or initialize settings document
 const getOrInitPricing = async () => {
   let setting = await PricingSetting.findOne();
@@ -70,11 +88,27 @@ const getOrInitPricing = async () => {
       plans: DEFAULT_PLANS,
       freeTemplateLimit: 0,
       previewProtectionEnabled: true,
+      posters: DEFAULT_POSTERS,
+      checklist: DEFAULT_CHECKLIST,
     });
-  } else if (!setting.plans || setting.plans.length === 0) {
-    setting.plans = DEFAULT_PLANS;
-    setting.currency = 'INR';
-    await setting.save();
+  } else {
+    let modified = false;
+    if (!setting.plans || setting.plans.length === 0) {
+      setting.plans = DEFAULT_PLANS;
+      setting.currency = 'INR';
+      modified = true;
+    }
+    if (!setting.posters || setting.posters.length === 0) {
+      setting.posters = DEFAULT_POSTERS;
+      modified = true;
+    }
+    if (!setting.checklist || setting.checklist.length === 0) {
+      setting.checklist = DEFAULT_CHECKLIST;
+      modified = true;
+    }
+    if (modified) {
+      await setting.save();
+    }
   }
   return setting;
 };
@@ -94,7 +128,7 @@ const getAdminPricing = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/pricing
 // @access  Private (Admin)
 const updateAdminPricing = asyncHandler(async (req, res) => {
-  const { plans, freeTemplateLimit, previewProtectionEnabled } = req.body;
+  const { plans, freeTemplateLimit, previewProtectionEnabled, posters, checklist } = req.body;
 
   let setting = await PricingSetting.findOne();
   if (!setting) {
@@ -118,6 +152,19 @@ const updateAdminPricing = asyncHandler(async (req, res) => {
       features: Array.isArray(p.features) ? p.features.filter((f) => typeof f === 'string' && f.trim() !== '') : [],
       isActive: p.isActive !== undefined ? Boolean(p.isActive) : true,
       sortOrder: Number(p.sortOrder) || idx + 1,
+    }));
+  }
+
+  if (Array.isArray(posters)) {
+    setting.posters = posters.filter((p) => typeof p === 'string' && p.trim() !== '');
+  }
+
+  if (Array.isArray(checklist)) {
+    setting.checklist = checklist.map((c, idx) => ({
+      id: c.id || `feat_${idx + 1}`,
+      text: c.text || '',
+      textKey: c.textKey || '',
+      iconType: c.iconType || 'checkmark',
     }));
   }
 
@@ -152,6 +199,8 @@ const getPublicPlans = asyncHandler(async (req, res) => {
     currency: 'INR',
     currencySymbol: '₹',
     data: activePlans.length > 0 ? activePlans : DEFAULT_PLANS,
+    posters: Array.isArray(setting.posters) && setting.posters.length > 0 ? setting.posters : DEFAULT_POSTERS,
+    checklist: Array.isArray(setting.checklist) && setting.checklist.length > 0 ? setting.checklist : DEFAULT_CHECKLIST,
     previewProtectionEnabled: setting.previewProtectionEnabled,
   });
 });
@@ -161,4 +210,6 @@ module.exports = {
   updateAdminPricing,
   getPublicPlans,
   DEFAULT_PLANS,
+  DEFAULT_POSTERS,
+  DEFAULT_CHECKLIST,
 };

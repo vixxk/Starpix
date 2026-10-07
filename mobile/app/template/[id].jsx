@@ -237,7 +237,7 @@ export default function TemplateEditorScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
+        mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.9,
       });

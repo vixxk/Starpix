@@ -270,7 +270,7 @@ export default function EditProfileScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || ['images'],
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.9,
@@ -508,16 +508,6 @@ export default function EditProfileScreen() {
                       />
                     )}
                   </View>
-
-                  <PressableScale
-                    onPress={() => setShowPhotoModal(true)}
-                    scaleTo={0.96}
-                    style={styles.tapToChangeWrap}
-                  >
-                    <Text style={styles.tapToChangeText}>
-                      {photoUri ? (t('tap_to_change_photo') || 'Tap photo to change') : (t('add_photo') || 'Add Photo')}
-                    </Text>
-                  </PressableScale>
                 </View>
               </View>
             </View>

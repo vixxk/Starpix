@@ -8,6 +8,7 @@ const Frame = require('../models/Frame');
 const Effect = require('../models/Effect');
 const Campaign = require('../models/Campaign');
 const Creation = require('../models/Creation');
+const Report = require('../models/Report');
 
 // @desc    Track analytics event from mobile client
 // @route   POST /api/analytics/event
@@ -55,6 +56,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
   const totalPurchases = await Purchase.countDocuments({ status: 'successful' });
   const totalCreations = await Creation.countDocuments();
+  const totalReports = await Report.countDocuments();
+  const pendingReports = await Report.countDocuments({ status: 'pending' });
 
   const revenueResult = await Purchase.aggregate([
     { $match: { status: 'successful' } },
@@ -130,6 +133,12 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(10);
 
+  const recentReports = await Report.find()
+    .populate('userId', 'name phoneNumber email profilePhoto')
+    .populate('templateId', 'name thumbnail previewAsset')
+    .sort({ createdAt: -1 })
+    .limit(6);
+
   res.status(200).json({
     success: true,
     data: {
@@ -147,6 +156,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
         totalCampaigns,
         totalPurchases,
         totalRevenue,
+        totalReports,
+        pendingReports,
         conversionRate: totalUsers > 0 ? ((totalPurchases / totalUsers) * 100).toFixed(1) : '0',
         eventCounts,
       },
@@ -154,6 +165,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       topCategories,
       recentPurchases,
       recentEvents,
+      recentReports,
     },
   });
 });

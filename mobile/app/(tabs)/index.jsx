@@ -44,6 +44,7 @@ import { checkHasActiveSubscription, checkCanAccessTemplate, checkIsTemplatePurc
 import { SUPPORTED_LANGUAGES } from '../../src/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AllCategoriesModal from '../../src/components/AllCategoriesModal';
+import DownloadShareModal from '../../src/components/DownloadShareModal';
 
 import {
   S3_BASE,
@@ -133,6 +134,78 @@ const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth) 
   return lines.filter((l) => l.length > 0);
 };
 
+const ReelMediaCard = React.memo(function ReelMediaCard({
+  item,
+  cardWidth,
+  cardHeight,
+  shouldPlayMedia,
+  isFeedMuted,
+}) {
+  const contentUri = item.contentUrl || item.mediaUrl;
+  const isVideo = item.mediaType === 'video';
+  const [mediaReady, setMediaReady] = useState(false);
+
+  useEffect(() => {
+    setMediaReady(false);
+  }, [contentUri]);
+
+  return (
+    <View
+      style={{
+        width: cardWidth,
+        height: cardHeight,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        overflow: 'hidden',
+        borderRadius: wp(0.045),
+      }}
+    >
+      {/* Show Skeleton loading until template content is ready, NOT the thumbnail */}
+      {!mediaReady ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: cardWidth,
+            height: cardHeight,
+            zIndex: 2,
+          }}
+          pointerEvents="none"
+        >
+          <Skeleton
+            width={cardWidth}
+            height={cardHeight}
+            borderRadius={wp(0.045)}
+            style={{ backgroundColor: '#E2E8F0' }}
+          />
+        </View>
+      ) : null}
+
+      {isVideo ? (
+        <AppVideo
+          source={{ uri: contentUri }}
+          style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
+          resizeMode={ResizeMode.STRETCH}
+          shouldPlay={shouldPlayMedia}
+          isLooping
+          isMuted={isFeedMuted}
+          onReadyForDisplay={() => setMediaReady(true)}
+          onLoad={() => setMediaReady(true)}
+        />
+      ) : (
+        <Image
+          source={{ uri: contentUri }}
+          style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
+          resizeMode="stretch"
+          onLoad={() => setMediaReady(true)}
+        />
+      )}
+    </View>
+  );
+});
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
@@ -160,6 +233,10 @@ export default function HomeScreen() {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [rawCategories, setRawCategories] = useState([]);
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
+  const [showDownloadShareModal, setShowDownloadShareModal] = useState(false);
+  const [modalActionType, setModalActionType] = useState('download'); // 'download' | 'share'
+  const [modalLoadingOption, setModalLoadingOption] = useState(null); // 'personalized' | 'clean' | null
+  const [modalTargetItem, setModalTargetItem] = useState(null);
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
@@ -295,19 +372,21 @@ export default function HomeScreen() {
   const fallbackHeight = Math.max(360, windowHeight - insets.top - insets.bottom - 210);
   const availHeight = contentAreaHeight > 0 ? contentAreaHeight : fallbackHeight;
 
-  // Reserved space for controls: actionRow (38) + frameSelector (44) + scrollIndicator (24) + margins/paddings (~20)
-  const reservedControlsHeight = 126;
-  const maxCardHeight = Math.max(180, Math.floor(availHeight - reservedControlsHeight));
-  const maxCardWidth = Math.min(Math.floor(windowWidth * 0.88), windowWidth - 72);
+  // Reserved space for controls: actionRow (38) + frameSelector (44) + scrollIndicator (24) + margins/paddings (~18)
+  const reservedControlsHeight = 124;
+  const maxAvailableCardHeight = Math.max(180, Math.floor(availHeight - reservedControlsHeight));
 
-  let cardHeight = maxCardHeight;
-  let cardWidth = Math.floor(cardHeight * (9 / 16));
-  if (cardWidth > maxCardWidth) {
-    cardWidth = maxCardWidth;
-    cardHeight = Math.floor(cardWidth * (16 / 9));
+  // Smart stretch sideways: template covers ~92% of screen width with elegant, balanced portrait aspect
+  let cardWidth = Math.min(Math.floor(windowWidth * 0.92), windowWidth - 28);
+  let cardHeight = Math.min(maxAvailableCardHeight, Math.round(cardWidth * 1.45));
+  if (cardHeight < maxAvailableCardHeight && maxAvailableCardHeight <= Math.round(cardWidth * 1.55)) {
+    cardHeight = maxAvailableCardHeight;
+  }
+  if (cardWidth > Math.floor(cardHeight / 1.22)) {
+    cardWidth = Math.floor(cardHeight / 1.22);
   }
 
-  const controlsWidth = Math.max(cardWidth, Math.min(windowWidth * 0.92, 360));
+  const controlsWidth = cardWidth;
 
   const getSubscriptionLabel = () => {
     const isVip = checkHasActiveSubscription(user);
@@ -366,16 +445,17 @@ export default function HomeScreen() {
               (typeof item.mediaUrl === 'string' && Boolean(item.mediaUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
 
             const templateFooters = (Array.isArray(item.footers) ? item.footers : [])
-              .filter((f) => f && (f.asset || f.videoAsset || f.thumbnail || f.name))
+              .filter((f) => f && (f.asset || f.videoAsset || f.imageUrl || f.thumbnail || f.previewImage || f.name))
               .map((f, fIdx) => {
                 const fId = f._id ? String(f._id) : (f.id ? String(f.id) : `footer_${item._id || idx}_${fIdx}`);
-                const fAsset = f.videoAsset || f.asset || '';
-                const fThumb = f.thumbnail || fAsset;
+                const fAsset = f.videoAsset || f.asset || f.imageUrl || '';
+                const fThumb = f.thumbnail || f.previewImage || f.previewUrl || fAsset;
                 return {
                   id: fId,
                   name: f.name || `Footer ${fIdx + 1}`,
                   asset: fAsset,
                   videoAsset: f.videoAsset || '',
+                  imageUrl: f.imageUrl || '',
                   thumb: fThumb,
                   thumbnail: fThumb,
                   heightPercent: typeof f.heightPercent === 'number' ? f.heightPercent : 40,
@@ -504,7 +584,7 @@ export default function HomeScreen() {
     setIsPlaying((prev) => !prev);
   };
 
-  const executeDownload = async (target) => {
+  const executeDownload = async (target, withPersonalization = true) => {
     const mediaSource = target?.mediaUrl;
     if (!mediaSource) {
       showToast(t('download_saved_msg') || 'Status saved successfully!');
@@ -514,18 +594,28 @@ export default function HomeScreen() {
     setActionLoading({ type: 'download', id: target.id });
 
     try {
+      const templateFooters = (target.footers && target.footers.length > 0)
+        ? target.footers
+        : (target.rawTemplate?.footers || []);
+
       const targetFrame = selectedFrames[target.id] !== undefined
         ? selectedFrames[target.id]
-        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
+        : (target.defaultFrame || (templateFooters.length > 0 ? templateFooters[0].id : 'none'));
 
       const activeCustomFooter = targetFrame === 'none'
         ? null
-        : (target.footers && target.footers.length > 0
-            ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+        : (templateFooters.length > 0
+            ? templateFooters.find((f) => String(f.id || f._id) === String(targetFrame)) || templateFooters[0]
             : null);
 
-      let remoteUserPhoto = displayPhoto;
-      if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
+      const footerPayload = activeCustomFooter
+        ? (activeCustomFooter._id || activeCustomFooter.id || activeCustomFooter)
+        : 'none';
+
+      let remoteUserPhoto = withPersonalization ? displayPhoto : null;
+      const targetDisplayName = withPersonalization ? displayName : '';
+
+      if (withPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
         try {
           const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
           if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
@@ -550,18 +640,19 @@ export default function HomeScreen() {
       if (target.id && !String(target.id).startsWith('durga_')) {
         try {
           const res = await API.post(`/creations/${target.id}/download`, {
-            userNameText: displayName,
-            userPhotoUri: remoteUserPhoto || displayPhoto,
-            selectedFooter: activeCustomFooter,
+            userNameText: targetDisplayName,
+            userPhotoUri: remoteUserPhoto,
+            selectedFooter: footerPayload,
+            withPersonalization,
             customizationState: {
-              userNameText: displayName,
-              userPhotoUri: remoteUserPhoto || displayPhoto,
+              userNameText: targetDisplayName,
+              userPhotoUri: remoteUserPhoto,
               selectedFrame: targetFrame,
-              footers: target.footers || [],
+              footers: templateFooters,
               canvasConfig: target.canvasConfig || null,
-              selectedFooter: activeCustomFooter,
+              selectedFooter: footerPayload,
             },
-          }, { timeout: 60000 });
+          }, { timeout: 120000 });
           if (res.data?.data?.downloadUrl) {
             resolved = res.data.data.downloadUrl;
             if (typeof res.data.data.isVideo === 'boolean') {
@@ -578,7 +669,8 @@ export default function HomeScreen() {
 
       if (resolved && (resolved.startsWith('http://') || resolved.startsWith('https://'))) {
         const fileUri = `${FileSystem.documentDirectory}starpix_${Date.now()}.${ext}`;
-        const downloaded = await FileSystem.downloadAsync(resolved, fileUri);
+        const downloadSourceUrl = resolveMediaUrl(resolved);
+        const downloaded = await FileSystem.downloadAsync(downloadSourceUrl, fileUri);
         targetUri = downloaded.uri;
       }
 
@@ -605,9 +697,9 @@ export default function HomeScreen() {
         image: resolved,
         mediaUrl: resolved,
         mediaType: target.mediaType || (isVideo ? 'video' : 'image'),
-        editedText: displayName,
-        userNameText: displayName,
-        userPhotoUri: remoteUserPhoto || displayPhoto || null,
+        editedText: targetDisplayName,
+        userNameText: targetDisplayName,
+        userPhotoUri: remoteUserPhoto || null,
         selectedFrame: targetFrame !== 'none' ? targetFrame : null,
         activeTemplate: target.rawTemplate || target,
         template: target.rawTemplate || target,
@@ -629,11 +721,11 @@ export default function HomeScreen() {
             await API.post('/creations/save-download', {
               templateId: target.id,
               imageUrl: resolved,
-              editedText: displayName,
-              editedPhoto: remoteUserPhoto || displayPhoto || '',
+              editedText: targetDisplayName,
+              editedPhoto: remoteUserPhoto || '',
               customizationState: {
-                userNameText: displayName,
-                userPhotoUri: remoteUserPhoto || displayPhoto || null,
+                userNameText: targetDisplayName,
+                userPhotoUri: remoteUserPhoto || null,
                 selectedFrame: targetFrame,
                 footers: target.footers || [],
                 canvasConfig: target.canvasConfig || null,
@@ -654,7 +746,7 @@ export default function HomeScreen() {
   };
 
   const handleDownload = async (reelItem) => {
-    if (actionLoading) return;
+    if (actionLoading || modalLoadingOption) return;
     hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
     const target = reelItem || activeReel;
     if (!target) return;
@@ -666,10 +758,12 @@ export default function HomeScreen() {
       return;
     }
 
-    await executeDownload(target);
+    setModalTargetItem(target);
+    setModalActionType('download');
+    setShowDownloadShareModal(true);
   };
 
-  const executeShare = async (target) => {
+  const executeShare = async (target, withPersonalization = true) => {
     const mediaSource = target?.mediaUrl;
     if (!mediaSource) {
       try {
@@ -683,18 +777,28 @@ export default function HomeScreen() {
     setActionLoading({ type: 'share', id: target.id });
 
     try {
+      const templateFooters = (target.footers && target.footers.length > 0)
+        ? target.footers
+        : (target.rawTemplate?.footers || []);
+
       const targetFrame = selectedFrames[target.id] !== undefined
         ? selectedFrames[target.id]
-        : (target.defaultFrame || (target.footers && target.footers.length > 0 ? target.footers[0].id : 'none'));
+        : (target.defaultFrame || (templateFooters.length > 0 ? templateFooters[0].id : 'none'));
 
       const activeCustomFooter = targetFrame === 'none'
         ? null
-        : (target.footers && target.footers.length > 0
-            ? target.footers.find((f) => f.id === targetFrame) || target.footers[0]
+        : (templateFooters.length > 0
+            ? templateFooters.find((f) => String(f.id || f._id) === String(targetFrame)) || templateFooters[0]
             : null);
 
-      let remoteUserPhoto = displayPhoto;
-      if (displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
+      const footerPayload = activeCustomFooter
+        ? (activeCustomFooter._id || activeCustomFooter.id || activeCustomFooter)
+        : 'none';
+
+      let remoteUserPhoto = withPersonalization ? displayPhoto : null;
+      const targetDisplayName = withPersonalization ? displayName : '';
+
+      if (withPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
         try {
           const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
           if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
@@ -719,18 +823,19 @@ export default function HomeScreen() {
       if (target.id && !String(target.id).startsWith('durga_')) {
         try {
           const res = await API.post(`/creations/${target.id}/download`, {
-            userNameText: displayName,
-            userPhotoUri: remoteUserPhoto || displayPhoto,
-            selectedFooter: activeCustomFooter,
+            userNameText: targetDisplayName,
+            userPhotoUri: remoteUserPhoto,
+            selectedFooter: footerPayload,
+            withPersonalization,
             customizationState: {
-              userNameText: displayName,
-              userPhotoUri: remoteUserPhoto || displayPhoto,
+              userNameText: targetDisplayName,
+              userPhotoUri: remoteUserPhoto,
               selectedFrame: targetFrame,
-              footers: target.footers || [],
+              footers: templateFooters,
               canvasConfig: target.canvasConfig || null,
-              selectedFooter: activeCustomFooter,
+              selectedFooter: footerPayload,
             },
-          }, { timeout: 60000 });
+          }, { timeout: 120000 });
           const link = res.data?.data?.downloadUrl || res.data?.data?.shareUrl;
           if (link) {
             resolved = link;
@@ -742,16 +847,17 @@ export default function HomeScreen() {
           console.warn('Personalized share /download endpoint notice:', errApi?.message);
           try {
             const fallbackRes = await API.post(`/creations/${target.id}/share`, {
-              userNameText: displayName,
-              userPhotoUri: remoteUserPhoto || displayPhoto,
-              selectedFooter: activeCustomFooter,
+              userNameText: targetDisplayName,
+              userPhotoUri: remoteUserPhoto,
+              selectedFooter: footerPayload,
+              withPersonalization,
               customizationState: {
-                userNameText: displayName,
-                userPhotoUri: remoteUserPhoto || displayPhoto,
+                userNameText: targetDisplayName,
+                userPhotoUri: remoteUserPhoto,
                 selectedFrame: targetFrame,
-                footers: target.footers || [],
+                footers: templateFooters,
                 canvasConfig: target.canvasConfig || null,
-                selectedFooter: activeCustomFooter,
+                selectedFooter: footerPayload,
               },
             }, { timeout: 30000 });
             const link = fallbackRes.data?.data?.shareUrl || fallbackRes.data?.data?.downloadUrl;
@@ -770,9 +876,14 @@ export default function HomeScreen() {
       let shareUri = resolved;
 
       if (resolved && (resolved.startsWith('http://') || resolved.startsWith('https://'))) {
-        const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
-        const downloaded = await FileSystem.downloadAsync(resolved, fileUri);
-        shareUri = downloaded.uri;
+        try {
+          const proxyResolved = resolveMediaUrl(resolved);
+          const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
+          const downloaded = await FileSystem.downloadAsync(proxyResolved, fileUri);
+          shareUri = downloaded.uri;
+        } catch (shareDlErr) {
+          console.warn('[Share] File download notice:', shareDlErr.message);
+        }
       }
 
       // Save creation to Downloads store and backend as user shares
@@ -786,9 +897,9 @@ export default function HomeScreen() {
         image: resolved,
         mediaUrl: resolved,
         mediaType: target.mediaType || (isVideo ? 'video' : 'image'),
-        editedText: displayName,
-        userNameText: displayName,
-        userPhotoUri: remoteUserPhoto || displayPhoto || null,
+        editedText: targetDisplayName,
+        userNameText: targetDisplayName,
+        userPhotoUri: remoteUserPhoto || null,
         selectedFrame: targetFrame !== 'none' ? targetFrame : null,
         activeTemplate: target.rawTemplate || target,
         template: target.rawTemplate || target,
@@ -810,11 +921,11 @@ export default function HomeScreen() {
             await API.post('/creations/save-download', {
               templateId: target.id,
               imageUrl: resolved,
-              editedText: displayName,
-              editedPhoto: remoteUserPhoto || displayPhoto || '',
+              editedText: targetDisplayName,
+              editedPhoto: remoteUserPhoto || '',
               customizationState: {
-                userNameText: displayName,
-                userPhotoUri: remoteUserPhoto || displayPhoto || null,
+                userNameText: targetDisplayName,
+                userPhotoUri: remoteUserPhoto || null,
                 selectedFrame: targetFrame,
                 footers: target.footers || [],
                 canvasConfig: target.canvasConfig || null,
@@ -848,7 +959,7 @@ export default function HomeScreen() {
   };
 
   const handleShare = async (reelItem) => {
-    if (actionLoading) return;
+    if (actionLoading || modalLoadingOption) return;
     hapticImpact(Haptics.ImpactFeedbackStyle.Light);
     const target = reelItem || activeReel;
     if (!target) return;
@@ -860,7 +971,9 @@ export default function HomeScreen() {
       return;
     }
 
-    await executeShare(target);
+    setModalTargetItem(target);
+    setModalActionType('share');
+    setShowDownloadShareModal(true);
   };
 
   const handleConfirmPaidAction = async () => {
@@ -894,9 +1007,13 @@ export default function HomeScreen() {
         showToast(t('payment_successful'));
 
         if (action === 'share') {
-          executeShare(item);
+          setModalTargetItem(item);
+          setModalActionType('share');
+          setShowDownloadShareModal(true);
         } else {
-          executeDownload(item);
+          setModalTargetItem(item);
+          setModalActionType('download');
+          setShowDownloadShareModal(true);
         }
       } else {
         showToast(res.data?.message || 'Payment failed. Please try again.');
@@ -906,6 +1023,23 @@ export default function HomeScreen() {
       showToast(err.response?.data?.message || 'Payment failed. Please try again.');
     } finally {
       setPayingForTemplate(false);
+    }
+  };
+
+  const handleConfirmDownloadShare = async (withPersonalization) => {
+    const target = modalTargetItem || activeReel;
+    if (!target) return;
+
+    setModalLoadingOption(withPersonalization ? 'personalized' : 'clean');
+    try {
+      if (modalActionType === 'share') {
+        await executeShare(target, withPersonalization);
+      } else {
+        await executeDownload(target, withPersonalization);
+      }
+    } finally {
+      setModalLoadingOption(null);
+      setShowDownloadShareModal(false);
     }
   };
 
@@ -939,87 +1073,73 @@ export default function HomeScreen() {
         {/* Template Media Card Container */}
         <View style={styles.cardRowWrapper}>
           <View style={[styles.reelCard, { width: cardWidth, height: cardHeight }]}>
-            {/* Background Media */}
-            {(() => {
-              const contentUri = item.contentUrl || item.mediaUrl;
-
-              return (
-                <View style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0, overflow: 'hidden', borderRadius: wp(0.045) }}>
-                  {item.thumbnailUrl && item.mediaType === 'video' ? (
-                    <Image
-                      source={{ uri: item.thumbnailUrl }}
-                      style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-                  {item.mediaType === 'video' ? (
-                    <AppVideo
-                      source={{ uri: contentUri }}
-                      style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
-                      resizeMode={ResizeMode.COVER}
-                      shouldPlay={shouldPlayMedia}
-                      isLooping
-                      isMuted={isFeedMuted}
-                    />
-                  ) : (
-                    <Image
-                      source={{ uri: contentUri }}
-                      style={{ width: cardWidth, height: cardHeight, position: 'absolute', top: 0, left: 0 }}
-                      resizeMode="cover"
-                    />
-                  )}
-                </View>
-              );
-            })()}
+            {/* Background Media: shows real template content or skeleton loading, never thumbnail */}
+            <ReelMediaCard
+              item={item}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              shouldPlayMedia={shouldPlayMedia}
+              isFeedMuted={isFeedMuted}
+            />
 
             {/* Custom Footer Overlay Layer: Directly visible on the main template content */}
             {(() => {
               if (!selectedCustomFooter || itemFrameId === 'none') return null;
 
-              const footerAsset = selectedCustomFooter.videoAsset || selectedCustomFooter.asset || '';
+              const footerAsset = selectedCustomFooter.videoAsset || selectedCustomFooter.asset || selectedCustomFooter.imageUrl || '';
               if (!footerAsset) return null;
 
               const isVideoAsset = Boolean(
                 footerAsset && (
+                  selectedCustomFooter.type === 'video' ||
                   footerAsset.endsWith('.mp4') ||
                   footerAsset.endsWith('.webm') ||
                   footerAsset.includes('.mp4?') ||
-                  footerAsset.includes('video')
+                  footerAsset.includes('/video/')
                 )
               );
 
               const footerUri = resolveMediaUrl(footerAsset);
               if (!footerUri) return null;
 
-              const heightNorm =
-                typeof selectedCustomFooter.height === 'number'
-                  ? (selectedCustomFooter.height > 1 ? selectedCustomFooter.height / 100 : selectedCustomFooter.height)
-                  : (typeof selectedCustomFooter.heightPercent === 'number' ? selectedCustomFooter.heightPercent / 100 : 0.4);
+              const parseNorm = (val) => {
+                if (typeof val !== 'number' || isNaN(val)) return null;
+                return val > 3 ? val / 100 : val;
+              };
 
-              const widthNorm =
-                typeof selectedCustomFooter.width === 'number'
-                  ? (selectedCustomFooter.width > 1 ? selectedCustomFooter.width / 100 : selectedCustomFooter.width)
-                  : 1.0;
+              const heightVal = selectedCustomFooter.height !== undefined
+                ? parseNorm(selectedCustomFooter.height)
+                : (typeof selectedCustomFooter.heightPercent === 'number' ? selectedCustomFooter.heightPercent / 100 : null);
+              const heightNorm = heightVal !== null ? heightVal : 0.4;
 
-              const fWidth = widthNorm * cardWidth;
-              const fHeight = heightNorm * cardHeight;
+              const widthVal = selectedCustomFooter.width !== undefined
+                ? parseNorm(selectedCustomFooter.width)
+                : 1.0;
+              const widthNorm = widthVal !== null ? widthVal : 1.0;
 
-              const xNorm = typeof selectedCustomFooter.x === 'number'
-                ? (selectedCustomFooter.x > 1 ? selectedCustomFooter.x / 100 : selectedCustomFooter.x)
+              const xNorm = selectedCustomFooter.x !== undefined
+                ? (parseNorm(selectedCustomFooter.x) ?? 0.5)
                 : 0.5;
 
-              const yNorm = typeof selectedCustomFooter.y === 'number'
-                ? (selectedCustomFooter.y > 1 ? selectedCustomFooter.y / 100 : selectedCustomFooter.y)
+              const yNorm = selectedCustomFooter.y !== undefined
+                ? (parseNorm(selectedCustomFooter.y) ?? (1 - heightNorm / 2))
                 : (1 - heightNorm / 2);
 
-              const fLeft = xNorm * cardWidth - fWidth / 2;
-              const fTop = yNorm * cardHeight - fHeight / 2;
+              const isFullOverlay = heightNorm >= 0.75 || (typeof selectedCustomFooter.heightPercent === 'number' && selectedCustomFooter.heightPercent >= 75);
 
-              const fitMode = selectedCustomFooter.objectFit === 'cover'
-                ? 'cover'
-                : selectedCustomFooter.objectFit === 'fill'
-                ? 'fill'
-                : 'contain';
+              // In the app UI, stretch the footer so it covers the width of the template
+              const fWidth = cardWidth;
+              const fLeft = 0;
+              const fHeight = isFullOverlay ? cardHeight : Math.round(heightNorm * cardHeight);
+              let fTop = isFullOverlay ? 0 : Math.round(yNorm * cardHeight - fHeight / 2);
+
+              if (!isFullOverlay) {
+                if (fTop + fHeight > cardHeight) fTop = cardHeight - fHeight;
+                if (fTop < 0) fTop = 0;
+              }
+
+              const fitMode = selectedCustomFooter.objectFit === 'cover' ? 'cover' : 'stretch';
+              const videoResizeMode = selectedCustomFooter.objectFit === 'cover' ? ResizeMode.COVER : ResizeMode.STRETCH;
 
               return (
                 <View
@@ -1042,7 +1162,7 @@ export default function HomeScreen() {
                       key={`footer_${selectedCustomFooter.id || 'curr'}_${item.id}`}
                       source={{ uri: footerUri }}
                       style={{ width: fWidth, height: fHeight }}
-                      resizeMode={fitMode === 'cover' ? ResizeMode.COVER : fitMode === 'fill' ? ResizeMode.STRETCH : ResizeMode.CONTAIN}
+                      resizeMode={videoResizeMode}
                       shouldPlay={shouldPlayMedia}
                       isLooping
                       isMuted
@@ -1051,7 +1171,7 @@ export default function HomeScreen() {
                     <Image
                       source={{ uri: footerUri }}
                       style={{ width: fWidth, height: fHeight }}
-                      resizeMode={fitMode === 'fill' ? 'stretch' : fitMode}
+                      resizeMode={fitMode}
                     />
                   )}
                 </View>
@@ -1542,7 +1662,47 @@ export default function HomeScreen() {
         }}
         onClose={() => setShowAllCategoriesModal(false)}
       />
+      {/* Download & Share Options Modal (With/Without Name & Photo) */}
+      {(() => {
+        const modalTemplate = modalTargetItem || activeReel;
+        const modalTemplateFooters = modalTemplate
+          ? (Array.isArray(modalTemplate.footers) && modalTemplate.footers.length > 0
+              ? modalTemplate.footers
+              : (Array.isArray(modalTemplate.rawTemplate?.footers) ? modalTemplate.rawTemplate.footers : []))
+          : [];
+        const modalTargetFrame = modalTemplate
+          ? (selectedFrames[modalTemplate.id] !== undefined
+              ? selectedFrames[modalTemplate.id]
+              : (modalTemplate.defaultFrame || (modalTemplateFooters.length > 0 ? (modalTemplateFooters[0].id || modalTemplateFooters[0]._id) : 'none')))
+          : 'none';
+        const modalSelectedFooter = modalTargetFrame === 'none'
+          ? null
+          : (modalTemplateFooters.length > 0
+              ? modalTemplateFooters.find((f) => String(f.id || f._id) === String(modalTargetFrame)) || modalTemplateFooters[0]
+              : null);
 
+        const modalActiveTemplate = modalTemplate ? {
+          ...(modalTemplate.rawTemplate || {}),
+          ...modalTemplate,
+          footers: modalTemplateFooters,
+        } : null;
+
+        return (
+          <DownloadShareModal
+            visible={showDownloadShareModal}
+            actionType={modalActionType}
+            activeTemplate={modalActiveTemplate}
+            userPhotoUri={displayPhoto}
+            userNameText={displayName}
+            selectedFooter={modalSelectedFooter}
+            onClose={() => {
+              if (!modalLoadingOption) setShowDownloadShareModal(false);
+            }}
+            onSelect={handleConfirmDownloadShare}
+            loadingOption={modalLoadingOption}
+          />
+        );
+      })()}
 
       <Toast message={toastMessage} toastKey={toastKey} onDone={() => setToastMessage(null)} />
     </View>

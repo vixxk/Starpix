@@ -67,6 +67,31 @@ export default function DownloadPreviewModal({
   const templateObj = displayItem.activeTemplate || displayItem.template;
   const canvasConfig = displayItem.canvasConfig || templateObj?.canvasConfig || null;
 
+  const cleanUrl = (url) => (typeof url === 'string' ? url.split('?')[0].trim().toLowerCase() : '');
+  const rawTemplateMedia =
+    templateObj?.mainMedia ||
+    templateObj?.previewAsset ||
+    templateObj?.contentUrl ||
+    (templateObj?.canvasConfig && templateObj.canvasConfig.backgroundImage) ||
+    '';
+  const cleanMedia = cleanUrl(mediaSource);
+  const cleanRaw = cleanUrl(rawTemplateMedia);
+  const isRawTemplate = Boolean(cleanRaw && cleanMedia && cleanMedia === cleanRaw);
+
+  const isComposedMedia = Boolean(
+    mediaSource && !isRawTemplate && (
+      cleanMedia.includes('/user-creations/') ||
+      cleanMedia.includes('status_') ||
+      cleanMedia.includes('creation_') ||
+      cleanMedia.includes('starpix_') ||
+      cleanMedia.includes('reel_') ||
+      cleanMedia.startsWith('file:') ||
+      cleanMedia.startsWith('data:') ||
+      Boolean(rawTemplateMedia && cleanMedia !== cleanRaw) ||
+      Boolean(displayItem.source === 'backend' || displayItem.source === 'local')
+    )
+  );
+
   const footers =
     displayItem.footers && displayItem.footers.length > 0
       ? displayItem.footers
@@ -200,8 +225,8 @@ export default function DownloadPreviewModal({
               )}
             </View>
 
-            {/* 2. Attached Animated Video/Image Footer */}
-            {customFooter ? (() => {
+            {/* 2. Attached Animated Video/Image Footer (only if not already composed in base media) */}
+            {!isComposedMedia && customFooter ? (() => {
               const rawAsset = customFooter.videoAsset || customFooter.asset;
               if (!rawAsset) return null;
               const footerUri = resolveMediaUrl(rawAsset);
@@ -277,17 +302,19 @@ export default function DownloadPreviewModal({
               );
             })() : null}
 
-            {/* 3. Personalized User Name and Photo Overlay */}
-            <ReelPersonalizationOverlay
-              frameId={frameId}
-              customFooter={normalizedFooter}
-              canvasConfig={canvasConfig}
-              userName={userName}
-              userPhotoUri={userPhotoUri}
-              cardWidth={cardWidth}
-              cardHeight={cardHeight}
-              isPlaying={true}
-            />
+            {/* 3. Personalized User Name and Photo Overlay (only if not already composed in base media) */}
+            {!isComposedMedia && (
+              <ReelPersonalizationOverlay
+                frameId={frameId}
+                customFooter={normalizedFooter}
+                canvasConfig={canvasConfig}
+                userName={userName}
+                userPhotoUri={userPhotoUri}
+                cardWidth={cardWidth}
+                cardHeight={cardHeight}
+                isPlaying={true}
+              />
+            )}
 
             {mediaLoading && (
               <View

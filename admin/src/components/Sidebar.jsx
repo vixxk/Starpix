@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import API from '../services/api';
 import ModalPortal from './ModalPortal';
 import {
   ChartBar,
@@ -29,7 +30,7 @@ const navigation = [
   { name: 'Purchases', href: '/purchases', icon: CreditCard },
   { name: 'Subscriptions', href: '/subscriptions', icon: Crown },
   { name: 'AI Credits', href: '/ai-credits', icon: Coins },
-  { name: 'Feedback & Issues', href: '/user-reports', icon: ChatDots },
+  { name: 'Issues & Feedbacks', href: '/user-reports', icon: ChatDots },
   { name: 'Revenue Reports', href: '/reports', icon: ChartPieSlice },
   { name: 'Users', href: '/users', icon: UsersThree },
   { name: 'Pricing', href: '/pricing', icon: Tag },
@@ -38,6 +39,22 @@ const navigation = [
 export default function Sidebar({ open, onClose }) {
   const { logout, admin } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [pendingReportsCount, setPendingReportsCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchPending = async () => {
+      try {
+        const res = await API.get('/admin/reports', { params: { limit: 1 } });
+        if (mounted && res.data?.summary?.pending !== undefined) {
+          setPendingReportsCount(res.data.summary.pending);
+        }
+      } catch (e) {
+        // Silent fail
+      }
+    };
+    fetchPending();
+  }, []);
 
   const content = (
     <>
@@ -89,9 +106,17 @@ export default function Sidebar({ open, onClose }) {
                   className="w-[18px] h-[18px] shrink-0"
                   weight={isActive ? 'fill' : 'bold'}
                 />
-                <span>{item.name}</span>
-                {isActive && (
-                  <span className="ml-auto w-2 h-2 bg-ink rounded-[1px]" />
+                <span className="truncate">{item.name}</span>
+                {item.href === '/user-reports' && pendingReportsCount > 0 ? (
+                  <span
+                    className={`ml-auto px-1.5 py-0.5 text-[10px] font-mono font-bold rounded-[2px] leading-none ${
+                      isActive ? 'bg-ink text-white' : 'bg-amber-400 text-ink shadow-sm'
+                    }`}
+                  >
+                    {pendingReportsCount}
+                  </span>
+                ) : (
+                  isActive && <span className="ml-auto w-2 h-2 bg-ink rounded-[1px]" />
                 )}
               </>
             )}
