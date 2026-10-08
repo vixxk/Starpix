@@ -10,6 +10,11 @@ const getCategories = asyncHandler(async (req, res) => {
     query.active = req.query.active === 'true';
   }
 
+  if (req.query.nonAi === 'true' || req.query.excludeAi === 'true') {
+    query.slug = { $nin: ['dance-video', 'retro-80s', 'ai-video', 'ai-trends', 'ai'] };
+    query.name = { $not: /(retro 80|dance video|\bai\b)/i };
+  }
+
   const categories = await Category.find(query).sort({ sortOrder: 1, createdAt: -1 }).lean();
 
   const Template = require('../models/Template');

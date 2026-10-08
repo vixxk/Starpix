@@ -58,6 +58,29 @@ const getTemplates = asyncHandler(async (req, res) => {
     query.accessType = accessType;
   }
 
+  if (req.query.nonAi === 'true' || req.query.excludeAi === 'true') {
+    const aiCats = await Category.find({
+      $or: [
+        { slug: { $in: ['dance-video', 'retro-80s', 'ai-video', 'ai-trends', 'ai'] } },
+        { name: { $regex: /(retro 80|dance video|\bai\b)/i } },
+      ],
+    }).select('_id');
+    const aiCatIds = aiCats.map((c) => c._id);
+    if (aiCatIds.length > 0) {
+      if (query.categoryId) {
+        query.$and = (query.$and || []).concat([
+          { categoryId: query.categoryId },
+          { categoryId: { $nin: aiCatIds } },
+        ]);
+        delete query.categoryId;
+      } else {
+        query.categoryId = { $nin: aiCatIds };
+      }
+    }
+    query.isAi = { $ne: true };
+    query.name = { ...(query.name || {}), $not: /(retro 80|dance video|\bai\b)/i };
+  }
+
   if (search) {
     query.$or = [
       { name: { $regex: search, $options: 'i' } },

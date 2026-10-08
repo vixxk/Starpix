@@ -196,18 +196,50 @@ export default function SearchScreen() {
     setToastKey((k) => k + 1);
   };
 
+  const AI_CATEGORY_SLUGS = ['retro-80s', 'dance-video', 'ai-video', 'ai-trends', 'ai-templates', 'ai'];
+  const AI_CATEGORY_NAMES = ["retro 80's", 'dance video', 'ai video', 'ai trends', 'ai content'];
+
+  const isAiCategory = (c) => {
+    if (!c) return false;
+    const slug = (c.slug || '').toLowerCase();
+    const name = (c.name || '').toLowerCase();
+    if (AI_CATEGORY_SLUGS.includes(slug) || AI_CATEGORY_NAMES.includes(name)) return true;
+    if (/\b(ai|ai-video|ai-trends|retro 80'?s|dance video)\b/i.test(slug) ||
+        /\b(ai|ai-video|ai-trends|retro 80'?s|dance video)\b/i.test(name)) return true;
+    return false;
+  };
+
+  const isAiTemplate = (item) => {
+    if (!item) return false;
+    if (item.isAi || item.aiGenerated || item.isAiTemplate) return true;
+    if (item.type === 'ai_video' || item.type === 'ai' || item.type === 'aivideo' || item.mediaType === 'ai_video') return true;
+    const catSlug = (item.categoryId?.slug || item.category || '').toLowerCase();
+    const catName = (item.categoryId?.name || '').toLowerCase();
+    const name = (item.name || item.title || '').toLowerCase();
+    const tags = (Array.isArray(item.tags) ? item.tags : []).map((t) => String(t).toLowerCase());
+
+    if (AI_CATEGORY_SLUGS.includes(catSlug) || AI_CATEGORY_NAMES.includes(catName)) return true;
+    if (/\b(ai|ai-video|ai-trends|retro 80'?s|dance video)\b/i.test(catSlug) ||
+        /\b(ai|ai-video|ai-trends|retro 80'?s|dance video)\b/i.test(catName)) return true;
+    if (/\b(retro 80'?s|dance video)\b/i.test(name)) return true;
+    if (/\b(ai\s+status|ai\s+video|ai\s+photo|ai\s+template)\b/i.test(name)) return true;
+    if (tags.some((t) => /\b(ai|ai-video|ai-trends)\b/i.test(t))) return true;
+    return false;
+  };
+
   // Fetch templates and categories
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const [tmplRes, catRes] = await Promise.all([
-          API.get('/templates', { params: { limit: 120, sort: 'trending' } }),
-          API.get('/categories', { params: { active: true } }),
+          API.get('/templates', { params: { limit: 120, sort: 'trending', nonAi: true } }),
+          API.get('/categories', { params: { active: true, nonAi: true } }),
         ]);
 
         if (tmplRes.data?.success && Array.isArray(tmplRes.data.data)) {
-          const parsed = tmplRes.data.data.map((item, idx) => {
+          const nonAiList = tmplRes.data.data.filter((item) => !isAiTemplate(item));
+          const parsed = nonAiList.map((item, idx) => {
             const catRaw =
               item.categoryId?.slug ||
               (typeof item.categoryId === 'string' ? item.categoryId : '') ||
@@ -282,7 +314,7 @@ export default function SearchScreen() {
         }
 
         if (catRes.data?.success && Array.isArray(catRes.data.data)) {
-          setCategories(catRes.data.data);
+          setCategories(catRes.data.data.filter((c) => !isAiCategory(c)));
         }
       } catch (err) {
         console.warn('Error fetching search data:', err?.message);
@@ -297,6 +329,11 @@ export default function SearchScreen() {
   const filteredTemplates = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return templates.filter((item) => {
+      // Exclude any AI templates
+      if (isAiTemplate(item) || isAiTemplate(item.rawTemplate)) {
+        return false;
+      }
+
       // Category filter
       if (selectedCategory !== 'all') {
         const catSlug = item.categoryId?.slug || item.category || '';
