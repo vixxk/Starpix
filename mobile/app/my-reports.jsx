@@ -231,22 +231,6 @@ export default function MyReportsScreen() {
 
                   {/* Date Submitted */}
                   <Text style={styles.dateText}>{t('submitted_on')}: {fmtDate(report.createdAt)}</Text>
-
-                  {/* Admin Reply Box */}
-                  {!!report.adminResponse && (
-                    <View style={styles.adminReplyCard}>
-                      <View style={styles.adminHeaderRow}>
-                        <View style={styles.adminAvatar}>
-                          <Ionicons name="headset" size={14} color={COLORS.white} />
-                        </View>
-                        <Text style={styles.adminTitle}>{t('support_reply')}</Text>
-                        {!!report.adminRespondedAt && (
-                          <Text style={styles.adminTime}>{fmtDate(report.adminRespondedAt)}</Text>
-                        )}
-                      </View>
-                      <Text style={styles.adminMessageText}>{report.adminResponse}</Text>
-                    </View>
-                  )}
                 </View>
               );
             })

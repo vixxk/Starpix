@@ -27,6 +27,7 @@ import AppVideo, { ResizeMode } from '../src/components/AppVideo';
 import Toast from '../src/components/Toast';
 import Skeleton from '../src/components/Skeleton';
 import ConfirmModal from '../src/components/ConfirmModal';
+import InsufficientCreditsModal from '../src/components/InsufficientCreditsModal';
 import PressableScale from '../src/components/PressableScale';
 import BackButton from '../src/components/BackButton';
 import { FONTS } from '../src/constants/colors';
@@ -72,6 +73,8 @@ export default function AITrendsScreen() {
   const [generating, setGenerating] = useState(false);
   const [generatedResult, setGeneratedResult] = useState(null);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [insufficientCreditsVisible, setInsufficientCreditsVisible] = useState(false);
+  const [insufficientCreditsData, setInsufficientCreditsData] = useState({ needed: 25, available: 0 });
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
 
@@ -261,15 +264,8 @@ export default function AITrendsScreen() {
     const userCredits = user?.credits !== undefined ? user.credits : 240;
     const needed = selectedTemplate?.creditsRequired || 25;
     if (user && userCredits < needed) {
-      Alert.alert(
-        t('insufficient_credits') || 'Insufficient Credits',
-        t('not_enough_credits_msg', { needed, available: userCredits }) ||
-          `You need ${needed} credits to generate this, but currently have ${userCredits}. Would you like to buy more?`,
-        [
-          { text: t('cancel') || 'Cancel', style: 'cancel' },
-          { text: t('settings_buy_ai_credits') || 'Buy Credits', onPress: () => router.push('/buy-credits') },
-        ]
-      );
+      setInsufficientCreditsData({ needed, available: userCredits });
+      setInsufficientCreditsVisible(true);
       return;
     }
     setConfirmModalVisible(true);
@@ -285,6 +281,22 @@ export default function AITrendsScreen() {
     try {
       setGenerating(true);
       showToast(t('ai_generation_started') || 'AI Generation Started');
+
+      // Register active AI generation card in global store for Downloads page
+      const genId = `ai_gen_${selectedTemplate._id}_${Date.now()}`;
+      useCreationStore.getState().setActiveAiGeneration({
+        id: genId,
+        templateId: selectedTemplate._id,
+        title: selectedTemplate.title || 'AI Trend Creation',
+        nameTranslations: selectedTemplate.nameTranslations,
+        thumbnailUrl: selectedTemplate.thumbnailUrl || selectedTemplate.sampleResultVideoUrl || selectedTemplate.sampleSourceImageUrl || selectedTemplate.videoUrl,
+        mediaType: selectedTemplate.mediaType || 'video',
+        isAi: true,
+        isGenerating: true,
+        startedAt: new Date().toISOString(),
+        activeTemplate: selectedTemplate,
+        template: selectedTemplate,
+      });
 
       // Real-time instantaneous credit update
       if (prevCredits >= cost) {
@@ -350,10 +362,16 @@ export default function AITrendsScreen() {
           name: selectedTemplate.title || 'AI Trend Creation',
           localUri: url,
           image: url,
+          mediaUrl: url,
+          mediaType: type,
+          isAi: true,
+          aiTemplateId: selectedTemplate._id,
           createdAt: new Date().toISOString(),
           downloadedAt: new Date().toISOString(),
           activeTemplate: selectedTemplate,
         });
+
+        useCreationStore.getState().clearActiveAiGeneration(selectedTemplate._id);
 
         hapticSuccess();
         showToast(t('video_ready_title') || 'Generation Complete!');
@@ -361,6 +379,7 @@ export default function AITrendsScreen() {
         throw new Error(res.data?.message || 'Face swap failed');
       }
     } catch (err) {
+      useCreationStore.getState().clearActiveAiGeneration(selectedTemplate?._id);
       hapticError();
       if (prevCredits !== undefined) {
         useAuthStore.getState().setUserCredits(prevCredits);
@@ -368,20 +387,14 @@ export default function AITrendsScreen() {
       if (err.response?.data?.code === 'INSUFFICIENT_CREDITS') {
         const needed = err.response.data.creditsRequired || selectedTemplate?.creditsRequired || 25;
         const avail = err.response.data.availableCredits ?? (user?.credits || 0);
-        Alert.alert(
-          t('insufficient_credits') || 'Insufficient Credits',
-          t('not_enough_credits_msg', { needed, available: avail }) ||
-            `You need ${needed} credits to generate this, but currently have ${avail}. Would you like to buy more?`,
-          [
-            { text: t('cancel') || 'Cancel', style: 'cancel' },
-            { text: t('settings_buy_ai_credits') || 'Buy Credits', onPress: () => router.push('/buy-credits') },
-          ]
-        );
+        setInsufficientCreditsData({ needed, available: avail });
+        setInsufficientCreditsVisible(true);
         return;
       }
       const msg = err.response?.data?.message || err.message || 'AI generation failed';
       Alert.alert('AI Notice', msg);
     } finally {
+      useCreationStore.getState().clearActiveAiGeneration(selectedTemplate?._id);
       setGenerating(false);
     }
   };
@@ -526,9 +539,9 @@ export default function AITrendsScreen() {
 
           <View style={styles.titleWrap}>
             <View style={styles.titleRow}>
-              <MaterialCommunityIcons
-                name="star-four-points"
-                size={fontScale(18)}
+              <Ionicons
+                name="trending-up"
+                size={fontScale(20)}
                 color="#EE1D24"
                 style={styles.titleStar}
               />
@@ -760,8 +773,8 @@ export default function AITrendsScreen() {
                     onPress={() => handleSelectTemplate(tmpl)}
                     activeOpacity={0.85}
                   >
-                    <MaterialCommunityIcons
-                      name="star-four-points"
+                    <Ionicons
+                      name={isTmplVideo ? 'videocam' : 'image'}
                       size={fontScale(12)}
                       color="#EE1D24"
                       style={{ marginRight: wp(0.01) }}
@@ -781,17 +794,29 @@ export default function AITrendsScreen() {
       {/* Confirm Generation Modal */}
       <ConfirmModal
         visible={confirmModalVisible}
-        title={selectedTemplate ? `✦ ${formatDisplayTitle(selectedTemplate.title)}` : t('ai_trends')}
+        title={selectedTemplate ? formatDisplayTitle(selectedTemplate.title) : t('ai_trends')}
         message={t('confirm_use_credits', {
           count: selectedTemplate?.creditsRequired || 25,
           type: isCurrentVideo ? t('media_video') : t('media_image'),
         }) || `Use ${selectedTemplate?.creditsRequired || 25} credits to generate this?`}
         confirmText={isCurrentVideo ? t('create_video') : t('create_image')}
         cancelText={t('cancel')}
-        icon="sparkles"
+        icon={isCurrentVideo ? 'videocam-outline' : 'image-outline'}
         iconColor="#EE1D24"
         onCancel={() => setConfirmModalVisible(false)}
         onConfirm={handleConfirmGeneration}
+      />
+
+      {/* Themed Insufficient AI Credits Modal */}
+      <InsufficientCreditsModal
+        visible={insufficientCreditsVisible}
+        neededCredits={insufficientCreditsData.needed}
+        availableCredits={insufficientCreditsData.available}
+        onClose={() => setInsufficientCreditsVisible(false)}
+        onBuyCredits={() => {
+          setInsufficientCreditsVisible(false);
+          router.push('/buy-credits');
+        }}
       />
 
       <Toast message={toastMessage} toastKey={toastKey} />

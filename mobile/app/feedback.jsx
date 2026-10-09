@@ -412,16 +412,6 @@ export default function FeedbackAndIssuesScreen() {
                   {item.description ? (
                     <Text style={styles.historyDescription}>{item.description}</Text>
                   ) : null}
-
-                  {item.adminResponse ? (
-                    <View style={styles.adminReplyBox}>
-                      <View style={styles.adminReplyHeader}>
-                        <Ionicons name="shield-checkmark" size={13} color="#2563EB" style={{ marginRight: 4 }} />
-                        <Text style={styles.adminReplyTitle}>{t('feedback_admin_reply') || 'Admin Response'}</Text>
-                      </View>
-                      <Text style={styles.adminReplyText}>{item.adminResponse}</Text>
-                    </View>
-                  ) : null}
                 </View>
               );
             })

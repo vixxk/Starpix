@@ -25,6 +25,14 @@ export const getCreationId = (item) => {
 export const getCardThumbnail = (item) => {
   if (!item) return '';
 
+  // For AI image creations, display the actual face-swapped result!
+  if (item.isAi && item.mediaType === 'image') {
+    const aiImg = item.imageUrl || item.image || item.mediaUrl || item.localUri;
+    if (aiImg && typeof aiImg === 'string' && !isVideoMedia(aiImg)) {
+      return resolveMediaUrl(aiImg);
+    }
+  }
+
   // 1. Check AI Template or Standard Template object first
   const tObj =
     item.aiTemplate ||
@@ -40,8 +48,8 @@ export const getCardThumbnail = (item) => {
     }
   }
 
-  // 2. Check if item.image or item.localUri or item.editedPhoto or userPhotoUri is a static image fallback
-  const candidates = [item.image, item.localUri, item.editedPhoto, item.userPhotoUri];
+  // 2. Check if item.thumbnailUrl or item.image or item.localUri or item.editedPhoto is a static image fallback
+  const candidates = [item.thumbnailUrl, item.image, item.localUri, item.editedPhoto, item.userPhotoUri];
   for (const cand of candidates) {
     if (cand && typeof cand === 'string' && !isVideoMedia(cand)) {
       return resolveMediaUrl(cand);

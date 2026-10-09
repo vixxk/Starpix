@@ -54,23 +54,97 @@ import {
 
 const normalizeCat = (c) => (c || '').toString().toLowerCase().replace(/[-_\s]/g, '');
 
-const estimateChipWidth = (cat, currentLang) => {
-  const label =
-    (cat.nameTranslations && cat.nameTranslations[currentLang]) ||
-    cat.name ||
-    cat.label ||
-    cat.id ||
-    '';
-  const hasIcon = Boolean(cat.icon);
-  const iconExtra = hasIcon ? 20 : 0;
-  const textWidth = Math.ceil((label.length || 4) * fontScale(8.2));
-  return 24 + iconExtra + textWidth;
+const formatCategoryName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  // If all uppercase English characters (e.g. "GOOD MORNING"), convert to Title Case
+  if (/^[A-Z0-9\s&'-]+$/.test(name) && name.length > 3) {
+    return name
+      .toLowerCase()
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  return name;
 };
 
-const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth) => {
+export const getCategoryLabel = (chip, currentLang, t) => {
+  if (!chip) return '';
+  if (chip.isViewAll || chip.id === '__view_all__') {
+    return t ? t('view_all') || 'View All' : 'View All';
+  }
+
+  const slugKey = (chip.slug || chip.id || '').replace(/[-]/g, '_').toLowerCase();
+
+  // 1. Check i18n localized keys
+  if (t) {
+    const candidateKeys = [
+      chip.slug === 'special' ? 'todays_special' : null,
+      chip.labelKey,
+      slugKey,
+    ].filter(Boolean);
+
+    for (const key of candidateKeys) {
+      if (t(key) && t(key) !== key) {
+        return t(key);
+      }
+    }
+  }
+
+  // 2. Check if nameTranslations has an entry for the current language
+  if (chip.nameTranslations && chip.nameTranslations[currentLang]) {
+    const val = chip.nameTranslations[currentLang];
+    if (val && typeof val === 'string' && val.trim()) {
+      return formatCategoryName(val);
+    }
+  }
+
+  // 3. Fallback to category name or id
+  return formatCategoryName(chip.name || chip.label || chip.id || '');
+};
+
+const estimateChipWidth = (cat, currentLang, t) => {
+  const isViewAll = cat.isViewAll || cat.id === '__view_all__';
+  const label = getCategoryLabel(cat, currentLang, t);
+  const hasIcon = Boolean(isViewAll || cat.icon);
+  const screenW = Dimensions.get('window').width || 390;
+  const fontMultiplier = Math.max(screenW / 390, 0.9);
+
+  // Ionicons grid or emoji glyph
+  const iconExtra = isViewAll ? (13 * fontMultiplier) : (hasIcon ? (16 * fontMultiplier) : 0);
+
+  let charSum = 0;
+  for (let i = 0; i < label.length; i++) {
+    const ch = label[i];
+    const code = ch.charCodeAt(0);
+    if (code > 127) {
+      // Indic scripts / Unicode non-ASCII (Devanagari, Tamil, Telugu, Kannada, Bengali, Gujarati, Punjabi, Malayalam)
+      charSum += 7.6 * fontMultiplier;
+    } else if (ch >= 'A' && ch <= 'Z') {
+      if ('MW'.includes(ch)) charSum += 9.5 * fontMultiplier;
+      else charSum += 7.2 * fontMultiplier;
+    } else if ('mw'.includes(ch)) {
+      charSum += 8.5 * fontMultiplier;
+    } else if ('ijl., \'!-:;()'.includes(ch)) {
+      charSum += 3.2 * fontMultiplier;
+    } else if ('rtfks'.includes(ch)) {
+      charSum += 5.0 * fontMultiplier;
+    } else if (ch >= '0' && ch <= '9') {
+      charSum += 6.0 * fontMultiplier;
+    } else {
+      charSum += 6.2 * fontMultiplier;
+    }
+  }
+
+  // Padding (6 * 2 = 12) + Border (1 * 2 = 2) = 14px + 2px safety buffer
+  const basePaddingAndBorder = 16;
+  const scaledTextWidth = Math.ceil(Math.max(charSum, 10));
+  return Math.ceil(basePaddingAndBorder + iconExtra + scaledTextWidth);
+};
+
+const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth, t) => {
   if (!categoriesList || categoriesList.length === 0) return [];
 
-  const GAP = 6;
+  const GAP = 4;
   const VIEW_ALL_CHIP = {
     id: '__view_all__',
     isViewAll: true,
@@ -78,57 +152,52 @@ const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth) 
     labelKey: 'view_all',
     icon: 'grid-outline',
   };
-  const viewAllWidth = Math.round(fontScale(94));
+  const viewAllWidth = estimateChipWidth(VIEW_ALL_CHIP, currentLang, t);
 
+  // Safety buffer to ensure that even with rendering sub-pixels or slight font variations,
+  // NO chip ever touches the right edge or gets clipped with ellipsis.
+  const lineSafetyBuffer = 10;
+  const maxLineWidth = Math.max(availableWidth - lineSafetyBuffer, 200);
+
+  // Line 0, Line 1, Line 2 max widths
+  // Line 2 must reserve space for GAP + viewAllWidth
+  const maxWs = [
+    maxLineWidth,
+    maxLineWidth,
+    Math.max(maxLineWidth - GAP - viewAllWidth, 60),
+  ];
+
+  // We respect the exact admin order of categoriesList
+  const pool = [...categoriesList];
   const lines = [[], [], []];
-  let lineIdx = 0;
+
+  let currentLine = 0;
   let currentLineWidth = 0;
-  let unplacedIdx = 0;
 
-  for (let i = 0; i < categoriesList.length; i++) {
-    const cat = categoriesList[i];
-    const width = estimateChipWidth(cat, currentLang);
+  for (let i = 0; i < pool.length; i++) {
+    if (currentLine >= 3) break;
 
-    if (lineIdx === 0) {
-      if (currentLineWidth === 0 || currentLineWidth + GAP + width <= availableWidth) {
-        lines[0].push(cat);
-        currentLineWidth += (currentLineWidth === 0 ? 0 : GAP) + width;
-      } else {
-        lineIdx = 1;
-        lines[1].push(cat);
-        currentLineWidth = width;
-      }
-    } else if (lineIdx === 1) {
-      if (currentLineWidth === 0 || currentLineWidth + GAP + width <= availableWidth) {
-        lines[1].push(cat);
-        currentLineWidth += (currentLineWidth === 0 ? 0 : GAP) + width;
-      } else {
-        lineIdx = 2;
-        currentLineWidth = 0;
-        unplacedIdx = i;
-        break;
-      }
+    const cat = pool[i];
+    const catWidth = estimateChipWidth(cat, currentLang, t);
+    const addedGap = lines[currentLine].length === 0 ? 0 : GAP;
+    const nextWidth = currentLineWidth + addedGap + catWidth;
+
+    if (nextWidth <= maxWs[currentLine]) {
+      // Fits on current line
+      lines[currentLine].push(cat);
+      currentLineWidth = nextWidth;
+    } else {
+      // Overflows current line -> advance to next line
+      currentLine++;
+      if (currentLine >= 3) break;
+
+      const firstWidthOnNewLine = catWidth;
+      lines[currentLine].push(cat);
+      currentLineWidth = firstWidthOnNewLine;
     }
   }
 
-  // Line 3: Must fit remaining items up to (availableWidth - GAP - viewAllWidth)
-  const line3MaxWidth = Math.max(availableWidth - GAP - viewAllWidth, 80);
-  let line3Width = 0;
-
-  if (lineIdx === 2) {
-    for (let i = unplacedIdx; i < categoriesList.length; i++) {
-      const cat = categoriesList[i];
-      const width = estimateChipWidth(cat, currentLang);
-      if (line3Width === 0 || line3Width + GAP + width <= line3MaxWidth) {
-        lines[2].push(cat);
-        line3Width += (line3Width === 0 ? 0 : GAP) + width;
-      } else {
-        break;
-      }
-    }
-  }
-
-  // Always append VIEW_ALL_CHIP as the last button of Line 3
+  // Always append VIEW_ALL_CHIP at the end of Line 3
   lines[2].push(VIEW_ALL_CHIP);
 
   return lines.filter((l) => l.length > 0);
@@ -216,7 +285,8 @@ export default function HomeScreen() {
   const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
 
   const displayName = user?.name || user?.fullName || storeUserNameText || 'Uika';
-  const displayPhoto = user?.profilePhoto || storeUserPhotoUri || null;
+  const hasValidUserPhoto = Boolean(user?.profilePhoto && user.profilePhoto.trim() !== '');
+  const displayPhoto = user ? (hasValidUserPhoto ? user.profilePhoto.trim() : null) : (storeUserPhotoUri || null);
 
   // Header Greeting: Show first name only; ellipsis (...) is applied dynamically by Text ellipsizeMode only if it overflows
   const greetingName = useMemo(() => {
@@ -252,6 +322,7 @@ export default function HomeScreen() {
       .then((res) => {
         if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
           const cats = res.data.data;
+          cats.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
           const formatted = cats.map((c) => ({
             id: c.slug || c._id,
             _id: c._id,
@@ -264,9 +335,8 @@ export default function HomeScreen() {
             sortOrder: c.sortOrder ?? 0,
           }));
           setRawCategories(formatted);
-          if (!activeCategory) {
-            const specialCat = formatted.find((c) => c.isSpecial);
-            setActiveCategory(specialCat ? specialCat.id : formatted[0].id);
+          if (!activeCategory && formatted.length > 0) {
+            setActiveCategory(formatted[0].id);
           }
         }
       })
@@ -278,16 +348,18 @@ export default function HomeScreen() {
       });
   }, []);
 
-  // Dynamically re-pack categories into 3 lines with View All as the last button
+  // Dynamically pack categories into 3 lines with View All as the last button
   useEffect(() => {
     if (rawCategories && rawCategories.length > 0) {
-      const availWidth = Dimensions.get('window').width - wp(0.06);
-      const packed = packThreeLinesWithViewAll(rawCategories, i18n.language, availWidth);
+      const screenW = windowWidth || Dimensions.get('window').width;
+      // categoryContainer paddingHorizontal is 10 (20px total)
+      const availWidth = Math.floor(screenW - 20);
+      const packed = packThreeLinesWithViewAll(rawCategories, i18n.language, availWidth, t);
       setCategoryRows(packed);
     } else {
       setCategoryRows([]);
     }
-  }, [rawCategories, i18n.language]);
+  }, [rawCategories, i18n.language, windowWidth, t]);
 
   // Synchronize playback: hold playback at frame 0 for a brief 350ms so background, footer, name & avatar all mount together before motion starts
   useEffect(() => {
@@ -1466,19 +1538,19 @@ export default function HomeScreen() {
           {loadingCategories ? (
             <View style={styles.categorySkeletonWrapper}>
               <View style={styles.categoryRow}>
-                <Skeleton width={wp(0.36)} height={32} borderRadius={20} />
-                <Skeleton width={wp(0.32)} height={32} borderRadius={20} />
-                <Skeleton width={wp(0.22)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.32)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.22)} height={25} borderRadius={14} />
               </View>
               <View style={styles.categoryRow}>
-                <Skeleton width={wp(0.28)} height={32} borderRadius={20} />
-                <Skeleton width={wp(0.28)} height={32} borderRadius={20} />
-                <Skeleton width={wp(0.26)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.28)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.24)} height={25} borderRadius={14} />
               </View>
               <View style={styles.categoryRow}>
-                <Skeleton width={wp(0.30)} height={32} borderRadius={20} />
-                <Skeleton width={wp(0.28)} height={32} borderRadius={20} />
-                <Skeleton width={wp(0.24)} height={32} borderRadius={20} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.22)} height={25} borderRadius={14} />
               </View>
             </View>
           ) : (
@@ -1487,10 +1559,7 @@ export default function HomeScreen() {
                 {row.map((chip) => {
                   const isViewAll = chip.isViewAll || chip.id === '__view_all__';
                   const isSelected = !isViewAll && activeCategory === chip.id;
-                  const label = isViewAll
-                    ? (t('view_all') || 'View All')
-                    : (chip.nameTranslations && chip.nameTranslations[i18n.language]) ||
-                      (chip.labelKey && i18n.exists(chip.labelKey) ? t(chip.labelKey) : (chip.name || chip.id));
+                  const label = getCategoryLabel(chip, i18n.language, t);
 
                   return (
                     <TouchableOpacity
@@ -1505,11 +1574,13 @@ export default function HomeScreen() {
                       ]}
                     >
                       {isViewAll ? (
-                        <Ionicons name="grid" size={fontScale(12.5)} color="#9F1239" />
+                        <Ionicons name="grid" size={fontScale(10.5)} color="#9F1239" />
                       ) : chip.icon ? (
                         <Text style={styles.chipIcon}>{chip.icon}</Text>
                       ) : null}
                       <Text
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
                         style={[
                           styles.chipText,
                           isSelected && styles.chipTextActive,

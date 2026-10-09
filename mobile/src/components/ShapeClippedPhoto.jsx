@@ -122,9 +122,8 @@ export default function ShapeClippedPhoto({
           </ClipPath>
         </Defs>
 
-        {/* Base filled shape background */}
+        {/* Base clipped photo (transparent background so template/footer shows through) */}
         <G clipPath={`url(#${clipId})`}>
-          <SvgRect x="0" y="0" width={w} height={h} fill="#1E293B" />
           {!hasError && photoUri ? (
             <SvgImage
               href={{ uri: photoUri }}

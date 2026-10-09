@@ -17,6 +17,8 @@ import {
   HashStraight,
   Sparkle,
   Globe,
+  ArrowUp,
+  ArrowDown,
 } from '@phosphor-icons/react';
 import MultilingualNameModal from '../components/MultilingualNameModal';
 
@@ -36,8 +38,44 @@ export default function Categories() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+
+  const handleMoveOrder = async (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= categories.length) return;
+
+    const newCategories = [...categories];
+    const [moved] = newCategories.splice(index, 1);
+    newCategories.splice(targetIndex, 0, moved);
+
+    const reorderedWithNumbers = newCategories.map((c, i) => ({
+      ...c,
+      sortOrder: i + 1,
+    }));
+
+    setCategories(reorderedWithNumbers);
+    setReordering(true);
+
+    try {
+      const orderedIds = reorderedWithNumbers.map((c) => c._id);
+      try {
+        await API.post('/categories/reorder', { orderedIds });
+      } catch (postErr) {
+        // Fallback: update sortOrder via PUT /categories/:id in case backend hasn't restarted yet
+        await Promise.all(
+          reorderedWithNumbers.map((c) => API.put(`/categories/${c._id}`, { sortOrder: c.sortOrder }))
+        );
+      }
+      toast.success(`Moved "${moved.name}" ${direction < 0 ? 'up' : 'down'}`);
+    } catch (err) {
+      toast.error('Failed to update category order');
+      fetchCategories();
+    } finally {
+      setReordering(false);
+    }
+  };
 
   const handleSeedCategories = async () => {
     setSeeding(true);
@@ -71,7 +109,9 @@ export default function Categories() {
     setLoading(true);
     try {
       const res = await API.get('/categories');
-      setCategories(res.data.data);
+      const cats = Array.isArray(res.data?.data) ? res.data.data : [];
+      cats.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      setCategories(cats);
     } catch (err) {
       console.error(err);
     } finally {
@@ -165,7 +205,7 @@ export default function Categories() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
-          {categories.map((c) => (
+          {categories.map((c, idx) => (
             <div key={c._id} className="panel panel-hover p-2.5 sm:p-5 flex flex-col justify-between anim">
               <div>
                 <div className="flex items-center justify-between mb-2 sm:mb-4 gap-1">
@@ -192,10 +232,32 @@ export default function Categories() {
               </div>
 
               <div className="mt-2.5 sm:mt-5 pt-2 sm:pt-4 border-t border-paper-200 flex items-center justify-between gap-1">
-                <span className="text-[9px] sm:text-[11px] font-medium text-ink-mute truncate">
-                  <span className="sm:hidden">#{c.sortOrder}</span>
-                  <span className="hidden sm:inline">Order · #{c.sortOrder} • {c.templateCount || 0} templates</span>
-                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[10px] sm:text-xs font-mono font-bold bg-paper-100 border border-paper-300 px-1.5 py-0.5 rounded-[2px] text-ink" title="Display Order Index">
+                    #{idx + 1}
+                  </span>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      disabled={idx === 0 || reordering}
+                      onClick={() => handleMoveOrder(idx, -1)}
+                      className="p-1 sm:p-1.5 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                      title="Move Up"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" weight="bold" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === categories.length - 1 || reordering}
+                      onClick={() => handleMoveOrder(idx, 1)}
+                      className="p-1 sm:p-1.5 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                      title="Move Down"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" weight="bold" />
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
                   <button onClick={() => handleOpenEdit(c)} className="p-1 sm:p-2 text-ink-mute hover:text-flame-600 hover:bg-flame-500/10 rounded-[2px] transition-colors" title="Edit">
                     <PencilSimple className="w-3.5 h-3.5 sm:w-4 sm:h-4" weight="duotone" />

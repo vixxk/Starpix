@@ -283,7 +283,9 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   if (req.body.name !== undefined) user.name = req.body.name.trim();
   if (req.body.email !== undefined) user.email = req.body.email.trim().toLowerCase();
-  if (req.body.profilePhoto !== undefined) {
+  if (req.body.removeProfilePhoto === true || req.body.profilePhoto === '' || req.body.profilePhoto === null) {
+    user.profilePhoto = '';
+  } else if (req.body.profilePhoto !== undefined) {
     let photoVal = req.body.profilePhoto;
     if (typeof photoVal === 'string' && photoVal.startsWith('data:image/')) {
       try {

@@ -758,7 +758,11 @@ export default function PreviewScreen() {
                 onPress={handleShareDirect}
                 disabled={sharing || downloading}
                 scaleTo={0.95}
-                style={[styles.actionBtn, styles.shareBtn]}
+                style={[
+                  styles.actionBtn,
+                  styles.shareBtn,
+                  (sharing || downloading) && !sharing && { opacity: 0.5 },
+                ]}
                 contentStyle={styles.actionContent}
               >
                 {sharing ? (
@@ -776,7 +780,11 @@ export default function PreviewScreen() {
                 disabled={sharing || downloading}
                 scaleTo={0.95}
                 haptic="impact"
-                style={[styles.actionBtn, styles.downloadBtn]}
+                style={[
+                  styles.actionBtn,
+                  styles.downloadBtn,
+                  (sharing || downloading) && !downloading && { opacity: 0.5 },
+                ]}
                 contentStyle={styles.actionContent}
               >
                 {downloading ? (

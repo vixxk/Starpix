@@ -53,17 +53,20 @@ export default function EditProfileScreen() {
   const setUserPhotoUri = useCreationStore((s) => s.setUserPhotoUri);
   const setUserNameText = useCreationStore((s) => s.setUserNameText);
 
-  const [initialPhotoUri] = useState(user?.profilePhoto || defaultUserPhotoUri || null);
+  const userHasPhoto = Boolean(user?.profilePhoto && user.profilePhoto.trim() !== '');
+  const activeInitialPhoto = userHasPhoto ? user.profilePhoto.trim() : null;
+
+  const [initialPhotoUri, setInitialPhotoUri] = useState(activeInitialPhoto);
   const [initialNameText] = useState(user?.name || defaultUserNameText || '');
   const [initialEmailText] = useState(user?.email || '');
 
-  const [originalPhotoUri, setOriginalPhotoUri] = useState(user?.profilePhoto || defaultUserPhotoUri || null);
+  const [originalPhotoUri, setOriginalPhotoUri] = useState(activeInitialPhoto);
   const [cutoutPhotoUri, setCutoutPhotoUri] = useState(null);
   const [isBgRemoved, setIsBgRemoved] = useState(false);
   const [initialIsBgRemoved, setInitialIsBgRemoved] = useState(false);
   const [processingBgRemoval, setProcessingBgRemoval] = useState(false);
 
-  const [photoUri, setPhotoUri] = useState(user?.profilePhoto || defaultUserPhotoUri || null);
+  const [photoUri, setPhotoUri] = useState(activeInitialPhoto);
   const [nameText, setNameText] = useState(user?.name || defaultUserNameText || '');
   const [emailText, setEmailText] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
@@ -78,13 +81,32 @@ export default function EditProfileScreen() {
     let isMounted = true;
     const loadBgSettings = async () => {
       try {
+        const currentUserPhoto = (user?.profilePhoto && user.profilePhoto.trim() !== '') ? user.profilePhoto.trim() : null;
+
+        // If user account has no profile photo, purge any stale cache so nothing is ever revived
+        if (!currentUserPhoto) {
+          if (!isMounted) return;
+          setOriginalPhotoUri(null);
+          setCutoutPhotoUri(null);
+          setPhotoUri(null);
+          setIsBgRemoved(false);
+          setInitialIsBgRemoved(false);
+          AsyncStorage.multiRemove([
+            'starpix_user_original_photo',
+            'starpix_user_cutout_photo',
+            'starpix_default_user_photo',
+            'starpix_user_bg_removed_enabled',
+          ]).catch(() => {});
+          return;
+        }
+
         const savedOriginal = await AsyncStorage.getItem('starpix_user_original_photo');
         const savedCutout = await AsyncStorage.getItem('starpix_user_cutout_photo');
         const savedEnabled = await AsyncStorage.getItem('starpix_user_bg_removed_enabled');
 
         if (!isMounted) return;
 
-        const currentBase = savedOriginal || user?.profilePhoto || defaultUserPhotoUri || null;
+        const currentBase = savedOriginal || currentUserPhoto;
         setOriginalPhotoUri(currentBase);
 
         if (savedCutout) {
@@ -108,7 +130,7 @@ export default function EditProfileScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user?.profilePhoto]);
 
   const hasUnsavedChanges =
     photoUri !== initialPhotoUri ||
@@ -325,9 +347,11 @@ export default function EditProfileScreen() {
     setSaving(true);
     try {
       const trimmedName = nameText.trim();
-      let uploadedPhotoUrl = photoUri;
+      const isPhotoRemoved = !photoUri || String(photoUri).trim() === '';
+      let uploadedPhotoUrl = isPhotoRemoved ? null : photoUri;
 
       if (
+        !isPhotoRemoved &&
         photoUri &&
         (photoUri.startsWith('file://') ||
           photoUri.startsWith('content://') ||
@@ -347,6 +371,7 @@ export default function EditProfileScreen() {
       // prepare base64 for backend upload to S3 without bloating local state
       let profilePhotoForBackend = uploadedPhotoUrl || '';
       if (
+        !isPhotoRemoved &&
         uploadedPhotoUrl &&
         (uploadedPhotoUrl.startsWith('file://') || uploadedPhotoUrl.startsWith('content://'))
       ) {
@@ -361,25 +386,39 @@ export default function EditProfileScreen() {
         }
       }
 
+      if (isPhotoRemoved) {
+        profilePhotoForBackend = '';
+        uploadedPhotoUrl = null;
+      }
+
       // Update global creation store with clean URI (local file URI or S3 URL, NOT raw base64!)
       setDefaultUserPhotoUri(uploadedPhotoUrl);
       setDefaultUserNameText(trimmedName);
       setUserPhotoUri(uploadedPhotoUrl);
       setUserNameText(trimmedName);
 
-      // Persist background removal preference and photos for later use
+      // Persist or completely purge background removal preference and photos in AsyncStorage
       try {
-        await AsyncStorage.setItem('starpix_user_bg_removed_enabled', isBgRemoved ? 'true' : 'false');
-        if (originalPhotoUri) {
-          await AsyncStorage.setItem('starpix_user_original_photo', originalPhotoUri);
+        if (isPhotoRemoved) {
+          await AsyncStorage.multiRemove([
+            'starpix_user_original_photo',
+            'starpix_user_cutout_photo',
+            'starpix_default_user_photo',
+            'starpix_user_bg_removed_enabled',
+          ]);
         } else {
-          await AsyncStorage.removeItem('starpix_user_original_photo');
-        }
-        if (cutoutPhotoUri) {
-          const savedCutout = (isBgRemoved && uploadedPhotoUrl) ? uploadedPhotoUrl : cutoutPhotoUri;
-          await AsyncStorage.setItem('starpix_user_cutout_photo', savedCutout);
-        } else {
-          await AsyncStorage.removeItem('starpix_user_cutout_photo');
+          await AsyncStorage.setItem('starpix_user_bg_removed_enabled', isBgRemoved ? 'true' : 'false');
+          if (originalPhotoUri) {
+            await AsyncStorage.setItem('starpix_user_original_photo', originalPhotoUri);
+          } else {
+            await AsyncStorage.removeItem('starpix_user_original_photo');
+          }
+          if (cutoutPhotoUri) {
+            const savedCutout = (isBgRemoved && uploadedPhotoUrl) ? uploadedPhotoUrl : cutoutPhotoUri;
+            await AsyncStorage.setItem('starpix_user_cutout_photo', savedCutout);
+          } else {
+            await AsyncStorage.removeItem('starpix_user_cutout_photo');
+          }
         }
       } catch (storageErr) {
         console.warn('Error saving background removal cache to AsyncStorage:', storageErr);
@@ -391,8 +430,13 @@ export default function EditProfileScreen() {
           name: trimmedName,
           email: emailText.trim(),
           profilePhoto: profilePhotoForBackend,
+          removeProfilePhoto: isPhotoRemoved,
         });
       }
+
+      // Reset initial values so hasUnsavedChanges immediately becomes false
+      setInitialPhotoUri(uploadedPhotoUrl);
+      setInitialIsBgRemoved(isPhotoRemoved ? false : isBgRemoved);
 
       showToast(t('profile_updated') || 'Profile updated successfully!');
       setTimeout(() => {

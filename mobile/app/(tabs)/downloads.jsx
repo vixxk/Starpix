@@ -75,6 +75,7 @@ export default function DownloadsScreen() {
   const [deletedIds, setDeletedIds] = useState(() => new Set());
 
   const downloadedCreations = useCreationStore((state) => state.downloadedCreations || []);
+  const activeAiGenerations = useCreationStore((state) => state.activeAiGenerations || []);
   const removeDownloadedCreation = useCreationStore((state) => state.removeDownloadedCreation);
   const clearDownloadedCreations = useCreationStore((state) => state.clearDownloadedCreations);
 
@@ -155,14 +156,18 @@ export default function DownloadsScreen() {
 
       const selectedFooter = customState.selectedFooter || (footers.length > 0 ? footers[0] : null);
       const canvasConfig = catalogTmpl?.canvasConfig || template.canvasConfig || customState.canvasConfig || null;
+      const isAi = Boolean(item.isAi || item.aiTemplateId || aiTemplate);
       const mediaUrl = item.imageUrl || catalogTmpl?.mainMedia || template.mainMedia || template.previewAsset;
-      const mediaType = item.mediaType || catalogTmpl?.type || template.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
+      const mediaType = item.mediaType || (isAi && aiTemplate?.mediaType) || catalogTmpl?.type || template.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
+      const displayImage = isAi
+        ? (mediaType === 'image' ? (item.imageUrl || aiTemplate?.thumbnailUrl) : (aiTemplate?.thumbnailUrl || item.imageUrl))
+        : (catalogTmpl?.thumbnail || template.thumbnail || aiTemplate?.thumbnailUrl || item.imageUrl || template.previewAsset || item.editedPhoto);
 
       list.push({
         _id: cId,
         title: item.templateTitle || catalogTmpl?.name || aiTemplate?.title || template.name || 'Personalized Status',
         nameTranslations: catalogTmpl?.nameTranslations || template.nameTranslations || customState.nameTranslations,
-        image: catalogTmpl?.thumbnail || template.thumbnail || aiTemplate?.thumbnailUrl || item.imageUrl || template.previewAsset || item.editedPhoto,
+        image: displayImage,
         mediaUrl: mediaUrl,
         mediaType: mediaType,
         editedText: item.editedText || customState.userNameText || '',
@@ -171,6 +176,7 @@ export default function DownloadsScreen() {
         template: catalogTmpl || template,
         aiTemplate: aiTemplate,
         activeTemplate: activeTmpl,
+        isAi: isAi,
         userPhotoUri: customState.userPhotoUri || item.editedPhoto || null,
         userNameText: customState.userNameText || item.editedText || '',
         userQuoteText: customState.userQuoteText || '',
@@ -213,6 +219,7 @@ export default function DownloadsScreen() {
 
       if (!isSameAsBackend) {
         if (cId) seenIds.add(cId);
+        const isAi = Boolean(item.isAi || item.aiTemplate || item.aiTemplateId || (cId && String(cId).startsWith('ai_')));
         const customState = item.customizationState || {};
         const aiTmpl = item.aiTemplate || customState.aiTemplate || null;
         const tmpl = item.template || customState.activeTemplate || item.activeTemplate || null;
@@ -235,13 +242,17 @@ export default function DownloadsScreen() {
         const selectedFooter = item.selectedFooter || customState.selectedFooter || (footers.length > 0 ? footers[0] : null);
         const canvasConfig = catalogTmpl?.canvasConfig || item.canvasConfig || tmpl?.canvasConfig || customState.canvasConfig || null;
         const mediaUrl = item.mediaUrl || item.localUri || item.image || catalogTmpl?.mainMedia || tmpl?.mainMedia;
-        const mediaType = item.mediaType || catalogTmpl?.type || tmpl?.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
+        const mediaType = item.mediaType || (isAi && (aiTmpl?.mediaType || tmpl?.mediaType)) || catalogTmpl?.type || tmpl?.type || (isVideoMedia(mediaUrl) ? 'video' : 'image');
+
+        const displayImage = isAi
+          ? (mediaType === 'image' ? (item.image || item.localUri || aiTmpl?.thumbnailUrl) : (aiTmpl?.thumbnailUrl || item.image || item.localUri))
+          : (catalogTmpl?.thumbnail || tmpl?.thumbnail || item.thumbnail || item.localUri || item.editedPhoto || item.image);
 
         list.push({
           _id: cId || `local_${Date.now()}`,
           title: item.name || catalogTmpl?.name || aiTmpl?.title || item.title || 'Personalized Status',
           nameTranslations: catalogTmpl?.nameTranslations || item.nameTranslations || tmpl?.nameTranslations,
-          image: catalogTmpl?.thumbnail || tmpl?.thumbnail || item.thumbnail || item.localUri || item.editedPhoto || item.image,
+          image: displayImage,
           mediaUrl: mediaUrl,
           mediaType: mediaType,
           editedText: text,
@@ -250,6 +261,7 @@ export default function DownloadsScreen() {
           template: catalogTmpl || tmpl,
           aiTemplate: aiTmpl,
           activeTemplate: activeTmpl,
+          isAi: isAi,
           userPhotoUri: photo || null,
           userNameText: item.userNameText || customState.userNameText || text,
           userQuoteText: item.userQuoteText || customState.userQuoteText || '',
@@ -263,14 +275,42 @@ export default function DownloadsScreen() {
       }
     });
 
-    return list;
-  }, [backendDownloads, downloadedCreations, templateCatalog, user, deletedIds]);
+    const activeGenerations = activeAiGenerations.map((gen) => {
+      const gTmpl = gen.activeTemplate || gen.template || {};
+      const catalogTmpl =
+        (gTmpl && gTmpl._id && templateCatalog[String(gTmpl._id)]) ||
+        (gen.templateId && templateCatalog[String(gen.templateId)]) ||
+        gTmpl;
 
-  const handleShare = async (fileOrUrl, itemId = null) => {
-    if (!fileOrUrl) return;
+      return {
+        _id: gen.id || `gen_${gen.templateId || Date.now()}`,
+        title: gen.title || catalogTmpl?.name || catalogTmpl?.title || 'Personalized AI Content',
+        nameTranslations: catalogTmpl?.nameTranslations || gen.nameTranslations,
+        image: gen.thumbnailUrl || catalogTmpl?.thumbnailUrl || catalogTmpl?.thumbnail,
+        thumbnailUrl: gen.thumbnailUrl || catalogTmpl?.thumbnailUrl || catalogTmpl?.thumbnail,
+        mediaUrl: gen.thumbnailUrl || catalogTmpl?.videoUrl || catalogTmpl?.mainMedia,
+        mediaType: gen.mediaType || catalogTmpl?.mediaType || 'video',
+        downloadedAt: gen.startedAt || new Date().toISOString(),
+        template: catalogTmpl || gTmpl,
+        activeTemplate: catalogTmpl || gTmpl,
+        aiTemplate: catalogTmpl || gTmpl,
+        isAi: true,
+        isGenerating: true,
+        source: 'local',
+      };
+    });
+
+    return [...activeGenerations, ...list];
+  }, [backendDownloads, downloadedCreations, templateCatalog, user, deletedIds, activeAiGenerations]);
+
+  const handleShare = async (fileOrUrl, itemId = null, itemObj = null) => {
+    if (!fileOrUrl || downloadingId || sharingId) return;
     try {
       if (itemId) setSharingId(itemId);
-      const isVideo = isVideoMedia(fileOrUrl);
+      const isAi = Boolean(itemObj?.isAi || itemObj?.aiTemplate || itemObj?.aiTemplateId);
+      const isVideo = isAi
+        ? (itemObj?.mediaType === 'video' || itemObj?.aiTemplate?.mediaType === 'video' || isVideoMedia(fileOrUrl))
+        : isVideoMedia(fileOrUrl);
       const ext = isVideo ? 'mp4' : 'jpg';
       const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       let shareUri = fileOrUrl;
@@ -279,8 +319,13 @@ export default function DownloadsScreen() {
         try {
           const proxyUrl = resolveMediaUrl(fileOrUrl);
           const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
-          const downloaded = await FileSystem.downloadAsync(proxyUrl, fileUri);
-          shareUri = downloaded.uri;
+          let downloaded = await FileSystem.downloadAsync(proxyUrl, fileUri);
+          if (downloaded.status !== 200 && proxyUrl !== fileOrUrl) {
+            downloaded = await FileSystem.downloadAsync(fileOrUrl, fileUri);
+          }
+          if (downloaded.status === 200) {
+            shareUri = downloaded.uri;
+          }
         } catch (shareErr) {
           console.warn('[Downloads] Share download notice:', shareErr.message);
         }
@@ -303,43 +348,64 @@ export default function DownloadsScreen() {
   };
 
   const handleRedownload = async (item) => {
+    if (!item || downloadingId || sharingId) return;
     try {
-      let uri = item.mediaUrl || item.image || item.localUri;
+      const isAi = Boolean(item.isAi || item.aiTemplate || item.aiTemplateId || (typeof item._id === 'string' && item._id.startsWith('ai_')) || (typeof item.id === 'string' && item.id.startsWith('ai_')));
+      let uri = item.mediaUrl || item.imageUrl || item.image || item.localUri;
       if (!uri) return;
       setDownloadingId(item._id);
 
-      const tId = getTemplateId(item);
-      // If legacy item that does not have rendered composed video URL yet
-      if (tId && (!isVideoMedia(uri)) && (item.mediaType === 'video' || item.template?.type === 'video' || item.activeTemplate?.type === 'video')) {
-        try {
-          const res = await API.post(`/creations/${tId}/download`, {
-            userNameText: item.userNameText || item.editedText,
-            userPhotoUri: item.userPhotoUri || item.editedPhoto,
-            selectedFooter: item.selectedFooter,
-            customizationState: item.customizationState,
-          });
-          if (res.data?.data?.downloadUrl) {
-            uri = res.data.data.downloadUrl;
+      // Legacy re-compose ONLY for regular non-AI templates that need dynamic server rendering
+      if (!isAi) {
+        const tId = getTemplateId(item);
+        if (tId && (!isVideoMedia(uri)) && (item.mediaType === 'video' || item.template?.type === 'video' || item.activeTemplate?.type === 'video')) {
+          try {
+            const res = await API.post(`/creations/${tId}/download`, {
+              userNameText: item.userNameText || item.editedText,
+              userPhotoUri: item.userPhotoUri || item.editedPhoto,
+              selectedFooter: item.selectedFooter,
+              customizationState: item.customizationState,
+            });
+            if (res.data?.data?.downloadUrl) {
+              uri = res.data.data.downloadUrl;
+            }
+          } catch (e) {
+            console.warn('Legacy re-compose fallback notice:', e?.message);
           }
-        } catch (e) {
-          console.warn('Legacy re-compose fallback notice:', e?.message);
         }
       }
 
-      const isVideo = isVideoMedia(uri);
+      const isVideo = isAi
+        ? (item.mediaType === 'video' || item.aiTemplate?.mediaType === 'video' || isVideoMedia(uri))
+        : isVideoMedia(uri);
       const ext = isVideo ? 'mp4' : 'jpg';
       let localPath = uri;
 
       if (uri.startsWith('http://') || uri.startsWith('https://')) {
         const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.${ext}`;
         const downloadSourceUrl = resolveMediaUrl(uri);
-        const downloaded = await FileSystem.downloadAsync(downloadSourceUrl, targetPath);
-        localPath = downloaded.uri;
+        let downloaded = await FileSystem.downloadAsync(downloadSourceUrl, targetPath);
+        if (downloaded.status !== 200 && downloadSourceUrl !== uri) {
+          downloaded = await FileSystem.downloadAsync(uri, targetPath);
+        }
+        if (downloaded.status === 200) {
+          localPath = downloaded.uri;
+        }
       }
 
       try {
-        const { status } = await MediaLibrary.requestPermissionsAsync();
-        if (status === 'granted') {
+        let permissionGranted = false;
+        try {
+          const { status } = await MediaLibrary.requestPermissionsAsync(true);
+          permissionGranted = status === 'granted';
+        } catch (pErr) {
+          try {
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            permissionGranted = status === 'granted';
+          } catch (e2) {}
+        }
+
+        if (permissionGranted) {
           await MediaLibrary.createAssetAsync(localPath);
         }
       } catch (mediaErr) {
@@ -349,7 +415,6 @@ export default function DownloadsScreen() {
       setRedownloadSuccessAlert(true);
     } catch (err) {
       console.error('Re-download error:', err);
-      handleShare(item.mediaUrl || item.image, item._id);
     } finally {
       setDownloadingId(null);
     }
@@ -412,10 +477,11 @@ export default function DownloadsScreen() {
         />
 
         {/* Clear All Toolbar */}
-        {!loading && allCreations.length > 0 && (
+        {!loading && allCreations.filter((c) => !c.isGenerating).length > 0 && (
           <View style={styles.clearRow}>
             <Text style={styles.clearHint}>
-              {allCreations.length} saved {allCreations.length === 1 ? 'creation' : 'creations'}
+              {allCreations.filter((c) => !c.isGenerating).length} saved{' '}
+              {allCreations.filter((c) => !c.isGenerating).length === 1 ? 'creation' : 'creations'}
             </Text>
             <PressableScale
               onPress={() => setDeleteTarget({ mode: 'all' })}
@@ -429,7 +495,7 @@ export default function DownloadsScreen() {
           </View>
         )}
 
-        {loading ? (
+        {loading && allCreations.length === 0 ? (
           <View style={styles.loadingContainer}>
             <View style={styles.downloadSkeletonCard}>
               <Skeleton height={130} width={90} borderRadius={14} />
@@ -493,12 +559,16 @@ export default function DownloadsScreen() {
             renderItem={({ item }) => (
               <DownloadCard
                 item={item}
-                onPressThumbnail={(it) => setPreviewItem(it)}
+                onPressThumbnail={(it) => {
+                  if (it.isGenerating) return;
+                  setPreviewItem(it);
+                }}
                 onRedownload={handleRedownload}
-                onShare={(img) => handleShare(img, item._id)}
+                onShare={(img) => handleShare(img, item._id, item)}
                 onDelete={(id) => setDeleteTarget({ mode: 'one', id })}
                 isRedownloading={downloadingId === item._id}
                 isSharing={sharingId === item._id}
+                isAnyActionBusy={Boolean(downloadingId || sharingId)}
               />
             )}
           />
@@ -544,14 +614,15 @@ export default function DownloadsScreen() {
         {/* Full Screen Image/Video Preview Modal */}
         <DownloadPreviewModal
           item={previewItem}
-          visible={Boolean(previewItem)}
+          visible={Boolean(previewItem && !previewItem.isGenerating)}
           insets={insets}
           onClose={() => setPreviewItem(null)}
           onRedownload={handleRedownload}
-          onShare={(img) => handleShare(img, previewItem?._id)}
+          onShare={(img) => handleShare(img, previewItem?._id, previewItem)}
           onDelete={(it) => setDeleteTarget({ mode: 'one', id: it._id || it.id })}
           isRedownloading={downloadingId === previewItem?._id}
           isSharing={sharingId === previewItem?._id}
+          isAnyActionBusy={Boolean(downloadingId || sharingId)}
         />
       </View>
     </AppBackground>

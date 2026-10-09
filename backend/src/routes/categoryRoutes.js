@@ -7,11 +7,13 @@ const {
   updateCategory,
   deleteCategory,
   seedCategories,
+  reorderCategories,
 } = require('../controllers/categoryController');
 const { protectAdmin } = require('../middleware/adminMiddleware');
 
 router.get('/', getCategories);
 router.post('/seed', protectAdmin, seedCategories);
+router.post('/reorder', protectAdmin, reorderCategories);
 router.get('/:id', getCategoryById);
 router.post('/', protectAdmin, createCategory);
 router.put('/:id', protectAdmin, updateCategory);

@@ -6,7 +6,8 @@ import {
   Sparkle,
   ArrowSquareOut,
   ArrowClockwise,
-  PaperPlaneRight,
+  NotePencil,
+  FloppyDisk,
 } from '@phosphor-icons/react';
 
 export default function ReplyModal({
@@ -29,7 +30,10 @@ export default function ReplyModal({
       <div className="modal-backdrop">
         <div className="modal-card max-w-lg p-6 space-y-4">
           <div className="flex items-center justify-between border-b-2 border-ink pb-3">
-            <h3 className="display text-base text-ink">REPORT DETAILS & ACTION</h3>
+            <h3 className="display text-base text-ink flex items-center gap-2">
+              <NotePencil className="w-5 h-5 text-flame-500" weight="duotone" />
+              REVIEW & NOTES
+            </h3>
             <button
               onClick={onClose}
               className="btn-ghost p-1 text-ink"
@@ -131,16 +135,19 @@ export default function ReplyModal({
             </div>
           </div>
 
-          {/* Admin Reply Input */}
+          {/* Admin Notes Input */}
           <div>
-            <label className="field-label uppercase font-mono text-[10px] tracking-wider text-ink-mute mb-1.5">
-              Admin Response Message (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="field-label uppercase font-mono text-[10px] tracking-wider text-ink-mute">
+                Admin Notes (Internal only)
+              </label>
+              <span className="text-[10px] font-mono text-ink-mute">Not sent to user</span>
+            </div>
             <textarea
               value={replyMessage}
               onChange={(e) => setReplyMessage(e.target.value)}
               rows={4}
-              placeholder="Enter response or explanation visible to the user..."
+              placeholder="Enter internal admin notes, investigation details, or resolution remarks..."
               className="textarea"
             />
           </div>
@@ -163,9 +170,9 @@ export default function ReplyModal({
               {saving ? (
                 <ArrowClockwise className="w-4 h-4 animate-spin" />
               ) : (
-                <PaperPlaneRight className="w-4 h-4" weight="fill" />
+                <FloppyDisk className="w-4 h-4" weight="bold" />
               )}
-              Save Changes
+              Save Notes
             </button>
           </div>
         </div>

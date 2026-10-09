@@ -16,6 +16,46 @@ import { COLORS, FONTS } from '../constants/colors';
 import { fontScale, wp, hp } from '../utils/responsive';
 import { hapticTap } from '../utils/haptics';
 
+const formatCategoryName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  if (/^[A-Z0-9\s&'-]+$/.test(name) && name.length > 3) {
+    return name
+      .toLowerCase()
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  return name;
+};
+
+const getCategoryLabel = (chip, currentLang, t) => {
+  if (!chip) return '';
+  const slugKey = (chip.slug || chip.id || '').replace(/[-]/g, '_').toLowerCase();
+
+  if (t) {
+    const candidateKeys = [
+      chip.slug === 'special' ? 'todays_special' : null,
+      chip.labelKey,
+      slugKey,
+    ].filter(Boolean);
+
+    for (const key of candidateKeys) {
+      if (t(key) && t(key) !== key) {
+        return t(key);
+      }
+    }
+  }
+
+  if (chip.nameTranslations && chip.nameTranslations[currentLang]) {
+    const val = chip.nameTranslations[currentLang];
+    if (val && typeof val === 'string' && val.trim()) {
+      return formatCategoryName(val);
+    }
+  }
+
+  return formatCategoryName(chip.name || chip.label || chip.id || '');
+};
+
 export default function AllCategoriesModal({
   visible,
   categories = [],
@@ -87,9 +127,7 @@ export default function AllCategoriesModal({
             <View style={styles.chipsWrap}>
               {categories.map((cat) => {
                 const isSelected = activeCategoryId === cat.id || activeCategoryId === cat.slug;
-                const label =
-                  (cat.nameTranslations && cat.nameTranslations[i18n.language]) ||
-                  (cat.labelKey && i18n.exists(cat.labelKey) ? t(cat.labelKey) : (cat.name || cat.id));
+                const label = getCategoryLabel(cat, i18n.language, t);
 
                 return (
                   <TouchableOpacity

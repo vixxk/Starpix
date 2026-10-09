@@ -573,10 +573,10 @@ export default function HeroTemplateCard({
               style={[
                 styles.resultActionBtn,
                 styles.downloadBtn,
-                resultMediaLoading && styles.resultActionBtnDisabled,
+                ((downloading || sharing || resultMediaLoading) && !downloading) && styles.resultActionBtnDisabled,
               ]}
               onPress={handleDownloadResult}
-              disabled={downloading || resultMediaLoading}
+              disabled={downloading || sharing || resultMediaLoading}
               activeOpacity={0.85}
             >
               {downloading ? (
@@ -595,10 +595,10 @@ export default function HeroTemplateCard({
               style={[
                 styles.resultActionBtn,
                 styles.shareBtn,
-                resultMediaLoading && styles.resultActionBtnDisabled,
+                ((downloading || sharing || resultMediaLoading) && !sharing) && styles.resultActionBtnDisabled,
               ]}
               onPress={handleShareResult}
-              disabled={sharing || resultMediaLoading}
+              disabled={downloading || sharing || resultMediaLoading}
               activeOpacity={0.85}
             >
               {sharing ? (
@@ -645,8 +645,8 @@ export default function HeroTemplateCard({
               </>
             ) : (
               <>
-                <MaterialCommunityIcons
-                  name="star-four-points"
+                <Ionicons
+                  name={isCurrentVideo ? 'videocam' : 'image'}
                   size={fontScale(18)}
                   color="#FFFFFF"
                   style={{ marginRight: wp(0.015) }}

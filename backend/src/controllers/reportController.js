@@ -45,6 +45,7 @@ const createReport = asyncHandler(async (req, res) => {
 // @access  Private
 const getMyReports = asyncHandler(async (req, res) => {
   const reports = await Report.find({ userId: req.user._id })
+    .select('-adminResponse -adminRespondedAt')
     .populate('templateId', 'name thumbnail previewAsset mainMedia')
     .sort({ createdAt: -1 });
 

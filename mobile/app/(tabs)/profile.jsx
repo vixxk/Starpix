@@ -85,7 +85,8 @@ export default function SettingsScreen() {
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
 
-  const effectivePhotoUri = user?.profilePhoto || defaultUserPhotoUri || null;
+  const hasUserPhoto = Boolean(user?.profilePhoto && user.profilePhoto.trim() !== '');
+  const effectivePhotoUri = hasUserPhoto ? user.profilePhoto.trim() : null;
   const currentLangCode = i18n.language || 'en';
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentLangCode) || SUPPORTED_LANGUAGES[0];
 

@@ -26,6 +26,7 @@ export default function DownloadPreviewModal({
   onDelete,
   isRedownloading = false,
   isSharing = false,
+  isAnyActionBusy = false,
 }) {
   const { t, i18n } = useTranslation();
   const [mediaLoading, setMediaLoading] = useState(true);
@@ -33,6 +34,12 @@ export default function DownloadPreviewModal({
   const user = useAuthStore((state) => state.user);
   const storeUserName = useCreationStore((state) => state.userNameText || state.defaultUserNameText);
   const storeUserPhoto = useCreationStore((state) => state.userPhotoUri || state.defaultUserPhotoUri);
+
+  const isDownloadBusy = isRedownloading;
+  const isShareBusy = isSharing;
+  const isDownloadDisabled = isRedownloading || isSharing || isAnyActionBusy;
+  const isShareDisabled = isRedownloading || isSharing || isAnyActionBusy;
+  const isDeleteDisabled = isRedownloading || isSharing || isAnyActionBusy;
 
   const lastItemRef = useRef(item);
   if (item) {
@@ -79,8 +86,10 @@ export default function DownloadPreviewModal({
   const isRawTemplate = Boolean(cleanRaw && cleanMedia && cleanMedia === cleanRaw);
 
   const isComposedMedia = Boolean(
-    mediaSource && !isRawTemplate && (
+    displayItem.isAi ||
+    (mediaSource && !isRawTemplate && (
       cleanMedia.includes('/user-creations/') ||
+      cleanMedia.includes('/ai-creations/') ||
       cleanMedia.includes('status_') ||
       cleanMedia.includes('creation_') ||
       cleanMedia.includes('starpix_') ||
@@ -89,7 +98,7 @@ export default function DownloadPreviewModal({
       cleanMedia.startsWith('data:') ||
       Boolean(rawTemplateMedia && cleanMedia !== cleanRaw) ||
       Boolean(displayItem.source === 'backend' || displayItem.source === 'local')
-    )
+    ))
   );
 
   const footers =
@@ -166,7 +175,11 @@ export default function DownloadPreviewModal({
                   hapticTap();
                   onDelete(displayItem);
                 }}
-                style={styles.deleteHeaderBtn}
+                style={[
+                  styles.deleteHeaderBtn,
+                  isDeleteDisabled && styles.actionBtnDisabled,
+                ]}
+                disabled={isDeleteDisabled}
                 activeOpacity={0.7}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessibilityRole="button"
@@ -376,35 +389,61 @@ export default function DownloadPreviewModal({
           <PressableScale
             onPress={() => onRedownload(displayItem)}
             scaleTo={0.94}
-            style={styles.fullscreenActionBtn}
+            style={[
+              styles.fullscreenActionBtn,
+              isDownloadDisabled && !isDownloadBusy && styles.actionBtnDisabled,
+            ]}
             contentStyle={styles.fullscreenBtnContent}
-            disabled={isRedownloading}
+            disabled={isDownloadDisabled}
           >
-            {isRedownloading ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <>
+            <View style={styles.actionBtnInner}>
+              <View
+                style={[
+                  styles.fullscreenBtnRow,
+                  isDownloadBusy && styles.actionBtnRowHidden,
+                ]}
+              >
                 <Ionicons name="download-outline" size={18} color={COLORS.white} />
                 <Text style={styles.fullscreenActionText}>{t('re_download')}</Text>
-              </>
-            )}
+              </View>
+              {isDownloadBusy && (
+                <View style={styles.actionLoaderOverlay}>
+                  <View style={styles.spinnerContainer}>
+                    <ActivityIndicator size="small" color={COLORS.white} style={styles.btnSpinner} />
+                  </View>
+                </View>
+              )}
+            </View>
           </PressableScale>
 
           <PressableScale
             onPress={() => onShare(mediaSource)}
-            scaleTo={0.94}
-            style={styles.fullscreenShareBtn}
+            scaleTo={0.96}
+            style={[
+              styles.fullscreenShareBtn,
+              isShareDisabled && !isShareBusy && styles.actionBtnDisabled,
+            ]}
             contentStyle={styles.fullscreenBtnContent}
-            disabled={isSharing}
+            disabled={isShareDisabled}
           >
-            {isSharing ? (
-              <ActivityIndicator size="small" color={COLORS.ink} />
-            ) : (
-              <>
+            <View style={styles.actionBtnInner}>
+              <View
+                style={[
+                  styles.fullscreenBtnRow,
+                  isShareBusy && styles.actionBtnRowHidden,
+                ]}
+              >
                 <Ionicons name="share-social-outline" size={18} color={COLORS.ink} />
                 <Text style={[styles.fullscreenActionText, { color: COLORS.ink }]}>{t('share')}</Text>
-              </>
-            )}
+              </View>
+              {isShareBusy && (
+                <View style={styles.actionLoaderOverlay}>
+                  <View style={styles.spinnerContainer}>
+                    <ActivityIndicator size="small" color={COLORS.ink} style={styles.btnSpinner} />
+                  </View>
+                </View>
+              )}
+            </View>
           </PressableScale>
         </View>
       </View>

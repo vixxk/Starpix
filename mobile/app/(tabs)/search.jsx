@@ -166,7 +166,8 @@ export default function SearchScreen() {
   const storeUserNameText = useCreationStore((s) => s.userNameText || s.defaultUserNameText);
 
   const displayName = user?.name || user?.fullName || storeUserNameText || 'User';
-  const displayPhoto = user?.profilePhoto || storeUserPhotoUri || null;
+  const hasValidUserPhoto = Boolean(user?.profilePhoto && user.profilePhoto.trim() !== '');
+  const displayPhoto = user ? (hasValidUserPhoto ? user.profilePhoto.trim() : null) : (storeUserPhotoUri || null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');

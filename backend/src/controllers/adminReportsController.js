@@ -17,7 +17,11 @@ const getAdminReports = asyncHandler(async (req, res) => {
   }
 
   if (type && type !== 'all') {
-    query.type = type;
+    if (type === 'issues' || type === 'issue') {
+      query.type = { $in: ['issue', 'template'] };
+    } else {
+      query.type = type;
+    }
   }
 
   if (search) {
@@ -28,12 +32,17 @@ const getAdminReports = asyncHandler(async (req, res) => {
     ];
   }
 
-  const [total, pendingCount, inProgressCount, resolvedCount, rejectedCount] = await Promise.all([
+  const baseTypeQuery = query.type ? { type: query.type } : {};
+  const [total, pendingCount, inProgressCount, resolvedCount, rejectedCount, issuesCount, feedbackCount, globalTotal, globalPending] = await Promise.all([
     Report.countDocuments(query),
+    Report.countDocuments({ ...baseTypeQuery, status: 'pending' }),
+    Report.countDocuments({ ...baseTypeQuery, status: 'in_progress' }),
+    Report.countDocuments({ ...baseTypeQuery, status: 'resolved' }),
+    Report.countDocuments({ ...baseTypeQuery, status: 'rejected' }),
+    Report.countDocuments({ type: { $in: ['issue', 'template'] } }),
+    Report.countDocuments({ type: 'feedback' }),
+    Report.countDocuments({}),
     Report.countDocuments({ status: 'pending' }),
-    Report.countDocuments({ status: 'in_progress' }),
-    Report.countDocuments({ status: 'resolved' }),
-    Report.countDocuments({ status: 'rejected' }),
   ]);
 
   const reports = await Report.find(query)
@@ -47,11 +56,15 @@ const getAdminReports = asyncHandler(async (req, res) => {
     success: true,
     data: reports,
     summary: {
-      totalAll: pendingCount + inProgressCount + resolvedCount + rejectedCount,
+      total: pendingCount + inProgressCount + resolvedCount + rejectedCount,
+      globalTotal,
+      globalPending,
       pending: pendingCount,
       in_progress: inProgressCount,
       resolved: resolvedCount,
       rejected: rejectedCount,
+      totalIssues: issuesCount,
+      totalFeedback: feedbackCount,
     },
     pagination: {
       total,

@@ -61,6 +61,28 @@ export const useAuthStore = create((set, get) => ({
 
   clearError: () => set({ error: null }),
 
+  fetchUser: async () => {
+    try {
+      const res = await API.get('/auth/me');
+      if (res.data && res.data.success) {
+        const u = res.data.data;
+        const photo = (u?.profilePhoto && u.profilePhoto.trim() !== '') ? u.profilePhoto.trim() : '';
+        const cleanUser = { ...u, profilePhoto: photo };
+        set({ user: cleanUser });
+        await AsyncStorage.setItem('starpix_user_data', JSON.stringify(cleanUser));
+        try {
+          const { useCreationStore } = require('./useCreationStore');
+          useCreationStore.getState().setDefaultUserNameText(cleanUser.name || '');
+          useCreationStore.getState().setDefaultUserPhotoUri(photo || null);
+          useCreationStore.getState().setUserPhotoUri(photo || null);
+        } catch (_) {}
+        return cleanUser;
+      }
+    } catch (e) {
+      console.error('Error fetching user profile:', e);
+    }
+  },
+
   requestOtp: async (phoneNumber, countryCode = '+91', isNewUser = false) => {
     set({ isAuthenticating: true, error: null });
     try {
@@ -152,18 +174,56 @@ export const useAuthStore = create((set, get) => ({
 
   updateUserProfile: async (updatedData) => {
     try {
+      const isPhotoClearing =
+        updatedData.removeProfilePhoto === true ||
+        updatedData.profilePhoto === '' ||
+        updatedData.profilePhoto === null;
+
+      // Optimistic update so store and local cache immediately reflect changes
+      const currentUser = get().user;
+      if (currentUser) {
+        const nextPhoto = isPhotoClearing
+          ? ''
+          : (updatedData.profilePhoto !== undefined ? updatedData.profilePhoto : (currentUser.profilePhoto || ''));
+        const nextUser = {
+          ...currentUser,
+          name: updatedData.name !== undefined ? updatedData.name : currentUser.name,
+          email: updatedData.email !== undefined ? updatedData.email : currentUser.email,
+          profilePhoto: nextPhoto,
+        };
+        set({ user: nextUser });
+        AsyncStorage.setItem('starpix_user_data', JSON.stringify(nextUser)).catch(() => {});
+        try {
+          const { useCreationStore } = require('./useCreationStore');
+          useCreationStore.getState().setDefaultUserPhotoUri(nextPhoto || null);
+          useCreationStore.getState().setUserPhotoUri(nextPhoto || null);
+          if (updatedData.name !== undefined) {
+            useCreationStore.getState().setDefaultUserNameText(updatedData.name);
+          }
+        } catch (_) {}
+      }
+
       const res = await API.put('/auth/profile', updatedData);
-      if (res.data.success) {
-        set({ user: res.data.data });
-        await AsyncStorage.setItem('starpix_user_data', JSON.stringify(res.data.data));
-        const { useCreationStore } = require('./useCreationStore');
-        const photo = res.data.data.profilePhoto !== undefined ? res.data.data.profilePhoto : updatedData.profilePhoto;
-        useCreationStore.getState().setDefaultUserPhotoUri(photo || null);
-        const name = res.data.data.name !== undefined ? res.data.data.name : updatedData.name;
-        useCreationStore.getState().setDefaultUserNameText(name || '');
+      if (res.data && res.data.success) {
+        const serverUser = res.data.data;
+        const finalPhoto = isPhotoClearing
+          ? ''
+          : (serverUser?.profilePhoto !== undefined ? serverUser.profilePhoto : (updatedData.profilePhoto || ''));
+        const mergedUser = { ...serverUser, profilePhoto: finalPhoto };
+        set({ user: mergedUser });
+        await AsyncStorage.setItem('starpix_user_data', JSON.stringify(mergedUser));
+        try {
+          const { useCreationStore } = require('./useCreationStore');
+          useCreationStore.getState().setDefaultUserPhotoUri(finalPhoto || null);
+          useCreationStore.getState().setUserPhotoUri(finalPhoto || null);
+          const name = mergedUser.name !== undefined ? mergedUser.name : (updatedData.name || '');
+          useCreationStore.getState().setDefaultUserNameText(name || '');
+        } catch (_) {}
+        return mergedUser;
       }
     } catch (e) {
       console.error('Error updating user profile:', e);
+      throw e;
     }
   },
 

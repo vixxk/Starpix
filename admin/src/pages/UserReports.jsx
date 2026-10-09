@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import PageHead from '../components/PageHead';
 import ConfirmModal from '../components/ConfirmModal';
 import API from '../services/api';
@@ -20,6 +21,9 @@ import {
   Image as ImageIcon,
   Sparkle,
   ArrowSquareOut,
+  NotePencil,
+  Bug,
+  ListDashes,
 } from '@phosphor-icons/react';
 import { resolveMediaUrl } from '../utils/media';
 import {
@@ -31,14 +35,44 @@ import {
 
 export default function UserReports() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const initialTab = (urlTab === 'feedback' || urlTab === 'feedbacks') ? 'feedback' : (urlTab === 'all' ? 'all' : 'issues');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
   const [reports, setReports] = useState([]);
-  const [summary, setSummary] = useState({ totalAll: 0, pending: 0, in_progress: 0, resolved: 0, rejected: 0 });
+  const [summary, setSummary] = useState({
+    total: 0,
+    globalTotal: 0,
+    pending: 0,
+    in_progress: 0,
+    resolved: 0,
+    rejected: 0,
+    totalIssues: 0,
+    totalFeedback: 0,
+  });
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 10 });
 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState(initialTab === 'issues' ? 'issues' : (initialTab === 'feedback' ? 'feedback' : 'all'));
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    const newType = newTab === 'issues' ? 'issues' : (newTab === 'feedback' ? 'feedback' : 'all');
+    setTypeFilter(newType);
+    setSearchParams(newTab === 'issues' ? {} : { tab: newTab });
+  };
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    const targetTab = (tabParam === 'feedback' || tabParam === 'feedbacks') ? 'feedback' : (tabParam === 'all' ? 'all' : 'issues');
+    if (targetTab !== activeTab) {
+      setActiveTab(targetTab);
+      setTypeFilter(targetTab === 'issues' ? 'issues' : (targetTab === 'feedback' ? 'feedback' : 'all'));
+    }
+  }, [searchParams]);
 
   const [selectedReport, setSelectedReport] = useState(null);
   const [replyModalOpen, setReplyModalOpen] = useState(false);
@@ -70,7 +104,12 @@ export default function UserReports() {
 
       if (res.data && res.data.success) {
         setReports(res.data.data || []);
-        if (res.data.summary) setSummary(res.data.summary);
+        if (res.data.summary) {
+          setSummary({
+            ...res.data.summary,
+            globalTotal: res.data.summary.globalTotal ?? res.data.summary.totalAll ?? 0,
+          });
+        }
         if (res.data.pagination) setPagination(res.data.pagination);
       }
     } catch (err) {
@@ -101,7 +140,7 @@ export default function UserReports() {
       });
 
       if (res.data && res.data.success) {
-        toast.success('Report updated successfully');
+        toast.success('Notes saved successfully');
         setReplyModalOpen(false);
         fetchReports(pagination.page);
       }
@@ -139,9 +178,29 @@ export default function UserReports() {
     <div className="space-y-4">
       {/* Top Header */}
       <PageHead
-        icon={<ChatDots className="w-6 h-6" weight="duotone" />}
-        title="Issues & Feedbacks"
-        subtitle={`Tracking ${summary.totalAll} user feedbacks, bug reports & support tickets`}
+        icon={
+          activeTab === 'issues' ? (
+            <Bug className="w-6 h-6 text-flame-500" weight="duotone" />
+          ) : activeTab === 'feedback' ? (
+            <ChatDots className="w-6 h-6 text-emerald-600" weight="duotone" />
+          ) : (
+            <ChatDots className="w-6 h-6 text-ink" weight="duotone" />
+          )
+        }
+        title={
+          activeTab === 'issues'
+            ? 'Issues & Bug Reports'
+            : activeTab === 'feedback'
+            ? 'User Feedbacks'
+            : 'Issues & Feedbacks'
+        }
+        subtitle={
+          activeTab === 'issues'
+            ? `Tracking ${summary.totalIssues || 0} app bugs, general issues & template reports`
+            : activeTab === 'feedback'
+            ? `Tracking ${summary.totalFeedback || 0} user suggestions, feature requests & feedback`
+            : `Tracking ${summary.globalTotal || 0} user feedbacks, bug reports & support tickets`
+        }
         actions={
           <button
             onClick={() => fetchReports(pagination.page)}
@@ -153,14 +212,86 @@ export default function UserReports() {
         }
       />
 
+      {/* Primary Segregation Tabs Bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b-2 border-ink pb-3">
+        <button
+          type="button"
+          onClick={() => handleTabChange('issues')}
+          className={`px-4 py-2.5 rounded-[2px] font-display text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-2 transition-all ${
+            activeTab === 'issues'
+              ? 'bg-flame-500 text-ink border-ink shadow-hard-white font-black -translate-y-0.5'
+              : 'bg-paper-100 text-ink-mute border-ink/30 hover:border-ink hover:text-ink hover:bg-paper-200'
+          }`}
+        >
+          <Bug className="w-4 h-4" weight={activeTab === 'issues' ? 'fill' : 'bold'} />
+          <span>Issues & Bugs</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-[2px] font-mono text-[10px] font-bold leading-none ${
+              activeTab === 'issues' ? 'bg-ink text-white' : 'bg-paper-200 text-ink border border-ink/20'
+            }`}
+          >
+            {summary.totalIssues}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('feedback')}
+          className={`px-4 py-2.5 rounded-[2px] font-display text-xs font-bold uppercase tracking-wider flex items-center gap-2 border-2 transition-all ${
+            activeTab === 'feedback'
+              ? 'bg-emerald-500 text-white border-ink shadow-hard-white font-black -translate-y-0.5'
+              : 'bg-paper-100 text-ink-mute border-ink/30 hover:border-ink hover:text-ink hover:bg-paper-200'
+          }`}
+        >
+          <ChatDots className="w-4 h-4" weight={activeTab === 'feedback' ? 'fill' : 'bold'} />
+          <span>User Feedbacks</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-[2px] font-mono text-[10px] font-bold leading-none ${
+              activeTab === 'feedback' ? 'bg-ink text-white' : 'bg-paper-200 text-ink border border-ink/20'
+            }`}
+          >
+            {summary.totalFeedback}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('all')}
+          className={`px-3 py-2.5 rounded-[2px] font-display text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all ml-auto ${
+            activeTab === 'all'
+              ? 'bg-ink text-white border-ink shadow-hard-white font-black'
+              : 'bg-paper-100 text-ink-mute border-ink/30 hover:border-ink hover:text-ink hover:bg-paper-200'
+          }`}
+        >
+          <ListDashes className="w-4 h-4" />
+          <span>All ({summary.globalTotal})</span>
+        </button>
+      </div>
+
       {/* Stat Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
         <div className="panel p-3.5 sm:p-4">
           <div className="flex items-center justify-between text-ink-mute">
-            <span className="label">Total Tickets</span>
-            <ChatDots className="w-4 h-4 text-flame-500" weight="duotone" />
+            <span className="label">
+              {activeTab === 'issues'
+                ? 'Total Issues'
+                : activeTab === 'feedback'
+                ? 'Total Feedback'
+                : 'Total Tickets'}
+            </span>
+            {activeTab === 'issues' ? (
+              <Bug className="w-4 h-4 text-flame-500" weight="duotone" />
+            ) : (
+              <ChatDots className="w-4 h-4 text-emerald-600" weight="duotone" />
+            )}
           </div>
-          <p className="display text-2xl sm:text-3xl text-ink mt-2">{summary.totalAll}</p>
+          <p className="display text-2xl sm:text-3xl text-ink mt-2">
+            {activeTab === 'issues'
+              ? summary.totalIssues
+              : activeTab === 'feedback'
+              ? summary.totalFeedback
+              : summary.globalTotal}
+          </p>
         </div>
 
         <div className="panel p-3.5 sm:p-4">
@@ -204,7 +335,7 @@ export default function UserReports() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by reason, notes, or admin response..."
+            placeholder="Search by reason, description, or admin notes..."
             className="input pl-10"
           />
         </div>
@@ -225,16 +356,33 @@ export default function UserReports() {
         </div>
 
         <div className="relative">
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="select sm:w-44 font-bold text-xs uppercase"
-          >
-            <option value="all">All Types</option>
-            <option value="feedback">User Feedback</option>
-            <option value="issue">General Issues</option>
-            <option value="template">Template Reports</option>
-          </select>
+          {activeTab === 'issues' ? (
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="select sm:w-48 font-bold text-xs uppercase"
+            >
+              <option value="issues">All Issues & Bugs</option>
+              <option value="issue">General Issues / Bugs</option>
+              <option value="template">Template Reports</option>
+            </select>
+          ) : activeTab === 'feedback' ? (
+            <div className="px-3.5 py-2.5 bg-emerald-50 border-2 border-emerald-500 text-emerald-800 text-xs font-bold uppercase rounded-[2px] flex items-center gap-1.5">
+              <ChatDots className="w-3.5 h-3.5" />
+              <span>User Feedbacks</span>
+            </div>
+          ) : (
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="select sm:w-48 font-bold text-xs uppercase"
+            >
+              <option value="all">All Types</option>
+              <option value="issues">Issues & Bugs</option>
+              <option value="feedback">User Feedback</option>
+              <option value="template">Template Reports</option>
+            </select>
+          )}
         </div>
       </div>
 
@@ -244,7 +392,13 @@ export default function UserReports() {
       ) : reports.length === 0 ? (
         <div className="panel p-12 text-center">
           <Flag className="w-8 h-8 text-paper-400 mx-auto mb-2" />
-          <p className="text-sm text-ink-mute font-medium">No reports match your criteria.</p>
+          <p className="text-sm text-ink-mute font-medium">
+            {activeTab === 'issues'
+              ? 'No issue or bug reports match your criteria.'
+              : activeTab === 'feedback'
+              ? 'No user feedbacks match your criteria.'
+              : 'No reports match your criteria.'}
+          </p>
         </div>
       ) : (
         <div className="panel overflow-hidden">
@@ -253,10 +407,10 @@ export default function UserReports() {
               <thead>
                 <tr>
                   <th>Reporter User</th>
-                  <th>Type & Target</th>
-                  <th>Reason & Details</th>
+                  <th>{activeTab === 'feedback' ? 'Type' : 'Type & Target'}</th>
+                  <th>{activeTab === 'feedback' ? 'Feedback & Details' : 'Reason & Details'}</th>
                   <th>Status</th>
-                  <th>Admin Response</th>
+                  <th>Admin Notes</th>
                   <th>Date</th>
                   <th className="text-right">Actions</th>
                 </tr>
@@ -379,14 +533,14 @@ export default function UserReports() {
                         <ReportStatusBadge status={report.status} />
                       </td>
 
-                      {/* Admin Response */}
+                      {/* Admin Notes */}
                       <td className="max-w-[220px] whitespace-normal">
                         {report.adminResponse ? (
                           <div className="bg-paper-100 border border-ink/20 p-2 rounded-[2px]">
                             <p className="text-xs text-ink font-medium line-clamp-2">"{report.adminResponse}"</p>
                           </div>
                         ) : (
-                          <span className="text-xs text-ink-mute italic">No reply sent</span>
+                          <span className="text-xs text-ink-mute italic">No notes</span>
                         )}
                       </td>
 
@@ -400,9 +554,10 @@ export default function UserReports() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleOpenReplyModal(report)}
-                            className="btn-primary text-xs py-1.5 px-3"
+                            className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
                           >
-                            Review & Reply
+                            <NotePencil className="w-3.5 h-3.5" weight="bold" />
+                            Review & Notes
                           </button>
                           <button
                             onClick={() => handleOpenDeleteModal(report)}

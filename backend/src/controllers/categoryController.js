@@ -15,7 +15,7 @@ const getCategories = asyncHandler(async (req, res) => {
     query.name = { $not: /(retro 80|dance video|\bai\b)/i };
   }
 
-  const categories = await Category.find(query).sort({ sortOrder: 1, createdAt: -1 }).lean();
+  const categories = await Category.find(query).sort({ sortOrder: 1, createdAt: 1 }).lean();
 
   const Template = require('../models/Template');
   const templateCounts = await Template.aggregate([
@@ -266,6 +266,35 @@ const seedCategories = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Reorder categories (Admin)
+// @route   POST /api/categories/reorder
+// @access  Private (Admin)
+const reorderCategories = asyncHandler(async (req, res) => {
+  const { orderedIds } = req.body;
+  if (!Array.isArray(orderedIds)) {
+    return res.status(400).json({ success: false, message: 'orderedIds must be an array of category IDs' });
+  }
+
+  const bulkOps = orderedIds.map((id, index) => ({
+    updateOne: {
+      filter: { _id: id },
+      update: { $set: { sortOrder: index + 1 } },
+    },
+  }));
+
+  if (bulkOps.length > 0) {
+    await Category.bulkWrite(bulkOps);
+  }
+
+  const updatedCategories = await Category.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
+
+  res.status(200).json({
+    success: true,
+    message: 'Categories reordered successfully',
+    data: updatedCategories,
+  });
+});
+
 module.exports = {
   getCategories,
   getCategoryById,
@@ -273,5 +302,6 @@ module.exports = {
   updateCategory,
   deleteCategory,
   seedCategories,
+  reorderCategories,
 };
 

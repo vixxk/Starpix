@@ -38,7 +38,7 @@ export default function ReelPersonalizationOverlay({
           width: photoSize,
           height: photoSize,
           borderRadius: photoSize / 2,
-          backgroundColor: '#E2E8F0',
+          backgroundColor: effectivePhoto ? 'transparent' : 'rgba(226, 232, 240, 0.4)',
           justifyContent: 'center',
           alignItems: 'center',
         },

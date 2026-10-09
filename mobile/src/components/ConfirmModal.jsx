@@ -77,7 +77,9 @@ export default function ConfirmModal({
               { backgroundColor: `${iconColor}1A`, borderColor: `${iconColor}3D` },
             ]}
           >
-            {icon === 'crown' ? (
+            {React.isValidElement(icon) ? (
+              icon
+            ) : icon === 'crown' ? (
               <MaterialCommunityIcons name="crown" size={26} color={iconColor} />
             ) : (
               <Ionicons name={icon || 'document-text-outline'} size={26} color={iconColor} />

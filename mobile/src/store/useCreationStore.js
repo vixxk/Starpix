@@ -22,7 +22,7 @@ export const hydrateDownloadedCreations = async () => {
     if (savedUserRaw) {
       try {
         const savedUser = JSON.parse(savedUserRaw);
-        const photo = savedUser?.profilePhoto || null;
+        const photo = (savedUser?.profilePhoto && savedUser.profilePhoto.trim() !== '') ? savedUser.profilePhoto.trim() : null;
         const name = savedUser?.name || '';
         const currentUserId = String(savedUser?._id || savedUser?.id || '');
 
@@ -36,13 +36,15 @@ export const hydrateDownloadedCreations = async () => {
         }
 
         let activePhoto = photo;
-        try {
-          const bgEnabled = await AsyncStorage.getItem('starpix_user_bg_removed_enabled');
-          const savedCutout = await AsyncStorage.getItem('starpix_user_cutout_photo');
-          if (bgEnabled === 'true' && savedCutout) {
-            activePhoto = savedCutout;
-          }
-        } catch (_) {}
+        if (photo) {
+          try {
+            const bgEnabled = await AsyncStorage.getItem('starpix_user_bg_removed_enabled');
+            const savedCutout = await AsyncStorage.getItem('starpix_user_cutout_photo');
+            if (bgEnabled === 'true' && savedCutout) {
+              activePhoto = savedCutout;
+            }
+          } catch (_) {}
+        }
 
         useCreationStore.setState({
           defaultUserPhotoUri: activePhoto,
@@ -93,7 +95,27 @@ export const useCreationStore = create((set, get) => ({
   isUnlocked: false,
   unlockedDownloadUrl: null,
   downloadedCreations: [],
+  activeAiGenerations: [],
   isRestoredSession: false,
+
+  setActiveAiGeneration: (generation) =>
+    set((state) => {
+      if (!generation) return { activeAiGenerations: [] };
+      const filtered = (state.activeAiGenerations || []).filter(
+        (g) => g.id !== generation.id && g.templateId !== generation.templateId
+      );
+      return { activeAiGenerations: [generation, ...filtered] };
+    }),
+
+  clearActiveAiGeneration: (templateIdOrId = null) =>
+    set((state) => {
+      if (!templateIdOrId) return { activeAiGenerations: [] };
+      return {
+        activeAiGenerations: (state.activeAiGenerations || []).filter(
+          (g) => g.id !== templateIdOrId && g.templateId !== templateIdOrId
+        ),
+      };
+    }),
 
   resetUserSession: () => {
     AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch(() => {});
@@ -106,16 +128,19 @@ export const useCreationStore = create((set, get) => ({
       userNameText: '',
       activeTemplate: null,
       downloadedCreations: [],
+      activeAiGenerations: [],
     });
   },
 
   setDefaultUserPhotoUri: (uri) => {
-    const cleanUri = uri || null;
+    const cleanUri = (uri && String(uri).trim() !== '') ? String(uri).trim() : null;
     set({ defaultUserPhotoUri: cleanUri, userPhotoUri: cleanUri });
     if (cleanUri) {
       AsyncStorage.setItem(DEFAULT_PHOTO_KEY, cleanUri).catch((e) => console.error(e));
     } else {
       AsyncStorage.removeItem(DEFAULT_PHOTO_KEY).catch((e) => console.error(e));
+      AsyncStorage.removeItem('starpix_user_original_photo').catch(() => {});
+      AsyncStorage.removeItem('starpix_user_cutout_photo').catch(() => {});
     }
   },
 
