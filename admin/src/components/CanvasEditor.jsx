@@ -59,19 +59,30 @@ export default function CanvasEditor({
     canvasConfig?.layers?.[0]?.id || null
   );
 
-  const [activeFooterIdx, setActiveFooterIdx] = useState(-1);
+  const [activeFooterIdx, setActiveFooterIdx] = useState(footers && footers.length > 0 ? 0 : -1);
+  useEffect(() => {
+    if (activeFooterIdx === -1 && footers && footers.length > 0) {
+      setActiveFooterIdx(0);
+    }
+  }, [footers]);
+
   const previewFooter = footers && footers.length > 0 && activeFooterIdx >= 0 && activeFooterIdx < footers.length
     ? footers[activeFooterIdx]
     : null;
+
+  const isFullFooterOverlay = previewFooter && (
+    (typeof previewFooter.heightPercent === 'number' && previewFooter.heightPercent >= 75) ||
+    (typeof previewFooter.height === 'number' && (previewFooter.height >= 0.75 || previewFooter.height >= 75))
+  );
 
   const footerLayer = previewFooter
     ? {
         id: 'footer_layer',
         type: 'footer',
         x: previewFooter.x !== undefined ? previewFooter.x : 0.5,
-        y: previewFooter.y !== undefined ? previewFooter.y : (1 - (previewFooter.heightPercent || 40) / 200),
+        y: previewFooter.y !== undefined ? previewFooter.y : (isFullFooterOverlay ? 0.5 : (1 - (previewFooter.heightPercent || 40) / 200)),
         width: previewFooter.width !== undefined ? previewFooter.width : 1.0,
-        height: previewFooter.height !== undefined ? previewFooter.height : ((previewFooter.heightPercent || 40) / 100),
+        height: previewFooter.height !== undefined ? previewFooter.height : (isFullFooterOverlay ? 1.0 : ((previewFooter.heightPercent || 40) / 100)),
         zIndex: previewFooter.zIndex || 10,
       }
     : null;
@@ -157,16 +168,19 @@ export default function CanvasEditor({
     if (type === 'text') {
       newLayer = {
         ...newLayer,
-        defaultValue: 'User Name',
+        x: 0.54,
+        y: 0.95,
+        width: 0.32,
+        height: 0.08,
+        defaultValue: 'USER',
         fieldName: 'name',
-        fontSize: 22,
-        fontColor: '#FFFFFF',
-        fontWeight: '700',
-        textAlign: 'left',
-        height: 0.1,
+        fontSize: 36,
+        fontColor: '#111827',
+        fontWeight: '900',
+        textAlign: 'center',
       };
     } else if (type === 'photo') {
-      newLayer = { ...newLayer, width: 0.65, height: 0.4, shape: 'rectangle' };
+      newLayer = { ...newLayer, x: 0.787, y: 0.825, width: 0.35, height: 0.197, shape: 'circle' };
     }
 
     const updated = [...layers, newLayer];
@@ -183,24 +197,31 @@ export default function CanvasEditor({
   const getEffectiveLayer = useCallback(
     (l) => {
       if (!l) return null;
+      let effective = { ...l };
+      if (effective.type === 'text') {
+        const textVal = (effective.defaultValue || '').trim();
+        if (!textVal || textVal.toLowerCase() === 'user name') {
+          effective.defaultValue = 'USER';
+        }
+      }
       if (activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
         const curF = footers[activeFooterIdx];
         if (curF) {
           if (l.type === 'text' && curF.userNamePosition && curF.userNamePosition.x !== undefined) {
-            return { ...l, ...curF.userNamePosition };
+            effective = { ...effective, ...curF.userNamePosition };
           }
           if (l.type === 'photo') {
             const photoPos = curF.userPhotoPosition || {};
             const photoShape = curF.userPhotoShape || curF.shape || photoPos.shape;
-            return {
-              ...l,
+            effective = {
+              ...effective,
               ...(photoPos.x !== undefined ? photoPos : {}),
               shape: photoShape || l.shape || 'rectangle',
             };
           }
         }
       }
-      return l;
+      return effective;
     },
     [activeFooterIdx, footers]
   );
@@ -734,7 +755,7 @@ export default function CanvasEditor({
                           textOverflow: 'ellipsis',
                         }}
                       >
-                        {l.defaultValue || 'User Name'}
+                        {l.defaultValue || 'USER'}
                       </div>
                     )}
 

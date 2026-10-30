@@ -8,11 +8,6 @@
     "icon": "./assets/icon.png",
     "scheme": "starpix",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/adaptive-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.starpix.app"
@@ -20,11 +15,6 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
-      },
-      "splash": {
-        "image": "./assets/adaptive-icon.png",
-        "resizeMode": "contain",
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.starpix.app"
@@ -47,7 +37,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "router": {},

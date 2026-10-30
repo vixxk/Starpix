@@ -4,7 +4,7 @@ import CanvasEditor from '../../components/CanvasEditor';
 import MediaUploadZone from '../../components/MediaUploadZone';
 import MultilingualNameModal from '../../components/MultilingualNameModal';
 import { X, FloppyDisk, Globe } from '@phosphor-icons/react';
-import { isVideoUrl } from './constants';
+import { isVideoUrl, STANDARDIZED_FOOTERS } from './constants';
 
 export default function TemplateEditModal({
   isOpen,
@@ -17,6 +17,56 @@ export default function TemplateEditModal({
   onClose,
   onSave,
 }) {
+  const latestFooterRef = React.useRef(null);
+
+  const handleAddFooter = () => {
+    setFormData((prev) => ({
+      ...prev,
+      footers: [
+        ...(prev.footers || []),
+        {
+          name: `Footer ${(prev.footers || []).length + 1}`,
+          videoAsset: '',
+          asset: '',
+          thumbnail: '',
+          heightPercent: 100,
+          objectFit: 'cover',
+          x: 0.5,
+          y: 0.5,
+          width: 1.0,
+          height: 1.0,
+          zIndex: 10,
+          userPhotoPosition: {
+            x: 0.787,
+            y: 0.825,
+            width: 0.35,
+            height: 0.197,
+            shape: 'circle',
+            zIndex: 25,
+          },
+          userPhotoShape: 'circle',
+          userNamePosition: {
+            x: 0.54,
+            y: 0.95,
+            width: 0.32,
+            height: 0.08,
+            fontSize: 36,
+            fontColor: '#111827',
+            fontWeight: '900',
+            textAlign: 'center',
+            zIndex: 30,
+          },
+        },
+      ],
+    }));
+
+    setTimeout(() => {
+      if (latestFooterRef.current) {
+        latestFooterRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -202,29 +252,30 @@ export default function TemplateEditModal({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-semibold text-sm text-ink">Template Footers</h4>
-                    <p className="text-[11px] text-ink-mute">Upload image or video footers specific to this template (e.g. clouds, smoke, glowing waves, overlays)</p>
+                    <p className="text-[11px] text-ink-mute">Standardized image overlays with pre-aligned user photo circle and text name</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFormData({
-                        ...formData,
-                        footers: [
-                          ...(formData.footers || []),
-                          {
-                            name: `Footer ${(formData.footers || []).length + 1}`,
-                            videoAsset: '',
-                            thumbnail: '',
-                            heightPercent: 40,
-                            objectFit: 'contain',
-                          },
-                        ],
-                      })
-                    }
-                    className="btn-secondary text-xs"
-                  >
-                    + Add Footer
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          footers: STANDARDIZED_FOOTERS.map((f) => ({ ...f })),
+                        })
+                      }
+                      className="btn-secondary text-xs"
+                      title="Load the 4 standardized S3 footers"
+                    >
+                      ↺ Use Standard Footers
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddFooter}
+                      className="btn-secondary text-xs"
+                    >
+                      + Add Footer
+                    </button>
+                  </div>
                 </div>
 
                 {(formData.footers || []).length === 0 ? (
@@ -232,7 +283,11 @@ export default function TemplateEditModal({
                 ) : (
                   <div className="space-y-4">
                     {formData.footers.map((footerItem, idx) => (
-                      <div key={idx} className="p-3 bg-white border border-ink/20 rounded-[2px] space-y-3 relative">
+                      <div
+                        key={idx}
+                        ref={idx === formData.footers.length - 1 ? latestFooterRef : null}
+                        className="p-3 bg-white border border-ink/20 rounded-[2px] space-y-3 relative"
+                      >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 flex-1">
                             <input

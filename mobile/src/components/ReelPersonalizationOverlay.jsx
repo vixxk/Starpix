@@ -97,10 +97,10 @@ export default function ReelPersonalizationOverlay({
 
   const photoLayer = (basePhotoLayer || footerPhotoPos || footerPhotoShape)
     ? {
-        x: footerPhotoPos?.x !== undefined ? footerPhotoPos.x : (basePhotoLayer?.x ?? 0.25),
-        y: footerPhotoPos?.y !== undefined ? footerPhotoPos.y : (basePhotoLayer?.y ?? 0.8),
+        x: footerPhotoPos?.x !== undefined ? footerPhotoPos.x : (basePhotoLayer?.x ?? 0.787),
+        y: footerPhotoPos?.y !== undefined ? footerPhotoPos.y : (basePhotoLayer?.y ?? 0.825),
         width: footerPhotoPos?.width !== undefined ? footerPhotoPos.width : (basePhotoLayer?.width ?? 0.35),
-        height: footerPhotoPos?.height !== undefined ? footerPhotoPos.height : (basePhotoLayer?.height ?? 0.22),
+        height: footerPhotoPos?.height !== undefined ? footerPhotoPos.height : (basePhotoLayer?.height ?? 0.197),
         shape: footerPhotoShape || footerPhotoPos?.shape || basePhotoLayer?.shape || 'circle',
         zIndex: footerPhotoPos?.zIndex ?? basePhotoLayer?.zIndex ?? 25,
       }
@@ -109,15 +109,28 @@ export default function ReelPersonalizationOverlay({
   const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && l.fieldName === 'name') || canvasLayers.find((l) => l.type === 'text');
   const footerTextPos = customFooter?.userNamePosition;
 
+  const rawFontSize = footerTextPos?.fontSize !== undefined ? footerTextPos.fontSize : baseTextNameLayer?.fontSize;
+  const effectiveFontSize = (!rawFontSize || rawFontSize < 34) ? 36 : rawFontSize;
+
+  const rawWidth = footerTextPos?.width !== undefined ? footerTextPos.width : baseTextNameLayer?.width;
+  const effectiveWidth = (!rawWidth || rawWidth > 0.38) ? 0.32 : rawWidth;
+
+  const rawHeight = footerTextPos?.height !== undefined ? footerTextPos.height : baseTextNameLayer?.height;
+  const effectiveHeight = (!rawHeight || rawHeight < 0.07) ? 0.08 : rawHeight;
+
+  const rawX = footerTextPos?.x !== undefined ? footerTextPos.x : baseTextNameLayer?.x;
+  const effectiveX = (!rawX || rawX <= 0.50) ? 0.54 : rawX;
+
   const textNameLayer = (baseTextNameLayer || footerTextPos)
     ? {
-        x: footerTextPos?.x !== undefined ? footerTextPos.x : (baseTextNameLayer?.x ?? 0.78),
-        y: footerTextPos?.y !== undefined ? footerTextPos.y : (baseTextNameLayer?.y ?? 0.78),
-        width: footerTextPos?.width !== undefined ? footerTextPos.width : (baseTextNameLayer?.width ?? 0.5),
-        height: footerTextPos?.height !== undefined ? footerTextPos.height : (baseTextNameLayer?.height ?? 0.1),
-        fontSize: footerTextPos?.fontSize !== undefined ? footerTextPos.fontSize : (baseTextNameLayer?.fontSize ?? 22),
-        fontColor: footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#FFFFFF',
+        x: effectiveX,
+        y: footerTextPos?.y !== undefined ? footerTextPos.y : (baseTextNameLayer?.y ?? 0.95),
+        width: effectiveWidth,
+        height: effectiveHeight,
+        fontSize: effectiveFontSize,
+        fontColor: footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#111827',
         textAlign: footerTextPos?.textAlign || baseTextNameLayer?.textAlign || 'center',
+        fontWeight: footerTextPos?.fontWeight || baseTextNameLayer?.fontWeight || '900',
         zIndex: footerTextPos?.zIndex ?? baseTextNameLayer?.zIndex ?? 30,
       }
     : null;
@@ -200,19 +213,23 @@ export default function ReelPersonalizationOverlay({
 
         {/* Text Name Layer positioned as in admin */}
         {textNameLayer ? (() => {
-          const lWidth = (textNameLayer.width || 0.5) * cardWidth;
-          const lHeight = (textNameLayer.height || 0.1) * cardHeight;
-          const defaultTextX = photoLayer?.x !== undefined ? photoLayer.x : 0.5;
+          const lWidth = (textNameLayer.width || 0.32) * cardWidth;
+          const lHeight = (textNameLayer.height || 0.08) * cardHeight;
+          const defaultTextX = photoLayer?.x !== undefined ? 0.54 : 0.5;
           const left = (textNameLayer.x ?? defaultTextX) * cardWidth - lWidth / 2;
-          const top = (textNameLayer.y ?? 0.75) * cardHeight - lHeight / 2;
-          const computedFontSize = Math.max(12, (textNameLayer.fontSize || 22) * (cardWidth / 375));
+          const top = (textNameLayer.y ?? 0.95) * cardHeight - lHeight / 2;
+          const computedFontSize = Math.max(22, (textNameLayer.fontSize || 36) * (cardWidth / 375));
+          const isWhiteFooterZone = (textNameLayer.y ?? 0.5) >= 0.88;
+          const isWhiteColor = !textNameLayer.fontColor || textNameLayer.fontColor.toUpperCase() === '#FFFFFF' || textNameLayer.fontColor.toUpperCase() === '#FFF';
+          const effectiveFontColor = (isWhiteFooterZone && isWhiteColor) ? '#111827' : (textNameLayer.fontColor || '#111827');
           const isDarkColor = Boolean(
-            textNameLayer.fontColor &&
-            (textNameLayer.fontColor.toLowerCase() === '#000000' ||
-             textNameLayer.fontColor.toLowerCase() === '#000' ||
-             textNameLayer.fontColor.toLowerCase() === 'black' ||
-             textNameLayer.fontColor.toLowerCase() === '#111827' ||
-             textNameLayer.fontColor.toLowerCase() === '#1e293b')
+            effectiveFontColor &&
+            (effectiveFontColor.toLowerCase() === '#000000' ||
+             effectiveFontColor.toLowerCase() === '#000' ||
+             effectiveFontColor.toLowerCase() === 'black' ||
+             effectiveFontColor.toLowerCase() === '#111827' ||
+             effectiveFontColor.toLowerCase() === '#1a1a1a' ||
+             effectiveFontColor.toLowerCase() === '#1e293b')
           );
 
           return (
@@ -240,16 +257,17 @@ export default function ReelPersonalizationOverlay({
                 style={{
                   width: '100%',
                   fontSize: computedFontSize,
-                  color: textNameLayer.fontColor || '#FFFFFF',
+                  color: effectiveFontColor,
                   fontFamily: FONTS.bold,
+                  fontWeight: textNameLayer.fontWeight || '900',
                   textAlign: textNameLayer.textAlign || 'center',
-                  textShadowColor: isDarkColor ? 'transparent' : 'rgba(0, 0, 0, 0.95)',
-                  textShadowOffset: { width: 0, height: 1.5 },
-                  textShadowRadius: isDarkColor ? 0 : 3.5,
+                  textShadowColor: isDarkColor ? 'transparent' : 'rgba(0, 0, 0, 0.85)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: isDarkColor ? 0 : 3,
                 }}
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.65}
+                minimumFontScale={0.8}
               >
                 {userName}
               </Text>

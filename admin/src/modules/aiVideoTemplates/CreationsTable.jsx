@@ -82,8 +82,9 @@ export default function CreationsTable({
             </thead>
             <tbody>
               {creations.map((c) => {
-                const isVideo = Boolean(c.imageUrl?.match(/\.(mp4|webm|mov)(\?.*)?$/i));
-                const title = c.templateTitle || c.templateId?.name || c.aiTemplateId?.title || 'Status Creation';
+                const isVideo = Boolean(c.imageUrl?.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i)) || c.mediaType === 'video' || c.format === 'mp4' || c.templateId?.type === 'video';
+                const isAi = Boolean(c.isAi || c.aiTemplateId);
+                const title = c.templateTitle || c.templateId?.name || c.aiTemplateId?.title || (isAi ? 'AI Creation' : 'Status Creation');
                 const userName = c.userId?.name || 'Starpix User';
                 const userPhone = c.userId?.phoneNumber || 'No phone';
                 const creationDate = c.downloadedAt || c.createdAt;
@@ -91,6 +92,7 @@ export default function CreationsTable({
                 const previewData = {
                   url: c.imageUrl,
                   isVideo,
+                  isAi,
                   title,
                   userName,
                   userPhone,
@@ -154,16 +156,16 @@ export default function CreationsTable({
                     <td>
                       <span className={`px-2 py-0.5 rounded-[2px] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${
                         isVideo
-                          ? 'bg-orange-100 text-orange-800 border border-orange-300'
-                          : 'bg-purple-100 text-purple-800 border border-purple-300'
+                          ? isAi ? 'bg-orange-100 text-orange-800 border border-orange-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : isAi ? 'bg-purple-100 text-purple-800 border border-purple-300' : 'bg-blue-100 text-blue-800 border border-blue-300'
                       }`}>
                         {isVideo ? (
                           <>
-                            <VideoCamera className="w-3 h-3 text-orange-600" weight="bold" /> AI Video
+                            <VideoCamera className={`w-3 h-3 ${isAi ? 'text-orange-600' : 'text-emerald-600'}`} weight="bold" /> {isAi ? 'AI Video' : 'Video'}
                           </>
                         ) : (
                           <>
-                            <ImageIcon className="w-3 h-3 text-purple-600" weight="bold" /> AI Photo
+                            <ImageIcon className={`w-3 h-3 ${isAi ? 'text-purple-600' : 'text-blue-600'}`} weight="bold" /> {isAi ? 'AI Photo' : 'Photo'}
                           </>
                         )}
                       </span>

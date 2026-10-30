@@ -39,6 +39,8 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     finalImageUrl = template.previewAsset || template.thumbnail;
   }
 
+  const isVideo = template?.type === 'video' || Boolean(finalImageUrl?.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i));
+
   const creation = await Creation.create({
     userId,
     templateId,
@@ -47,14 +49,21 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     editedPhoto: editedPhoto || '',
     customizationState: customizationState || {},
     imageUrl: finalImageUrl,
+    mediaType: isVideo ? 'video' : 'image',
+    format: isVideo ? 'mp4' : 'png',
     isAi: false,
     downloadedAt: new Date(),
   });
 
   if (template) {
-    template.uses = (template.uses || 0) + 1;
-    template.trendingScore = (template.views || 0) * 0.2 + template.uses * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
-    await template.save();
+    const nextUses = (template.uses || 0) + 1;
+    const nextTrending = (template.views || 0) * 0.2 + nextUses * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
+    await Template.findByIdAndUpdate(template._id, {
+      $set: {
+        uses: nextUses,
+        trendingScore: nextTrending,
+      },
+    });
   }
 
   try {
@@ -202,6 +211,7 @@ const downloadCreation = asyncHandler(async (req, res) => {
             ? customState.userPhotoUri
             : (req.user ? req.user.profilePhoto : null)));
   const isNoneFooter =
+    !isPersonalized ||
     selectedFooter === 'none' ||
     selectedFooter === null ||
     selectedFooter === false ||

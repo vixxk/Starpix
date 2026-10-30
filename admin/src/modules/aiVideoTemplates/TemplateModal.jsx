@@ -219,6 +219,30 @@ export default function TemplateModal({
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label mb-1">Uses (Total Generations)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.uses !== undefined ? formData.uses : 0}
+                      onChange={(e) => setFormData({ ...formData, uses: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="input w-full font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label mb-1">Views (Times Opened)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.views !== undefined ? formData.views : 0}
+                      onChange={(e) => setFormData({ ...formData, views: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="input w-full font-mono"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Fixed Footer */}

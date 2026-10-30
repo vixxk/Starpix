@@ -375,7 +375,15 @@ export default function SearchScreen() {
     const footers = (selectedTemplate.footers && selectedTemplate.footers.length > 0)
       ? selectedTemplate.footers
       : (selectedTemplate.rawTemplate?.footers || []);
-    return footers.find((f) => String(f.id || f._id) === String(selectedFooterId)) || null;
+    if (!footers.length) return null;
+    if (!selectedFooterId) return footers[0];
+    const norm = String(selectedFooterId).toLowerCase().replace(/[-_\s]/g, '');
+    return footers.find((f, idx) => {
+      const fid = String(f.id || f._id || '').toLowerCase().replace(/[-_\s]/g, '');
+      const fname = String(f.name || '').toLowerCase().replace(/[-_\s]/g, '');
+      const fIdxStr = `footer${idx + 1}`;
+      return fid === norm || fname === norm || fIdxStr === norm;
+    }) || footers[0] || null;
   }, [selectedTemplate, selectedFooterId]);
 
   // Download & Share Handlers
@@ -394,10 +402,8 @@ export default function SearchScreen() {
   const executeDownloadAction = async (withPersonalization) => {
     if (!selectedTemplate) return;
     try {
-      const targetFooter = activeFooter;
-      const footerPayload = targetFooter
-        ? (targetFooter._id || targetFooter.id || targetFooter)
-        : 'none';
+      const targetFooter = withPersonalization ? activeFooter : null;
+      const footerPayload = targetFooter || 'none';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
 
       let downloadUrl = selectedTemplate.mediaUrl || selectedTemplate.contentUrl || selectedTemplate.posterUrl;
@@ -413,7 +419,7 @@ export default function SearchScreen() {
           customizationState: {
             userNameText: withPersonalization ? displayName : '',
             userPhotoUri: remoteUserPhoto,
-            selectedFrame: selectedFooterId,
+            selectedFrame: withPersonalization ? selectedFooterId : 'none',
             selectedFooter: footerPayload,
           },
         }, { timeout: 120000 });
@@ -466,10 +472,8 @@ export default function SearchScreen() {
   const executeShareAction = async (withPersonalization) => {
     if (!selectedTemplate) return;
     try {
-      const targetFooter = activeFooter;
-      const footerPayload = targetFooter
-        ? (targetFooter._id || targetFooter.id || targetFooter)
-        : 'none';
+      const targetFooter = withPersonalization ? activeFooter : null;
+      const footerPayload = targetFooter || 'none';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
 
       let downloadUrl = selectedTemplate.mediaUrl || selectedTemplate.contentUrl || selectedTemplate.posterUrl;
@@ -484,7 +488,7 @@ export default function SearchScreen() {
           customizationState: {
             userNameText: withPersonalization ? displayName : '',
             userPhotoUri: remoteUserPhoto,
-            selectedFrame: selectedFooterId,
+            selectedFrame: withPersonalization ? selectedFooterId : 'none',
             selectedFooter: footerPayload,
           },
         }, { timeout: 120000 });
@@ -536,15 +540,14 @@ export default function SearchScreen() {
     router.push(`/template/${selectedTemplate.id}`);
   };
 
-  // Dimensions for Viewer Card (smart sideways stretch matching Home page)
+  // Dimensions for Viewer Card (strictly maintaining 9:16 aspect ratio so no footer clipping occurs)
   const viewerMaxAvailableHeight = Math.max(260, SCREEN_HEIGHT - insets.top - insets.bottom - 175);
-  let viewerCardWidth = Math.min(Math.floor(SCREEN_WIDTH * 0.92), SCREEN_WIDTH - 28);
-  let viewerCardHeight = Math.min(viewerMaxAvailableHeight, Math.round(viewerCardWidth * 1.45));
-  if (viewerCardHeight < viewerMaxAvailableHeight && viewerMaxAvailableHeight <= Math.round(viewerCardWidth * 1.55)) {
-    viewerCardHeight = viewerMaxAvailableHeight;
-  }
-  if (viewerCardWidth > Math.floor(viewerCardHeight / 1.22)) {
-    viewerCardWidth = Math.floor(viewerCardHeight / 1.22);
+  const maxViewerWidth = Math.min(Math.floor(SCREEN_WIDTH * 0.94), SCREEN_WIDTH - 20);
+  let viewerCardHeight = Math.min(viewerMaxAvailableHeight, Math.round(maxViewerWidth * (16 / 9)));
+  let viewerCardWidth = Math.round(viewerCardHeight * (9 / 16));
+  if (viewerCardWidth > maxViewerWidth) {
+    viewerCardWidth = maxViewerWidth;
+    viewerCardHeight = Math.round(viewerCardWidth * (16 / 9));
   }
 
   return (
@@ -842,8 +845,8 @@ export default function SearchScreen() {
                         if (fTop < 0) fTop = 0;
                       }
 
-                      const fitMode = activeFooter.objectFit === 'cover' ? 'cover' : 'stretch';
-                      const videoResizeMode = activeFooter.objectFit === 'cover' ? ResizeMode.COVER : ResizeMode.STRETCH;
+                      const fitMode = 'stretch';
+                      const videoResizeMode = ResizeMode.STRETCH;
 
                       return (
                         <View

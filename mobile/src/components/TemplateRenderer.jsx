@@ -69,10 +69,6 @@ function DraggablePhotoLayer({
   const shape = layer.shape || 'rectangle';
   const shapeStyle = getPhotoShapeStyles(shape, layerWidth, layerHeight);
 
-  if (!userPhotoUri && !interactive) {
-    return null;
-  }
-
   const content = userPhotoUri ? (
     <Image
       source={{ uri: resolveMediaUrl(userPhotoUri) }}
@@ -80,8 +76,12 @@ function DraggablePhotoLayer({
       resizeMode="cover"
     />
   ) : (
-    <View style={styles.photoPlaceholderInner}>
-      <Text style={styles.photoPlaceholderText}>Tap to add photo</Text>
+    <View style={[styles.photoPlaceholderInner, !interactive && { backgroundColor: '#F1F5F9' }]}>
+      {interactive ? (
+        <Text style={styles.photoPlaceholderText}>Tap to add photo</Text>
+      ) : (
+        <Ionicons name="person" size={Math.min(layerWidth, layerHeight) * 0.45} color="#94A3B8" />
+      )}
     </View>
   );
 
@@ -134,10 +134,24 @@ function DraggableTextLayer({
     return null;
   }
 
-  const computedFontSize = Math.max(10, (layer.fontSize || 22) * (canvasWidth / 375));
-  const computedLineHeight = Math.max(12, Math.round(computedFontSize * 1.15));
+  const rawFontSize = layer.fontSize;
+  const effectiveFontSize = (!rawFontSize || rawFontSize < 34) ? 36 : rawFontSize;
+  const computedFontSize = Math.max(22, effectiveFontSize * (canvasWidth / 375));
   const textAlign = layer.textAlign || 'left';
   const justifyContent = textAlign === 'right' ? 'flex-end' : textAlign === 'center' ? 'center' : 'flex-start';
+
+  const isWhiteFooterZone = (layer.y !== undefined ? layer.y : 0.5) >= 0.88;
+  const isWhiteColor = !layer.fontColor || layer.fontColor.toUpperCase() === '#FFFFFF' || layer.fontColor.toUpperCase() === '#FFF';
+  const effectiveFontColor = (isWhiteFooterZone && isWhiteColor) ? '#111827' : (layer.fontColor || '#111827');
+  const isDarkColor = Boolean(
+    effectiveFontColor &&
+    (effectiveFontColor.toLowerCase() === '#000000' ||
+     effectiveFontColor.toLowerCase() === '#000' ||
+     effectiveFontColor.toLowerCase() === 'black' ||
+     effectiveFontColor.toLowerCase() === '#111827' ||
+     effectiveFontColor.toLowerCase() === '#1a1a1a' ||
+     effectiveFontColor.toLowerCase() === '#1e293b')
+  );
 
   return (
     <View
@@ -159,16 +173,19 @@ function DraggableTextLayer({
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        minimumFontScale={0.6}
+        minimumFontScale={0.8}
         style={{
           width: '100%',
           fontSize: computedFontSize,
-          lineHeight: computedLineHeight,
-          color: layer.fontColor || COLORS.white,
+          color: effectiveFontColor,
           fontFamily: FONTS.bold,
+          fontWeight: layer.fontWeight || '900',
           textAlign: textAlign,
           textAlignVertical: 'center',
           includeFontPadding: false,
+          textShadowColor: isDarkColor ? 'transparent' : 'rgba(0, 0, 0, 0.85)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: isDarkColor ? 0 : 3,
         }}
       >
         {textValue}
@@ -224,7 +241,7 @@ export default function TemplateRenderer({
 
   // Resolve active footer object from string ID or object
   let resolvedFooter = selectedFooter || selectedEffect || null;
-  if (resolvedFooter === 'none' || resolvedFooter === false) {
+  if (!withPersonalization || resolvedFooter === 'none' || resolvedFooter === false) {
     resolvedFooter = null;
   } else if (typeof resolvedFooter === 'string') {
     resolvedFooter = templateFooters.find(
@@ -440,10 +457,10 @@ export default function TemplateRenderer({
         }
         if (!textValue || textValue.trim() === '') return null;
 
-        const effX = pos?.x ?? 0.5;
-        const effY = pos?.y ?? 0.9;
-        const effWidth = (pos?.width ?? 0.8) * canvasWidth;
-        const effHeight = (pos?.height ?? 0.1) * canvasHeight;
+        const effX = pos?.x ?? 0.54;
+        const effY = pos?.y ?? 0.95;
+        const effWidth = (pos?.width ?? 0.32) * canvasWidth;
+        const effHeight = (pos?.height ?? 0.08) * canvasHeight;
         const effLeft = effX * canvasWidth - effWidth / 2;
         const effTop = effY * canvasHeight - effHeight / 2;
 
@@ -451,7 +468,8 @@ export default function TemplateRenderer({
           <DraggableTextLayer
             key="footer_name_layer"
             layer={{
-              fontSize: pos?.fontSize || 22,
+              fontSize: pos?.fontSize || 36,
+              fontWeight: pos?.fontWeight || '900',
               fontColor: pos?.fontColor || COLORS.white,
               textAlign: pos?.textAlign || 'center',
               zIndex: pos?.zIndex || 20,
@@ -467,7 +485,7 @@ export default function TemplateRenderer({
       })()}
 
       {/* Fallback footer-defined photo layer if not defined in template canvasConfig */}
-      {withPersonalization && effectiveUserPhotoUri && !layers.some((l) => l.type === 'photo') && (() => {
+      {withPersonalization && !layers.some((l) => l.type === 'photo') && (() => {
         const activeFooterObj = selectedFooter || selectedEffect;
         const pos = activeFooterObj?.userPhotoPosition;
         if (!pos) return null;

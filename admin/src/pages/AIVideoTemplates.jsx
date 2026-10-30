@@ -140,6 +140,8 @@ export default function AIVideoTemplates() {
       prompt: t.prompt || DEFAULT_PROMPT,
       sortOrder: t.sortOrder || 0,
       isActive: t.isActive !== undefined ? t.isActive : true,
+      uses: t.uses !== undefined ? t.uses : 0,
+      views: t.views !== undefined ? t.views : 0,
     });
     setIsModalOpen(true);
   };

@@ -9,15 +9,16 @@ const formatApiUrl = (url) => {
 };
 
 const getBaseUrl = () => {
-  // Read exclusively from environment variable
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return formatApiUrl(process.env.EXPO_PUBLIC_API_URL);
-  }
-
   const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
-  // In development, support dynamic Expo Go host or dev URL
+  // In development, prioritize Metro's connected host IP so router/DHCP changes never break local testing
   if (isDev) {
+    const envUrl = process.env.EXPO_PUBLIC_API_URL;
+    // If env URL is an explicit remote HTTPS endpoint, honor it
+    if (envUrl && envUrl.startsWith('https://')) {
+      return formatApiUrl(envUrl);
+    }
+
     const hostUri =
       (Constants.expoConfig && Constants.expoConfig.hostUri) ||
       (Constants.expoGoConfig && Constants.expoGoConfig.debuggerHost) ||
@@ -30,10 +31,16 @@ const getBaseUrl = () => {
         return `http://${ip}:5000/api`;
       }
     }
+  }
 
-    if (process.env.EXPO_PUBLIC_DEV_API_URL) {
-      return formatApiUrl(process.env.EXPO_PUBLIC_DEV_API_URL);
-    }
+  // Read from environment variable
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return formatApiUrl(process.env.EXPO_PUBLIC_API_URL);
+  }
+
+  // In development fallback
+  if (isDev && process.env.EXPO_PUBLIC_DEV_API_URL) {
+    return formatApiUrl(process.env.EXPO_PUBLIC_DEV_API_URL);
   }
 
   // Production fallback backend URL

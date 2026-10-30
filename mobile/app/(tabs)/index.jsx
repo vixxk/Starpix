@@ -102,49 +102,89 @@ export const getCategoryLabel = (chip, currentLang, t) => {
   return formatCategoryName(chip.name || chip.label || chip.id || '');
 };
 
+const getCharWidth = (ch, fontMultiplier = 1) => {
+  const code = ch.charCodeAt(0);
+
+  // Tamil: 0x0B80 - 0x0BFF
+  if (code >= 0x0B80 && code <= 0x0BFF) {
+    if (code === 0x0BCD) return 1.5 * fontMultiplier; // pulli / virama
+    if (code === 0x0BBF || code === 0x0BC0) return 2.5 * fontMultiplier; // i, ii
+    if (code === 0x0BCA || code === 0x0BCB || code === 0x0BCC) return 14.0 * fontMultiplier; // o, oo, au (two-part)
+    if (code === 0x0BBE || code === 0x0BC1 || code === 0x0BC2 || (code >= 0x0BC6 && code <= 0x0BC8) || code === 0x0BD7) {
+      return 7.8 * fontMultiplier; // aa, u, uu, e, ee, ai, au length
+    }
+    return 8.2 * fontMultiplier; // base Tamil letters
+  }
+
+  // Malayalam: 0x0D00 - 0x0D7F
+  if (code >= 0x0D00 && code <= 0x0D7F) {
+    if (code === 0x0D4D || code === 0x0D02) return 2.0 * fontMultiplier; // virama, anusvara
+    if (code === 0x0D3F || code === 0x0D40) return 2.8 * fontMultiplier; // i, ii
+    if (code === 0x0D4A || code === 0x0D4B || code === 0x0D4C) return 14.5 * fontMultiplier; // two-part
+    if (code === 0x0D3E || (code >= 0x0D41 && code <= 0x0D43) || (code >= 0x0D46 && code <= 0x0D48) || code === 0x0D57) {
+      return 8.0 * fontMultiplier;
+    }
+    return 8.8 * fontMultiplier; // base Malayalam letters
+  }
+
+  // Telugu: 0x0C00 - 0x0C7F & Kannada: 0x0C80 - 0x0CFF
+  if (code >= 0x0C00 && code <= 0x0CFF) {
+    const off = code % 0x80;
+    if (off === 0x4D || off === 0x02 || off === 0x03) return 2.0 * fontMultiplier; // virama, anusvara
+    if (off >= 0x3E && off <= 0x4C) return 5.5 * fontMultiplier; // matras
+    return 8.5 * fontMultiplier; // base letters
+  }
+
+  // Devanagari (0x0900-0x097F), Bengali (0x0980-0x09FF), Gurmukhi (0x0A00-0x0A7F), Gujarati (0x0A80-0x0AFF)
+  if (code >= 0x0900 && code <= 0x0AFF) {
+    const off = code % 0x80;
+    if (off === 0x01 || off === 0x02 || off === 0x03 || off === 0x3C || off === 0x4D) return 1.8 * fontMultiplier;
+    if ((code >= 0x0980 && code <= 0x09FF) && (off === 0x4B || off === 0x4C)) return 12.0 * fontMultiplier; // Bengali two-part
+    if (off === 0x3E || off === 0x3F || off === 0x40 || off === 0x46 || off === 0x47 || off === 0x48) return 5.5 * fontMultiplier;
+    if (off >= 0x41 && off <= 0x44) return 3.0 * fontMultiplier;
+    return 7.5 * fontMultiplier;
+  }
+
+  // Latin / ASCII
+  if (code === 32) return 3.5 * fontMultiplier; // space
+  if (ch >= 'A' && ch <= 'Z') {
+    if ('MW'.includes(ch)) return 9.5 * fontMultiplier;
+    return 7.5 * fontMultiplier;
+  }
+  if ('mw'.includes(ch)) return 8.5 * fontMultiplier;
+  if ('ijl., \'!-:;()'.includes(ch)) return 3.5 * fontMultiplier;
+  if ('rtfks'.includes(ch)) return 5.2 * fontMultiplier;
+  if (ch >= '0' && ch <= '9') return 6.2 * fontMultiplier;
+  if (ch >= 'a' && ch <= 'z') return 6.5 * fontMultiplier;
+  if (code > 127) return 7.5 * fontMultiplier;
+  return 6.5 * fontMultiplier;
+};
+
 const estimateChipWidth = (cat, currentLang, t) => {
   const isViewAll = cat.isViewAll || cat.id === '__view_all__';
-  const label = getCategoryLabel(cat, currentLang, t);
+  const label = isViewAll ? (t('view_all') || 'View All') : getCategoryLabel(cat, currentLang, t);
   const hasIcon = Boolean(isViewAll || cat.icon);
   const screenW = Dimensions.get('window').width || 390;
   const fontMultiplier = Math.max(screenW / 390, 0.9);
 
   // Ionicons grid or emoji glyph
-  const iconExtra = isViewAll ? (13 * fontMultiplier) : (hasIcon ? (16 * fontMultiplier) : 0);
+  const iconExtra = isViewAll ? (12 * fontMultiplier) : (hasIcon ? (16 * fontMultiplier) : 0);
 
   let charSum = 0;
   for (let i = 0; i < label.length; i++) {
-    const ch = label[i];
-    const code = ch.charCodeAt(0);
-    if (code > 127) {
-      // Indic scripts / Unicode non-ASCII (Devanagari, Tamil, Telugu, Kannada, Bengali, Gujarati, Punjabi, Malayalam)
-      charSum += 7.6 * fontMultiplier;
-    } else if (ch >= 'A' && ch <= 'Z') {
-      if ('MW'.includes(ch)) charSum += 9.5 * fontMultiplier;
-      else charSum += 7.2 * fontMultiplier;
-    } else if ('mw'.includes(ch)) {
-      charSum += 8.5 * fontMultiplier;
-    } else if ('ijl., \'!-:;()'.includes(ch)) {
-      charSum += 3.2 * fontMultiplier;
-    } else if ('rtfks'.includes(ch)) {
-      charSum += 5.0 * fontMultiplier;
-    } else if (ch >= '0' && ch <= '9') {
-      charSum += 6.0 * fontMultiplier;
-    } else {
-      charSum += 6.2 * fontMultiplier;
-    }
+    charSum += getCharWidth(label[i], fontMultiplier);
   }
 
-  // Padding (6 * 2 = 12) + Border (1 * 2 = 2) = 14px + 2px safety buffer
-  const basePaddingAndBorder = 16;
+  // Base overhead (padding 12 + border 2 + gap 2 = 16)
+  const baseOverhead = 16;
   const scaledTextWidth = Math.ceil(Math.max(charSum, 10));
-  return Math.ceil(basePaddingAndBorder + iconExtra + scaledTextWidth);
+  return Math.ceil(baseOverhead + iconExtra + scaledTextWidth);
 };
 
 const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth, t) => {
   if (!categoriesList || categoriesList.length === 0) return [];
 
-  const GAP = 4;
+  const GAP = 5;
   const VIEW_ALL_CHIP = {
     id: '__view_all__',
     isViewAll: true,
@@ -154,9 +194,9 @@ const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth, 
   };
   const viewAllWidth = estimateChipWidth(VIEW_ALL_CHIP, currentLang, t);
 
-  // Safety buffer to ensure that even with rendering sub-pixels or slight font variations,
-  // NO chip ever touches the right edge or gets clipped with ellipsis.
-  const lineSafetyBuffer = 10;
+  // Safety buffer to ensure that even with rendering sub-pixels or font variations,
+  // NO chip ever touches the right edge or gets clipped. If it would overflow, it wraps to next line.
+  const lineSafetyBuffer = 16;
   const maxLineWidth = Math.max(availableWidth - lineSafetyBuffer, 200);
 
   // Line 0, Line 1, Line 2 max widths
@@ -227,7 +267,7 @@ const ReelMediaCard = React.memo(function ReelMediaCard({
         top: 0,
         left: 0,
         overflow: 'hidden',
-        borderRadius: wp(0.045),
+        borderRadius: 14,
       }}
     >
       {/* Show Skeleton loading until template content is ready, NOT the thumbnail */}
@@ -246,7 +286,7 @@ const ReelMediaCard = React.memo(function ReelMediaCard({
           <Skeleton
             width={cardWidth}
             height={cardHeight}
-            borderRadius={wp(0.045)}
+            borderRadius={14}
             style={{ backgroundColor: '#E2E8F0' }}
           />
         </View>
@@ -274,6 +314,29 @@ const ReelMediaCard = React.memo(function ReelMediaCard({
     </View>
   );
 });
+
+const getFooterKey = (f, idx) => {
+  if (!f) return 'none';
+  if (f.isNone || f.id === 'none') return 'none';
+  return String(f.id || f._id || f.name || `footer_${idx + 1}`);
+};
+
+const resolveSelectedFooter = (footers, selectedFrameId) => {
+  if (!Array.isArray(footers) || footers.length === 0 || selectedFrameId === 'none') {
+    return null;
+  }
+  if (!selectedFrameId) {
+    return footers[0] || null;
+  }
+  const normTarget = String(selectedFrameId).toLowerCase().replace(/[-_\s]/g, '');
+  const match = footers.find((f, idx) => {
+    const fid = String(f.id || f._id || '').toLowerCase().replace(/[-_\s]/g, '');
+    const fname = String(f.name || '').toLowerCase().replace(/[-_\s]/g, '');
+    const fIdxStr = `footer${idx + 1}`;
+    return fid === normTarget || fname === normTarget || fIdxStr === normTarget || String(idx) === normTarget;
+  });
+  return match || footers[0] || null;
+};
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -444,20 +507,15 @@ export default function HomeScreen() {
   const fallbackHeight = Math.max(360, windowHeight - insets.top - insets.bottom - 210);
   const availHeight = contentAreaHeight > 0 ? contentAreaHeight : fallbackHeight;
 
-  // Reserved space for controls: actionRow (38) + frameSelector (44) + scrollIndicator (24) + margins/paddings (~18)
-  const reservedControlsHeight = 124;
-  const maxAvailableCardHeight = Math.max(180, Math.floor(availHeight - reservedControlsHeight));
+  // Space reserved for controls below the card:
+  // actionRow (38) + frameSelector (44) + bottom clearance (~36)
+  const reservedControlsHeight = 118;
 
-  // Smart stretch sideways: template covers ~92% of screen width with elegant, balanced portrait aspect
-  let cardWidth = Math.min(Math.floor(windowWidth * 0.92), windowWidth - 28);
-  let cardHeight = Math.min(maxAvailableCardHeight, Math.round(cardWidth * 1.45));
-  if (cardHeight < maxAvailableCardHeight && maxAvailableCardHeight <= Math.round(cardWidth * 1.55)) {
-    cardHeight = maxAvailableCardHeight;
-  }
-  if (cardWidth > Math.floor(cardHeight / 1.22)) {
-    cardWidth = Math.floor(cardHeight / 1.22);
-  }
+  // Template covers almost full screen width with subtle side padding (10-12px on each side)
+  const cardWidth = Math.min(Math.floor(windowWidth * 0.94), windowWidth - 20);
+  const cardHeight = Math.max(260, Math.floor(availHeight - reservedControlsHeight));
 
+  // Controls (Action buttons + frame selector) span cleanly matching the card width
   const controlsWidth = cardWidth;
 
   const getSubscriptionLabel = () => {
@@ -670,19 +728,18 @@ export default function HomeScreen() {
         ? target.footers
         : (target.rawTemplate?.footers || []);
 
-      const targetFrame = selectedFrames[target.id] !== undefined
-        ? selectedFrames[target.id]
-        : (target.defaultFrame || (templateFooters.length > 0 ? templateFooters[0].id : 'none'));
-
-      const activeCustomFooter = targetFrame === 'none'
-        ? null
-        : (templateFooters.length > 0
-            ? templateFooters.find((f) => String(f.id || f._id) === String(targetFrame)) || templateFooters[0]
-            : null);
-
-      const footerPayload = activeCustomFooter
-        ? (activeCustomFooter._id || activeCustomFooter.id || activeCustomFooter)
+      const defaultFrameId = templateFooters.length > 0 ? getFooterKey(templateFooters[0], 0) : 'none';
+      const targetFrame = withPersonalization
+        ? (selectedFrames[target.id] !== undefined
+            ? selectedFrames[target.id]
+            : (target.defaultFrame ? getFooterKey({ id: target.defaultFrame }, 0) : defaultFrameId))
         : 'none';
+
+      const activeCustomFooter = (!withPersonalization || targetFrame === 'none')
+        ? null
+        : resolveSelectedFooter(templateFooters, targetFrame);
+
+      const footerPayload = activeCustomFooter || 'none';
 
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
       const targetDisplayName = withPersonalization ? displayName : '';
@@ -772,11 +829,11 @@ export default function HomeScreen() {
         editedText: targetDisplayName,
         userNameText: targetDisplayName,
         userPhotoUri: remoteUserPhoto || null,
-        selectedFrame: targetFrame !== 'none' ? targetFrame : null,
+        selectedFrame: withPersonalization && targetFrame !== 'none' ? targetFrame : null,
         activeTemplate: target.rawTemplate || target,
         template: target.rawTemplate || target,
         footers: target.footers || [],
-        selectedFooter: activeCustomFooter,
+        selectedFooter: withPersonalization ? activeCustomFooter : null,
         canvasConfig: target.canvasConfig || null,
         createdAt: new Date().toISOString(),
         downloadedAt: new Date().toISOString(),
@@ -853,19 +910,18 @@ export default function HomeScreen() {
         ? target.footers
         : (target.rawTemplate?.footers || []);
 
-      const targetFrame = selectedFrames[target.id] !== undefined
-        ? selectedFrames[target.id]
-        : (target.defaultFrame || (templateFooters.length > 0 ? templateFooters[0].id : 'none'));
-
-      const activeCustomFooter = targetFrame === 'none'
-        ? null
-        : (templateFooters.length > 0
-            ? templateFooters.find((f) => String(f.id || f._id) === String(targetFrame)) || templateFooters[0]
-            : null);
-
-      const footerPayload = activeCustomFooter
-        ? (activeCustomFooter._id || activeCustomFooter.id || activeCustomFooter)
+      const defaultFrameId = templateFooters.length > 0 ? getFooterKey(templateFooters[0], 0) : 'none';
+      const targetFrame = withPersonalization
+        ? (selectedFrames[target.id] !== undefined
+            ? selectedFrames[target.id]
+            : (target.defaultFrame ? getFooterKey({ id: target.defaultFrame }, 0) : defaultFrameId))
         : 'none';
+
+      const activeCustomFooter = (!withPersonalization || targetFrame === 'none')
+        ? null
+        : resolveSelectedFooter(templateFooters, targetFrame);
+
+      const footerPayload = activeCustomFooter || 'none';
 
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
       const targetDisplayName = withPersonalization ? displayName : '';
@@ -972,11 +1028,11 @@ export default function HomeScreen() {
         editedText: targetDisplayName,
         userNameText: targetDisplayName,
         userPhotoUri: remoteUserPhoto || null,
-        selectedFrame: targetFrame !== 'none' ? targetFrame : null,
+        selectedFrame: withPersonalization && targetFrame !== 'none' ? targetFrame : null,
         activeTemplate: target.rawTemplate || target,
         template: target.rawTemplate || target,
         footers: target.footers || [],
-        selectedFooter: activeCustomFooter,
+        selectedFooter: withPersonalization ? activeCustomFooter : null,
         canvasConfig: target.canvasConfig || null,
         createdAt: new Date().toISOString(),
         downloadedAt: new Date().toISOString(),
@@ -1133,18 +1189,18 @@ export default function HomeScreen() {
     const hasNext = index < displayReels.length - 1;
     const isCurrentActive = index === currentReelIndex;
     const templateFooters = Array.isArray(item.footers) ? item.footers : [];
-    const defaultFrameId = templateFooters.length > 0 ? templateFooters[0].id : (item.defaultFrame || 'durga_puja');
+    const defaultFrameId = templateFooters.length > 0 ? getFooterKey(templateFooters[0], 0) : 'none';
     const itemFrameId = selectedFrames[item.id] !== undefined
       ? selectedFrames[item.id]
-      : defaultFrameId;
-    const selectedCustomFooter = templateFooters.find((f) => f.id === itemFrameId) || null;
+      : (item.defaultFrame ? getFooterKey({ id: item.defaultFrame }, 0) : defaultFrameId);
+    const selectedCustomFooter = resolveSelectedFooter(templateFooters, itemFrameId);
     const shouldPlayMedia = isPlaying && isCurrentActive && activeReelPlaybackReady;
 
     return (
       <View style={[styles.pageContainer, { height: availHeight }]}>
         {/* Template Media Card Container */}
         <View style={styles.cardRowWrapper}>
-          <View style={[styles.reelCard, { width: cardWidth, height: cardHeight }]}>
+          <View style={[styles.reelCard, { width: cardWidth, height: cardHeight, borderRadius: 14 }]}>
             {/* Background Media: shows real template content or skeleton loading, never thumbnail */}
             <ReelMediaCard
               item={item}
@@ -1210,8 +1266,8 @@ export default function HomeScreen() {
                 if (fTop < 0) fTop = 0;
               }
 
-              const fitMode = selectedCustomFooter.objectFit === 'cover' ? 'cover' : 'stretch';
-              const videoResizeMode = selectedCustomFooter.objectFit === 'cover' ? ResizeMode.COVER : ResizeMode.STRETCH;
+              const fitMode = 'stretch';
+              const videoResizeMode = ResizeMode.STRETCH;
 
               return (
                 <View
@@ -1298,26 +1354,6 @@ export default function HomeScreen() {
               </PressableScale>
             ) : null}
           </View>
-
-          {/* Next Button: NOT on template, positioned near the right end of the screen */}
-          {hasNext ? (
-            <PressableScale
-              onPress={() => handleNextReel(index)}
-              scaleTo={0.92}
-              style={styles.floatingNextBtn}
-              contentStyle={styles.nextPillContent}
-            >
-              <Text
-                style={styles.nextPillText}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-              >
-                {t('next')}
-              </Text>
-              <Ionicons name="chevron-forward" size={fontScale(13)} color="#E11D48" />
-            </PressableScale>
-          ) : null}
         </View>
 
         {/* 3 Action Buttons Row: Download, Share, Edit */}
@@ -1398,13 +1434,16 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               nestedScrollEnabled={true}
               directionalLockEnabled={true}
-              contentContainerStyle={styles.frameScrollContent}
+              contentContainerStyle={[styles.frameScrollContent, hasNext ? { paddingRight: 76 } : null]}
             >
               {[FRAME_OPTIONS[0], ...templateFooters].map((frame, fIdx) => {
                 if (!frame) return null;
-                const isSelected = itemFrameId === frame.id;
-                const frameKey = frame.id ? `${frame.id}_${fIdx}` : `frame_${fIdx}`;
-                const resolvedThumb = frame.thumb ? resolveMediaUrl(frame.thumb) : null;
+                const frameId = frame.isNone ? 'none' : getFooterKey(frame, fIdx - 1);
+                const isSelected = itemFrameId === frameId;
+                const frameKey = `footer_btn_${frameId}_${fIdx}`;
+                const resolvedThumb = frame.thumb
+                  ? resolveMediaUrl(frame.thumb)
+                  : (frame.thumbnail ? resolveMediaUrl(frame.thumbnail) : (frame.asset ? resolveMediaUrl(frame.asset) : null));
 
                 return (
                   <TouchableOpacity
@@ -1414,7 +1453,7 @@ export default function HomeScreen() {
                       hapticTap();
                       setSelectedFrames((prev) => ({
                         ...prev,
-                        [item.id]: frame.id,
+                        [item.id]: frameId,
                       }));
                     }}
                     style={[
@@ -1439,29 +1478,26 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {/* Bottom Scroll Indicator: ONLY visible under the FIRST content template */}
-        {index === 0 && displayReels.length > 1 ? (
-          <TouchableOpacity
-            style={styles.scrollIndicatorWrap}
+        {/* Next Button: positioned at bottom right, directly above the bottom navigation bar */}
+        {hasNext ? (
+          <PressableScale
             onPress={() => handleNextReel(index)}
-            activeOpacity={0.7}
+            scaleTo={0.92}
+            style={styles.bottomNextBtn}
+            contentStyle={styles.nextPillContent}
+            accessibilityLabel={t('next') || 'Next'}
           >
-            <Animated.View style={{ transform: [{ translateY: arrowBounce }], alignItems: 'center' }}>
-              <Ionicons name="chevron-down" size={fontScale(14)} color="#E11D48" />
-              <Ionicons
-                name="chevron-down"
-                size={fontScale(14)}
-                color="#E11D48"
-                style={{ marginTop: -8 }}
-              />
-            </Animated.View>
-            <Text style={styles.scrollIndicatorText}>
-              {t('scroll_to_view_next_story') || 'Scroll to view next story'}
+            <Text
+              style={styles.nextPillText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {t('next')}
             </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.scrollIndicatorSpacer} />
-        )}
+            <Ionicons name="chevron-forward" size={fontScale(13)} color="#E11D48" />
+          </PressableScale>
+        ) : null}
       </View>
     );
   };
@@ -1615,12 +1651,12 @@ export default function HomeScreen() {
               { height: availHeight, justifyContent: 'center', alignItems: 'center' },
             ]}
           >
-            {/* Card Skeleton (9:16 aspect ratio matching reelCard) */}
+            {/* Card Skeleton (matching reelCard) */}
             <View style={styles.cardRowWrapper}>
               <Skeleton
                 width={cardWidth}
                 height={cardHeight}
-                borderRadius={wp(0.045)}
+                borderRadius={14}
                 style={{ backgroundColor: '#E2E8F0' }}
               />
             </View>
@@ -1744,13 +1780,9 @@ export default function HomeScreen() {
         const modalTargetFrame = modalTemplate
           ? (selectedFrames[modalTemplate.id] !== undefined
               ? selectedFrames[modalTemplate.id]
-              : (modalTemplate.defaultFrame || (modalTemplateFooters.length > 0 ? (modalTemplateFooters[0].id || modalTemplateFooters[0]._id) : 'none')))
+              : (modalTemplateFooters.length > 0 ? getFooterKey(modalTemplateFooters[0], 0) : 'none'))
           : 'none';
-        const modalSelectedFooter = modalTargetFrame === 'none'
-          ? null
-          : (modalTemplateFooters.length > 0
-              ? modalTemplateFooters.find((f) => String(f.id || f._id) === String(modalTargetFrame)) || modalTemplateFooters[0]
-              : null);
+        const modalSelectedFooter = resolveSelectedFooter(modalTemplateFooters, modalTargetFrame);
 
         const modalActiveTemplate = modalTemplate ? {
           ...(modalTemplate.rawTemplate || {}),

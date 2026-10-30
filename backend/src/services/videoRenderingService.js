@@ -470,6 +470,7 @@ async function renderPersonalizedTemplate({
     let activeFooter = null;
 
     const isNoneFooter =
+      !effectiveWithPersonalization ||
       selectedFooter === 'none' ||
       selectedFooter === null ||
       selectedFooter === false ||
@@ -478,31 +479,53 @@ async function renderPersonalizedTemplate({
     if (!isNoneFooter && selectedFooter) {
       if (typeof selectedFooter === 'object') {
         const targetId = selectedFooter._id || selectedFooter.id;
-        const dbMatch = templateFooters.find(
-          (f) => (targetId && String(f._id || f.id) === String(targetId)) || f.name === selectedFooter.name
-        );
+        const normTargetName = selectedFooter.name ? String(selectedFooter.name).toLowerCase().replace(/[-_\s]/g, '') : '';
+        const normTargetId = targetId ? String(targetId).toLowerCase().replace(/[-_\s]/g, '') : '';
+
+        const dbMatch = templateFooters.find((f, idx) => {
+          const fid = String(f._id || f.id || '').toLowerCase().replace(/[-_\s]/g, '');
+          const fname = String(f.name || '').toLowerCase().replace(/[-_\s]/g, '');
+          const fIdxStr = `footer${idx + 1}`;
+          return (
+            (normTargetId && (fid === normTargetId || fIdxStr === normTargetId)) ||
+            (normTargetName && (fname === normTargetName || fIdxStr === normTargetName)) ||
+            (f.asset && selectedFooter.asset && f.asset === selectedFooter.asset) ||
+            (f.videoAsset && selectedFooter.videoAsset && f.videoAsset === selectedFooter.videoAsset)
+          );
+        });
+
         if (dbMatch) {
           const dbObj = typeof dbMatch.toObject === 'function' ? dbMatch.toObject() : dbMatch;
-          // Database configuration created by the Admin defines exact geometry, shape and position
           activeFooter = {
             ...selectedFooter,
             ...dbObj,
-            userPhotoPosition: dbObj.userPhotoPosition || null,
-            userNamePosition: dbObj.userNamePosition || null,
-            userPhotoShape: dbObj.userPhotoShape || dbObj.shape || dbObj.userPhotoPosition?.shape || null,
-            shape: dbObj.userPhotoShape || dbObj.shape || dbObj.userPhotoPosition?.shape || null,
+            userPhotoPosition: dbObj.userPhotoPosition || selectedFooter.userPhotoPosition || null,
+            userNamePosition: dbObj.userNamePosition || selectedFooter.userNamePosition || null,
+            userPhotoShape: dbObj.userPhotoShape || dbObj.shape || dbObj.userPhotoPosition?.shape || selectedFooter.userPhotoShape || 'circle',
+            shape: dbObj.userPhotoShape || dbObj.shape || dbObj.userPhotoPosition?.shape || selectedFooter.shape || 'circle',
           };
         } else {
           activeFooter = { ...selectedFooter };
         }
       } else if (typeof selectedFooter === 'string') {
-        const found = templateFooters.find(
-          (f) => String(f._id || f.id) === String(selectedFooter) || f.name === selectedFooter
-        );
+        const norm = String(selectedFooter).toLowerCase().replace(/[-_\s]/g, '');
+        const found = templateFooters.find((f, idx) => {
+          const fid = String(f._id || f.id || '').toLowerCase().replace(/[-_\s]/g, '');
+          const fname = String(f.name || '').toLowerCase().replace(/[-_\s]/g, '');
+          const fIdxStr = `footer${idx + 1}`;
+          return fid === norm || fname === norm || fIdxStr === norm || String(idx) === norm;
+        });
+
         if (found) {
           activeFooter = typeof found.toObject === 'function' ? found.toObject() : { ...found };
         }
       }
+    }
+
+    // Default to first footer if personalization is enabled but activeFooter wasn't resolved
+    if (!isNoneFooter && !activeFooter && templateFooters.length > 0) {
+      const firstF = templateFooters[0];
+      activeFooter = typeof firstF.toObject === 'function' ? firstF.toObject() : { ...firstF };
     }
 
     const rawFooterAsset = activeFooter ? (activeFooter.videoAsset || activeFooter.asset || activeFooter.imageUrl) : null;
@@ -535,20 +558,18 @@ async function renderPersonalizedTemplate({
 
     let effectivePhotoLayer = null;
     if (effectiveWithPersonalization && photoBuffer) {
-      if (basePhotoLayer || footerPhotoPos) {
-        const rawX = footerPhotoPos?.x !== undefined ? footerPhotoPos.x : basePhotoLayer?.x;
-        const rawY = footerPhotoPos?.y !== undefined ? footerPhotoPos.y : basePhotoLayer?.y;
-        const rawW = footerPhotoPos?.width !== undefined ? footerPhotoPos.width : basePhotoLayer?.width;
-        const rawH = footerPhotoPos?.height !== undefined ? footerPhotoPos.height : basePhotoLayer?.height;
+      const rawX = footerPhotoPos?.x !== undefined ? footerPhotoPos.x : basePhotoLayer?.x;
+      const rawY = footerPhotoPos?.y !== undefined ? footerPhotoPos.y : basePhotoLayer?.y;
+      const rawW = footerPhotoPos?.width !== undefined ? footerPhotoPos.width : basePhotoLayer?.width;
+      const rawH = footerPhotoPos?.height !== undefined ? footerPhotoPos.height : basePhotoLayer?.height;
 
-        effectivePhotoLayer = {
-          x: parseNorm(rawX, 0.25),
-          y: parseNorm(rawY, 0.8),
-          width: parseNorm(rawW, 0.35),
-          height: parseNorm(rawH, 0.22),
-          shape: footerPhotoShape || basePhotoLayer?.shape || 'rectangle',
-        };
-      }
+      effectivePhotoLayer = {
+        x: parseNorm(rawX, 0.787),
+        y: parseNorm(rawY, 0.825),
+        width: parseNorm(rawW, 0.35),
+        height: parseNorm(rawH, 0.197),
+        shape: footerPhotoShape || basePhotoLayer?.shape || 'circle',
+      };
     }
 
     const baseTextNameLayer = canvasLayers.find((l) => l.type === 'text' && (l.fieldName === 'name' || !l.fieldName)) || canvasLayers.find((l) => l.type === 'text');
@@ -560,26 +581,36 @@ async function renderPersonalizedTemplate({
       : '';
 
     if (effectiveWithPersonalization && effectiveName) {
-      if (baseTextNameLayer || footerTextPos) {
-        const defaultTextX = effectivePhotoLayer?.x !== undefined ? effectivePhotoLayer.x : 0.5;
-        const rawX = footerTextPos?.x !== undefined ? footerTextPos.x : baseTextNameLayer?.x;
-        const rawY = footerTextPos?.y !== undefined ? footerTextPos.y : baseTextNameLayer?.y;
-        const rawW = footerTextPos?.width !== undefined ? footerTextPos.width : baseTextNameLayer?.width;
-        const rawH = footerTextPos?.height !== undefined ? footerTextPos.height : baseTextNameLayer?.height;
+      const rawX = footerTextPos?.x !== undefined ? footerTextPos.x : baseTextNameLayer?.x;
+      const rawY = footerTextPos?.y !== undefined ? footerTextPos.y : baseTextNameLayer?.y;
+      const rawW = footerTextPos?.width !== undefined ? footerTextPos.width : baseTextNameLayer?.width;
+      const rawH = footerTextPos?.height !== undefined ? footerTextPos.height : baseTextNameLayer?.height;
 
-        effectiveTextLayer = {
-          x: parseNorm(rawX, defaultTextX),
-          y: parseNorm(rawY, 0.75),
-          width: parseNorm(rawW, 0.6),
-          height: parseNorm(rawH, 0.1),
-          fontSize: footerTextPos?.fontSize !== undefined
-            ? footerTextPos.fontSize
-            : (baseTextNameLayer?.fontSize !== undefined ? baseTextNameLayer.fontSize : 22),
-          fontColor: footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#FFFFFF',
-          textAlign: footerTextPos?.textAlign || baseTextNameLayer?.textAlign || 'center',
-          fontWeight: footerTextPos?.fontWeight || baseTextNameLayer?.fontWeight || 'bold',
-        };
+      const parsedY = parseNorm(rawY, 0.95);
+      let resolvedColor = footerTextPos?.fontColor || baseTextNameLayer?.fontColor || '#111827';
+      if (parsedY >= 0.88 && (!resolvedColor || resolvedColor.toUpperCase() === '#FFFFFF' || resolvedColor.toUpperCase() === '#FFF')) {
+        resolvedColor = '#111827';
       }
+
+      const rawFontSize = footerTextPos?.fontSize !== undefined ? footerTextPos.fontSize : baseTextNameLayer?.fontSize;
+      const effectiveFontSize = (!rawFontSize || rawFontSize < 34) ? 36 : rawFontSize;
+
+      const parsedX = parseNorm(rawX, 0.54);
+      const effectiveX = (!parsedX || parsedX <= 0.50) ? 0.54 : parsedX;
+
+      const parsedW = parseNorm(rawW, 0.32);
+      const effectiveW = (!parsedW || parsedW > 0.38) ? 0.32 : parsedW;
+
+      effectiveTextLayer = {
+        x: effectiveX,
+        y: parsedY,
+        width: effectiveW,
+        height: Math.max(0.07, parseNorm(rawH, 0.08)),
+        fontSize: effectiveFontSize,
+        fontColor: resolvedColor,
+        textAlign: footerTextPos?.textAlign || baseTextNameLayer?.textAlign || 'center',
+        fontWeight: footerTextPos?.fontWeight || baseTextNameLayer?.fontWeight || '900',
+      };
     }
 
     // If no footer to render and no valid personalization layers exist, return clean raw media

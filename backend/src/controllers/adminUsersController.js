@@ -348,7 +348,24 @@ const getAdminCreations = asyncHandler(async (req, res) => {
   }
 
   if (mediaType && mediaType !== 'all') {
-    conditions.push({ mediaType });
+    if (mediaType === 'video') {
+      conditions.push({
+        $or: [
+          { mediaType: 'video' },
+          { format: 'mp4' },
+          { imageUrl: { $regex: /\.(mp4|webm|mov|m4v)(\?.*)?$/i } },
+        ],
+      });
+    } else if (mediaType === 'image' || mediaType === 'photo') {
+      conditions.push({
+        $and: [
+          { $or: [{ mediaType: 'image' }, { format: { $in: ['png', 'jpg', 'jpeg', 'webp'] } }] },
+          { imageUrl: { $not: { $regex: /\.(mp4|webm|mov|m4v)(\?.*)?$/i } } },
+        ],
+      });
+    } else {
+      conditions.push({ mediaType });
+    }
   }
 
   if (search && search.trim() !== '') {

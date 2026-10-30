@@ -72,8 +72,19 @@ function ContentPreviewCard({
     : '';
   const resolvedImageUri = rawImage ? resolveMediaUrl(rawImage) : null;
 
-  // 2. Custom Footer Overlay - Only if a footer was selected (never if none/null)
+  const posterRaw =
+    (item.thumbnail && !isVideoMedia(item.thumbnail) ? item.thumbnail : null) ||
+    (item.thumbnailUrl && !isVideoMedia(item.thumbnailUrl) ? item.thumbnailUrl : null) ||
+    (item.previewAsset && !isVideoMedia(item.previewAsset) ? item.previewAsset : null) ||
+    (item.previewImage && !isVideoMedia(item.previewImage) ? item.previewImage : null) ||
+    (item.canvasConfig?.backgroundImage && !isVideoMedia(item.canvasConfig.backgroundImage) ? item.canvasConfig.backgroundImage : null) ||
+    rawImage ||
+    '';
+  const posterUri = posterRaw ? resolveMediaUrl(posterRaw) : null;
+
+  // 2. Custom Footer Overlay - Only if a footer was selected (never if none/null) and withPersonalization is true
   const isNoneFooter =
+    !withPersonalization ||
     !selectedFooter ||
     selectedFooter === 'none' ||
     selectedFooter === false ||
@@ -123,7 +134,7 @@ function ContentPreviewCard({
   const videoResizeMode = (selectedFooter && selectedFooter.objectFit === 'cover') ? ResizeMode.COVER : ResizeMode.STRETCH;
 
   const itemId = (item && (item.id || item._id)) || '';
-  const hasBgMedia = Boolean(resolvedImageUri || resolvedVideoUri);
+  const hasBgMedia = Boolean(resolvedImageUri || resolvedVideoUri || posterUri);
   const hasFooterMedia = Boolean(!isNoneFooter && footerUri);
 
   const [bgLoaded, setBgLoaded] = React.useState(!hasBgMedia);
@@ -133,40 +144,51 @@ function ContentPreviewCard({
     setBgLoaded(!hasBgMedia);
     setFooterLoaded(!hasFooterMedia);
 
-    // Timeout safety fallback: if network is slow or callbacks are delayed, reveal gracefully after 3.5s
+    // Timeout safety fallback: if network is slow or callbacks are delayed, reveal gracefully after 2.5s
     const timer = setTimeout(() => {
       setBgLoaded(true);
       setFooterLoaded(true);
-    }, 3500);
+    }, 2500);
 
     return () => clearTimeout(timer);
-  }, [itemId, resolvedVideoUri, resolvedImageUri, footerUri, hasBgMedia, hasFooterMedia]);
+  }, [itemId, resolvedVideoUri, resolvedImageUri, posterUri, footerUri, hasBgMedia, hasFooterMedia]);
 
   const isFullyLoaded = bgLoaded && footerLoaded;
 
   return (
     <View style={{ width, height, position: 'relative', overflow: 'hidden', borderRadius: 14, backgroundColor: '#07140B' }}>
-      {/* 1. Main Background Content - EXACTLY matching home page */}
+      {/* 1. Main Background Content - Poster image is always rendered first to guarantee no black screen */}
       <View style={StyleSheet.absoluteFillObject}>
-        {resolvedImageUri && !isVideoMedia(resolvedImageUri) ? (
+        {posterUri ? (
           <Image
-            source={{ uri: resolvedImageUri }}
+            source={{ uri: posterUri }}
             style={{ width, height, position: 'absolute', top: 0, left: 0 }}
-            resizeMode="stretch"
+            resizeMode="cover"
             onLoad={() => setBgLoaded(true)}
             onLoadEnd={() => setBgLoaded(true)}
             onError={() => setBgLoaded(true)}
           />
-        ) : resolvedVideoUri ? (
+        ) : null}
+
+        {resolvedVideoUri ? (
           <AppVideo
             source={{ uri: resolvedVideoUri }}
             style={{ width, height, position: 'absolute', top: 0, left: 0 }}
-            resizeMode={ResizeMode.STRETCH}
+            resizeMode={ResizeMode.COVER}
             shouldPlay={true}
             isLooping={true}
             isMuted={true}
             onReadyForDisplay={() => setBgLoaded(true)}
             onLoad={() => setBgLoaded(true)}
+            onError={() => setBgLoaded(true)}
+          />
+        ) : resolvedImageUri && !isVideoMedia(resolvedImageUri) ? (
+          <Image
+            source={{ uri: resolvedImageUri }}
+            style={{ width, height, position: 'absolute', top: 0, left: 0 }}
+            resizeMode="cover"
+            onLoad={() => setBgLoaded(true)}
+            onLoadEnd={() => setBgLoaded(true)}
             onError={() => setBgLoaded(true)}
           />
         ) : null}
@@ -292,8 +314,8 @@ export default function DownloadShareModal({
     : (t('download') || 'Download');
   const actionIcon = isShare ? 'share-social' : 'download';
 
-  const THUMB_WIDTH = Math.min(wp(0.38), 145);
-  const THUMB_HEIGHT = Math.round(THUMB_WIDTH * 1.35);
+  const THUMB_WIDTH = Math.min(Math.floor(wp(0.36)), 130);
+  const THUMB_HEIGHT = Math.round(THUMB_WIDTH * (16 / 9));
 
   const tmpl = activeTemplate.rawTemplate
     ? { ...activeTemplate.rawTemplate, ...activeTemplate }
@@ -411,7 +433,7 @@ export default function DownloadShareModal({
               <View style={[styles.thumbWrap, { width: THUMB_WIDTH, height: THUMB_HEIGHT }]}>
                 <ContentPreviewCard
                   item={tmpl}
-                  selectedFooter={effectiveFooter}
+                  selectedFooter={null}
                   userName=""
                   userPhotoUri={null}
                   width={THUMB_WIDTH}

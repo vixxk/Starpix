@@ -23,7 +23,8 @@ export default function MediaPreviewModal({ previewMedia, onClose }) {
 
   if (!previewMedia) return null;
 
-  const isVideo = Boolean(previewMedia.isVideo || previewMedia.url?.match(/\.(mp4|webm|mov)(\?.*)?$/i));
+  const isVideo = Boolean(previewMedia.isVideo || previewMedia.url?.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || previewMedia.mediaType === 'video' || previewMedia.format === 'mp4');
+  const isAi = Boolean(previewMedia.isAi);
 
   return (
     <ModalPortal>
@@ -40,20 +41,26 @@ export default function MediaPreviewModal({ previewMedia, onClose }) {
           <div className="shrink-0 bg-paper-100 border-b-2 border-ink px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded-[2px] bg-flame-500 text-ink flex items-center justify-center border border-ink shrink-0">
-                <Sparkle className="w-4 h-4" weight="fill" />
+                {isAi ? (
+                  <Sparkle className="w-4 h-4" weight="fill" />
+                ) : isVideo ? (
+                  <VideoCamera className="w-4 h-4" weight="fill" />
+                ) : (
+                  <ImageIcon className="w-4 h-4" weight="fill" />
+                )}
               </div>
               <div className="min-w-0">
                 <h3 className="font-bold text-ink text-sm uppercase truncate leading-tight">
-                  {previewMedia.title || 'AI Face Swap Creation'}
+                  {previewMedia.title || (isAi ? 'AI Face Swap Creation' : 'Status Creation')}
                 </h3>
                 <span className="font-mono text-[10px] text-ink-mute uppercase font-semibold flex items-center gap-1">
                   {isVideo ? (
                     <>
-                      <VideoCamera className="w-3 h-3 text-flame-600" weight="bold" /> AI Video (.mp4)
+                      <VideoCamera className="w-3 h-3 text-flame-600" weight="bold" /> {isAi ? 'AI Video (.mp4)' : 'Video (.mp4)'}
                     </>
                   ) : (
                     <>
-                      <ImageIcon className="w-3 h-3 text-purple-600" weight="bold" /> AI Photo (.png)
+                      <ImageIcon className="w-3 h-3 text-purple-600" weight="bold" /> {isAi ? 'AI Photo (.png)' : 'Photo (.png)'}
                     </>
                   )}
                 </span>

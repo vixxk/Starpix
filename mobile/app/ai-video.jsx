@@ -58,13 +58,20 @@ export default function AITrendsScreen() {
   const addDownloadedCreation = useCreationStore((state) => state.addDownloadedCreation);
 
   const scrollRef = useRef(null);
+  const viewedTemplateIds = useRef(new Set());
 
   const [templates, setTemplates] = useState([]);
-  const [categories, setCategories] = useState(CATEGORIES);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("Today's Special");
+
+  // Track template views
+  useEffect(() => {
+    if (selectedTemplate?._id && !viewedTemplateIds.current.has(selectedTemplate._id)) {
+      viewedTemplateIds.current.add(selectedTemplate._id);
+      API.post(`/ai-video/templates/${selectedTemplate._id}/view`).catch(() => {});
+    }
+  }, [selectedTemplate?._id]);
 
   // Multi-Face Selection: Array of image URIs for face slots [face1, face2]
   const [userFaces, setUserFaces] = useState([]);
@@ -84,34 +91,7 @@ export default function AITrendsScreen() {
 
   useEffect(() => {
     fetchTemplates();
-    fetchCategories();
   }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const res = await API.get('/categories', { params: { active: true } });
-      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-        const adminCats = res.data.data.map((c) => ({
-          id: c.name,
-          name: c.name,
-          slug: c.slug,
-          icon: c.icon || '✨',
-          nameTranslations: c.nameTranslations || {},
-        }));
-
-        const hasSpecial = adminCats.some(
-          (c) => c.name?.toLowerCase().includes('special') || c.slug === 'special'
-        );
-        const finalCats = hasSpecial
-          ? adminCats
-          : [{ id: "Today's Special", name: "Today's Special", icon: '⭐', slug: 'special' }, ...adminCats];
-
-        setCategories(finalCats);
-      }
-    } catch (err) {
-      console.log('Error fetching categories for AI Trends:', err?.message);
-    }
-  };
 
   const fetchTemplates = async () => {
     try {
@@ -135,7 +115,7 @@ export default function AITrendsScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     hapticTap();
-    await Promise.all([fetchTemplates(), fetchCategories()]);
+    await fetchTemplates();
     setRefreshing(false);
   };
 
@@ -156,39 +136,6 @@ export default function AITrendsScreen() {
     }
   };
 
-  // Category filter selection
-  const handleSelectCategory = (catId, slug) => {
-    if (generating) return;
-    hapticTap();
-    setActiveCategory(catId);
-    const isAllOrSpecial =
-      catId === "Today's Special" ||
-      catId === 'All' ||
-      slug === 'special' ||
-      slug === 'all';
-
-    const filtered = isAllOrSpecial
-      ? templates
-      : templates.filter((t) => {
-          const tCat = (t.category || '').toLowerCase().trim();
-          const target = catId.toLowerCase().trim();
-          const targetSlug = (slug || '').toLowerCase().trim();
-          return (
-            tCat === target ||
-            (targetSlug && tCat === targetSlug) ||
-            tCat.replace(/[-_\s]/g, '') === target.replace(/[-_\s]/g, '')
-          );
-        });
-
-    if (filtered.length > 0) {
-      setSelectedTemplate(filtered[0]);
-      setUserFaces([]);
-      setGeneratedResult(null);
-      if (scrollRef.current) {
-        scrollRef.current.scrollTo({ y: 0, animated: true });
-      }
-    }
-  };
 
   // Image Picker for face slots
   const handlePickFaceImage = async (slotIndex = 0) => {
@@ -479,33 +426,8 @@ export default function AITrendsScreen() {
   const isCurrentVideo = (selectedTemplate?.mediaType || 'video') === 'video';
   const requiredPhotosCount = selectedTemplate?.requiredPhotos || 1;
 
-  // Filter templates list based on category and excluding currently selected template
-  const isSpecialOrAll =
-    activeCategory === "Today's Special" ||
-    activeCategory === 'All' ||
-    activeCategory === 'special' ||
-    activeCategory === 'all';
-
-  const displayTemplates = isSpecialOrAll
-    ? templates
-    : (templates.filter((t) => {
-        const tCat = (t.category || '').toLowerCase().trim();
-        const target = activeCategory.toLowerCase().trim();
-        return (
-          tCat === target ||
-          tCat.replace(/[-_\s]/g, '') === target.replace(/[-_\s]/g, '')
-        );
-      }).length > 0
-        ? templates.filter((t) => {
-            const tCat = (t.category || '').toLowerCase().trim();
-            const target = activeCategory.toLowerCase().trim();
-            return (
-              tCat === target ||
-              tCat.replace(/[-_\s]/g, '') === target.replace(/[-_\s]/g, '')
-            );
-          })
-        : templates);
-  const otherTemplates = displayTemplates.filter((t) => t._id !== selectedTemplate?._id);
+  // Display other templates excluding currently selected template
+  const otherTemplates = templates.filter((t) => t._id !== selectedTemplate?._id);
 
   const getSubscriptionLabel = () => {
     const isVip = checkHasActiveSubscription(user);
@@ -625,47 +547,6 @@ export default function AITrendsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Categories / Filter Chips Carousel */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScroll}
-        >
-          {categories.map((cat) => {
-            const isSelected = activeCategory === cat.id;
-            const catLabel =
-              (cat.nameTranslations && cat.nameTranslations[i18n.language]) ||
-              (cat.slug === 'special' || cat.id === "Today's Special"
-                ? t('todays_special')
-                : (cat.name || cat.id));
-
-            return (
-              <TouchableOpacity
-                key={cat.id || cat.slug}
-                onPress={() => handleSelectCategory(cat.id, cat.slug)}
-                style={[
-                  styles.categoryChip,
-                  isSelected && styles.categoryChipSelected,
-                ]}
-                activeOpacity={0.8}
-              >
-                {cat.icon ? (
-                  <Text style={styles.catEmoji}>{cat.icon}</Text>
-                ) : (
-                  renderCategoryIcon(cat.iconType, isSelected)
-                )}
-                <Text
-                  style={[
-                    styles.categoryText,
-                    isSelected && styles.categoryTextSelected,
-                  ]}
-                >
-                  {catLabel}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
 
         {/* Hero Featured Template Viewer or Skeleton */}
         <HeroTemplateCard

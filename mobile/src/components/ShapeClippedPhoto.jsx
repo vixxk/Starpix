@@ -133,9 +133,19 @@ export default function ShapeClippedPhoto({
               onError={handleError}
             />
           ) : (
-            <G transform={`translate(${w / 2 - minDim * 0.22}, ${h / 2 - minDim * 0.22})`}>
-              <SvgCircle cx={minDim * 0.22} cy={minDim * 0.16} r={minDim * 0.12} fill="#94A3B8" />
-              <SvgRect x={minDim * 0.06} y={minDim * 0.32} width={minDim * 0.32} height={minDim * 0.2} rx={minDim * 0.1} fill="#94A3B8" />
+            <G>
+              <SvgRect x="0" y="0" width={w} height={h} fill="#F1F5F9" />
+              <G transform={`translate(${w / 2 - minDim * 0.25}, ${h / 2 - minDim * 0.25})`}>
+                <SvgCircle cx={minDim * 0.25} cy={minDim * 0.17} r={minDim * 0.12} fill="#94A3B8" />
+                <SvgRect
+                  x={minDim * 0.08}
+                  y={minDim * 0.33}
+                  width={minDim * 0.34}
+                  height={minDim * 0.2}
+                  rx={minDim * 0.08}
+                  fill="#94A3B8"
+                />
+              </G>
             </G>
           )}
         </G>

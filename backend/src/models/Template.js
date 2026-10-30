@@ -1,5 +1,42 @@
 const mongoose = require('mongoose');
 
+const footerSchema = new mongoose.Schema(
+  {
+    _id: { type: mongoose.Schema.Types.Mixed },
+    id: { type: String },
+    name: { type: String, default: 'Footer' },
+    asset: { type: String, default: '' },
+    videoAsset: { type: String, default: '' },
+    thumbnail: { type: String, default: '' },
+    heightPercent: { type: Number, default: 100 },
+    objectFit: { type: String, default: 'cover' },
+    x: { type: Number, default: 0.5 },
+    y: { type: Number, default: 0.5 },
+    width: { type: Number, default: 1.0 },
+    height: { type: Number, default: 1.0 },
+    zIndex: { type: Number, default: 10 },
+    userNamePosition: {
+      x: { type: Number },
+      y: { type: Number },
+      width: { type: Number },
+      height: { type: Number },
+      fontSize: { type: Number },
+      fontColor: { type: String },
+      fontWeight: { type: String },
+      textAlign: { type: String },
+    },
+    userPhotoPosition: {
+      x: { type: Number },
+      y: { type: Number },
+      width: { type: Number },
+      height: { type: Number },
+      shape: { type: String },
+    },
+    userPhotoShape: { type: String },
+  },
+  { _id: false, strict: false }
+);
+
 const templateSchema = new mongoose.Schema(
   {
     name: {
@@ -61,61 +98,29 @@ const templateSchema = new mongoose.Schema(
         {
           id: { type: String },
           type: { type: String, enum: ['photo', 'text', 'frame', 'effect', 'overlay', 'logo'], default: 'photo' },
-          x: { type: Number, default: 0.5 }, // normalized center X (0..1)
-          y: { type: Number, default: 0.4 }, // normalized center Y (0..1)
-          width: { type: Number, default: 0.6 }, // normalized width (0..1)
-          height: { type: Number, default: 0.4 }, // normalized height (0..1)
+          x: { type: Number, default: 0.787 }, // normalized center X (0..1)
+          y: { type: Number, default: 0.825 }, // normalized center Y (0..1)
+          width: { type: Number, default: 0.35 }, // normalized width (0..1)
+          height: { type: Number, default: 0.197 }, // normalized height (0..1)
           rotation: { type: Number, default: 0 },
           opacity: { type: Number, default: 1 },
           zIndex: { type: Number, default: 15 },
           // Text specific properties
           defaultValue: { type: String, default: 'User Name' },
           fieldName: { type: String, default: 'name' }, // dynamic field identifier (e.g. name, quote, greeting)
-          fontSize: { type: Number, default: 22 },
+          fontSize: { type: Number, default: 24 },
           fontColor: { type: String, default: '#FFFFFF' },
           fontFamily: { type: String, default: 'Inter' },
           fontWeight: { type: String, default: '700' },
           textAlign: { type: String, default: 'center' },
           // Shape mask for photo layer (rectangle, circle, diamond, hexagon, star, heart, rounded)
-          shape: { type: String, default: 'rectangle' },
+          shape: { type: String, default: 'circle' },
           // Frame or Effect default assets
           assetUrl: { type: String, default: '' },
         },
       ],
     },
-    footers: [
-      {
-        name: { type: String, default: 'Footer' },
-        asset: { type: String, default: '' },
-        videoAsset: { type: String, default: '' },
-        thumbnail: { type: String, default: '' },
-        heightPercent: { type: Number, default: 40 },
-        objectFit: { type: String, default: 'contain' },
-        x: { type: Number, default: 0.5 },
-        y: { type: Number, default: 0.8 },
-        width: { type: Number, default: 1.0 },
-        height: { type: Number, default: 0.4 },
-        zIndex: { type: Number, default: 10 },
-        userNamePosition: {
-          x: { type: Number },
-          y: { type: Number },
-          width: { type: Number },
-          height: { type: Number },
-          fontSize: { type: Number },
-          fontColor: { type: String },
-          fontWeight: { type: String },
-          textAlign: { type: String },
-        },
-        userPhotoPosition: {
-          x: { type: Number },
-          y: { type: Number },
-          width: { type: Number },
-          height: { type: Number },
-          shape: { type: String },
-        },
-        userPhotoShape: { type: String },
-      },
-    ],
+    footers: [footerSchema],
     tags: [String],
     views: { type: Number, default: 0 },
     uses: { type: Number, default: 0 },

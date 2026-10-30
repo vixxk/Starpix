@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const Template = require('../models/Template');
 const Category = require('../models/Category');
 const Analytics = require('../models/Analytics');
+const { STANDARDIZED_FOOTERS, DEFAULT_CANVAS_LAYERS } = require('../constants/standardFooters');
 
 const annotateTemplateWithUserAccess = (templateDoc, user) => {
   if (!templateDoc) return templateDoc;
@@ -252,6 +253,20 @@ const createTemplate = asyncHandler(async (req, res) => {
   templateData.order = orderVal;
   templateData.sortOrder = orderVal;
 
+  if (!templateData.footers || !Array.isArray(templateData.footers) || templateData.footers.length === 0) {
+    templateData.footers = STANDARDIZED_FOOTERS;
+  }
+  if (!templateData.canvasConfig) {
+    templateData.canvasConfig = {
+      aspectRatio: 0.5625,
+      backgroundColor: '#07140B',
+      backgroundImage: templateData.mainMedia || templateData.previewAsset || '',
+      layers: DEFAULT_CANVAS_LAYERS,
+    };
+  } else if (!templateData.canvasConfig.layers || templateData.canvasConfig.layers.length === 0) {
+    templateData.canvasConfig.layers = DEFAULT_CANVAS_LAYERS;
+  }
+
   const template = await Template.create(templateData);
 
   res.status(201).json({
@@ -356,9 +371,15 @@ const recordTemplateView = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  template.views = (template.views || 0) + 1;
-  template.trendingScore = template.views * 0.2 + (template.uses || 0) * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
-  await template.save();
+  const nextViews = (template.views || 0) + 1;
+  const nextTrending = nextViews * 0.2 + (template.uses || 0) * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
+
+  await Template.findByIdAndUpdate(req.params.id, {
+    $set: {
+      views: nextViews,
+      trendingScore: nextTrending,
+    },
+  });
 
   try {
     await Analytics.create({
@@ -371,8 +392,8 @@ const recordTemplateView = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      views: template.views,
-      uses: template.uses,
+      views: nextViews,
+      uses: template.uses || 0,
     },
   });
 });
@@ -387,9 +408,15 @@ const recordTemplateUse = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  template.uses = (template.uses || 0) + 1;
-  template.trendingScore = (template.views || 0) * 0.2 + template.uses * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
-  await template.save();
+  const nextUses = (template.uses || 0) + 1;
+  const nextTrending = (template.views || 0) * 0.2 + nextUses * 0.4 + (template.favoritesCount || 0) * 0.2 + (template.purchasesCount || 0) * 0.2;
+
+  await Template.findByIdAndUpdate(req.params.id, {
+    $set: {
+      uses: nextUses,
+      trendingScore: nextTrending,
+    },
+  });
 
   try {
     await Analytics.create({
@@ -402,8 +429,8 @@ const recordTemplateUse = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      uses: template.uses,
-      views: template.views,
+      uses: nextUses,
+      views: template.views || 0,
     },
   });
 });

@@ -111,6 +111,7 @@ export default function PreviewScreen() {
     setDownloading(true);
     try {
       const isNoneFooter =
+        !withPersonalization ||
         selectedFooter === 'none' ||
         selectedFooter === null ||
         selectedFooter === false ||
@@ -321,6 +322,7 @@ export default function PreviewScreen() {
     setSharing(true);
     try {
       const isNoneFooter =
+        !withPersonalization ||
         selectedFooter === 'none' ||
         selectedFooter === null ||
         selectedFooter === false ||

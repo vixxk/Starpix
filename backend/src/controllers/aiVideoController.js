@@ -367,6 +367,14 @@ const generateAIVideo = asyncHandler(async (req, res) => {
     }
 
     let creationRecord = null;
+    if (templateId) {
+      try {
+        await AIVideoTemplate.findByIdAndUpdate(templateId, { $inc: { uses: 1 } });
+      } catch (incErr) {
+        console.error('[AI Proxy] Error incrementing template uses:', incErr.message);
+      }
+    }
+
     if (req && req.user) {
       try {
         let templateTitle = 'AI Face Swap Creation';
@@ -602,6 +610,68 @@ const adminUploadAsset = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Record AI template view
+// @route   POST /api/ai-video/templates/:id/view
+// @access  Public
+const recordAITemplateView = asyncHandler(async (req, res) => {
+  const template = await AIVideoTemplate.findById(req.params.id);
+  if (!template) {
+    return res.status(404).json({ success: false, message: 'AI Template not found' });
+  }
+
+  const nextViews = (template.views || 0) + 1;
+  await AIVideoTemplate.findByIdAndUpdate(req.params.id, {
+    $set: { views: nextViews },
+  });
+
+  try {
+    await Analytics.create({
+      eventType: 'template_view',
+      userId: req.user?._id || null,
+      templateId: template._id,
+    });
+  } catch (e) {}
+
+  res.status(200).json({
+    success: true,
+    data: {
+      views: nextViews,
+      uses: template.uses || 0,
+    },
+  });
+});
+
+// @desc    Record AI template use (generation or download/share)
+// @route   POST /api/ai-video/templates/:id/use
+// @access  Public
+const recordAITemplateUse = asyncHandler(async (req, res) => {
+  const template = await AIVideoTemplate.findById(req.params.id);
+  if (!template) {
+    return res.status(404).json({ success: false, message: 'AI Template not found' });
+  }
+
+  const nextUses = (template.uses || 0) + 1;
+  await AIVideoTemplate.findByIdAndUpdate(req.params.id, {
+    $set: { uses: nextUses },
+  });
+
+  try {
+    await Analytics.create({
+      eventType: 'template_download',
+      userId: req.user?._id || null,
+      templateId: template._id,
+    });
+  } catch (e) {}
+
+  res.status(200).json({
+    success: true,
+    data: {
+      views: template.views || 0,
+      uses: nextUses,
+    },
+  });
+});
+
 // @desc    Get all AI video templates for Admin
 // @route   GET /api/ai-video/admin/templates
 // @access  Private (Admin)
@@ -613,8 +683,12 @@ const adminGetTemplates = asyncHandler(async (req, res) => {
       const creationCount = await Creation.countDocuments({
         $or: [{ aiTemplateId: tmpl._id }, { templateTitle: tmpl.title }],
       });
-      obj.uses = Math.max(obj.uses || 0, creationCount);
-      obj.views = Math.max(obj.views || 0, obj.uses > 0 ? obj.uses * 3 + 14 : 0);
+      const realUses = Math.max(tmpl.uses || 0, creationCount);
+      if ((tmpl.uses || 0) < realUses) {
+        await AIVideoTemplate.findByIdAndUpdate(tmpl._id, { $set: { uses: realUses } });
+      }
+      obj.uses = realUses;
+      obj.views = tmpl.views || 0;
       return obj;
     })
   );
@@ -629,7 +703,7 @@ const adminGetTemplates = asyncHandler(async (req, res) => {
 // @route   POST /api/ai-video/admin/templates
 // @access  Private (Admin)
 const adminCreateTemplate = asyncHandler(async (req, res) => {
-  const { title, titleTranslations, description, category, mediaType, requiredPhotos, videoUrl, thumbnailUrl, sampleSourceImageUrl, sampleSourceImageUrls, sampleResultVideoUrl, durationSeconds, creditsRequired, prompt, sortOrder, isActive } = req.body;
+  const { title, titleTranslations, description, category, mediaType, requiredPhotos, videoUrl, thumbnailUrl, sampleSourceImageUrl, sampleSourceImageUrls, sampleResultVideoUrl, durationSeconds, creditsRequired, prompt, sortOrder, isActive, uses, views } = req.body;
 
   if (!title || !videoUrl) {
     return res.status(400).json({ success: false, message: 'Title and Media URL are required' });
@@ -652,6 +726,8 @@ const adminCreateTemplate = asyncHandler(async (req, res) => {
     prompt: prompt || DEFAULT_AI_PROMPT,
     sortOrder: sortOrder !== undefined ? sortOrder : 0,
     isActive: isActive !== undefined ? isActive : true,
+    uses: Number(uses) || 0,
+    views: Number(views) || 0,
   });
 
   res.status(201).json({
@@ -670,10 +746,14 @@ const adminUpdateTemplate = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
-  const fields = ['title', 'titleTranslations', 'description', 'category', 'mediaType', 'requiredPhotos', 'videoUrl', 'thumbnailUrl', 'sampleSourceImageUrl', 'sampleSourceImageUrls', 'sampleResultVideoUrl', 'durationSeconds', 'creditsRequired', 'prompt', 'sortOrder', 'isActive'];
+  const fields = ['title', 'titleTranslations', 'description', 'category', 'mediaType', 'requiredPhotos', 'videoUrl', 'thumbnailUrl', 'sampleSourceImageUrl', 'sampleSourceImageUrls', 'sampleResultVideoUrl', 'durationSeconds', 'creditsRequired', 'prompt', 'sortOrder', 'isActive', 'uses', 'views'];
   fields.forEach((field) => {
     if (req.body[field] !== undefined) {
-      template[field] = req.body[field];
+      if (field === 'uses' || field === 'views') {
+        template[field] = Math.max(0, parseInt(req.body[field], 10) || 0);
+      } else {
+        template[field] = req.body[field];
+      }
     }
   });
 
@@ -706,6 +786,8 @@ const adminDeleteTemplate = asyncHandler(async (req, res) => {
 module.exports = {
   getAIVideoTemplates,
   generateAIVideo,
+  recordAITemplateView,
+  recordAITemplateUse,
   adminUploadAsset,
   adminGetTemplates,
   adminCreateTemplate,

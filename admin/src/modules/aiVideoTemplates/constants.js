@@ -16,4 +16,6 @@ export const initialForm = {
   prompt: DEFAULT_PROMPT,
   sortOrder: 0,
   isActive: true,
+  uses: 0,
+  views: 0,
 };

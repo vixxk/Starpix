@@ -198,7 +198,7 @@ export default function EditProfileScreen() {
 
       // Check if cutout is already cached or previously computed
       const cached = cutoutPhotoUri || (await getCachedCutout(basePhoto));
-      if (cached) {
+      if (cached && cached !== basePhoto) {
         setCutoutPhotoUri(cached);
         setIsBgRemoved(true);
         setPhotoUri(cached);

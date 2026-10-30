@@ -5,6 +5,8 @@ const { optionalProtectUser } = require('../middleware/authMiddleware');
 const {
   getAIVideoTemplates,
   generateAIVideo,
+  recordAITemplateView,
+  recordAITemplateUse,
   adminUploadAsset,
   adminGetTemplates,
   adminCreateTemplate,
@@ -14,6 +16,8 @@ const {
 
 // Public & User Endpoints
 router.get('/templates', getAIVideoTemplates);
+router.post('/templates/:id/view', optionalProtectUser, recordAITemplateView);
+router.post('/templates/:id/use', optionalProtectUser, recordAITemplateUse);
 router.post('/generate', optionalProtectUser, generateAIVideo);
 router.post('/swap-face', optionalProtectUser, generateAIVideo);
 

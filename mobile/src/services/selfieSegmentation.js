@@ -55,6 +55,25 @@ export function setCachedCutout(originalUri, cutoutUri) {
 }
 
 /**
+ * Invalidate cached cutout for a given image URI or clear all
+ */
+export async function clearCutoutCache(imageUri = null) {
+  if (!imageUri) {
+    memoryCutoutCache.clear();
+    return;
+  }
+  const key = getCacheKey(imageUri);
+  memoryCutoutCache.delete(key);
+  try {
+    const diskPath = `${FileSystem.cacheDirectory}starpix_cutout_${key}.png`;
+    const info = await FileSystem.getInfoAsync(diskPath);
+    if (info.exists) {
+      await FileSystem.deleteAsync(diskPath, { idempotent: true });
+    }
+  } catch (_) {}
+}
+
+/**
  * Removes background using Google ML Kit / MediaPipe Selfie Segmentation (React Native Native Wrapper).
  * Includes automatic caching and graceful fallback handling so the application never crashes.
  *
@@ -165,33 +184,21 @@ export async function removeBackground(sourceUri) {
     }
   }
 
-  // 5. Final fallback if server was unavailable
-  if (!resultUri) {
-    try {
-      if (localInputPath) {
+  // 5. If segmentation succeeded, persist and cache
+  if (resultUri) {
+    if (resultUri !== targetCachePath) {
+      try {
         await FileSystem.copyAsync({
-          from: localInputPath,
+          from: resultUri,
           to: targetCachePath,
         });
         resultUri = targetCachePath;
-      } else {
-        resultUri = sourceUri;
-      }
-    } catch (fallbackErr) {
-      resultUri = localInputPath || sourceUri;
+      } catch (_) {}
     }
-  } else if (resultUri !== targetCachePath) {
-    // Persist to predictable cache directory
-    try {
-      await FileSystem.copyAsync({
-        from: resultUri,
-        to: targetCachePath,
-      });
-      resultUri = targetCachePath;
-    } catch (_) {}
+    memoryCutoutCache.set(key, resultUri);
+    return resultUri;
   }
 
-  // 5. Store in memory cache
-  memoryCutoutCache.set(key, resultUri);
-  return resultUri;
+  // 6. If both native and server failed, throw error so UI knows
+  throw new Error('Unable to remove background. Please check server or network connection.');
 }
