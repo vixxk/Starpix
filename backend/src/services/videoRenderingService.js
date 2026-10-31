@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
 const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
@@ -8,6 +9,35 @@ const { uploadToS3, getSignedDownloadUrl, saveLocally } = require('./s3Service')
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
+
+const MEDIA_CACHE_DIR = path.join(__dirname, '../../uploads/media-cache');
+if (!fs.existsSync(MEDIA_CACHE_DIR)) {
+  try {
+    fs.mkdirSync(MEDIA_CACHE_DIR, { recursive: true });
+  } catch (e) {}
+}
+
+function getCacheKey(url) {
+  return crypto.createHash('sha256').update(String(url)).digest('hex');
+}
+
+/**
+ * Extracts video dimensions (width, height) via ffprobe
+ */
+function getVideoDimensions(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  try {
+    const out = execSync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${filePath}"`,
+      { timeout: 5000 }
+    ).toString().trim();
+    const parts = out.split('x');
+    if (parts.length === 2) {
+      return { width: parseInt(parts[0], 10), height: parseInt(parts[1], 10) };
+    }
+  } catch (e) {}
+  return null;
+}
 
 /**
  * Safely normalizes coordinate / dimension value.
@@ -65,7 +95,8 @@ function hasAudioStream(filePath) {
 }
 
 /**
- * Downloads a remote URL or resolves a local file to a temp file path
+ * Downloads a remote URL or resolves a local file to a temp file path,
+ * using persistent disk cache for repeated remote template assets.
  */
 async function downloadToTemp(urlOrPath, tempDir, prefix = 'media') {
   if (!urlOrPath) return null;
@@ -75,12 +106,29 @@ async function downloadToTemp(urlOrPath, tempDir, prefix = 'media') {
   const destPath = path.join(tempDir, `${prefix}_${uuidv4()}${ext}`);
 
   if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+    const cacheKey = getCacheKey(urlOrPath);
+    const cachedFilePath = path.join(MEDIA_CACHE_DIR, `${cacheKey}${ext}`);
+
+    if (fs.existsSync(cachedFilePath) && fs.statSync(cachedFilePath).size > 0) {
+      try {
+        fs.copyFileSync(cachedFilePath, destPath);
+        return destPath;
+      } catch (cErr) {}
+    }
+
     const res = await fetch(urlOrPath, {
       headers: { 'User-Agent': 'StarpixMediaRenderer/1.0' },
     });
     if (!res.ok) throw new Error(`Failed to fetch media from ${urlOrPath}: status ${res.status}`);
     const arrayBuf = await res.arrayBuffer();
-    fs.writeFileSync(destPath, Buffer.from(arrayBuf));
+    const buf = Buffer.from(arrayBuf);
+    fs.writeFileSync(destPath, buf);
+
+    // Save to persistent cache so subsequent renders avoid re-downloading
+    try {
+      fs.writeFileSync(cachedFilePath, buf);
+    } catch (cErr) {}
+
     return destPath;
   }
 
@@ -101,19 +149,37 @@ async function downloadToTemp(urlOrPath, tempDir, prefix = 'media') {
 }
 
 /**
- * Reads a media source (URL, base64, or local path) into a Buffer
+ * Reads a media source (URL, base64, or local path) into a Buffer,
+ * utilizing cache for remote template media.
  */
 async function getMediaBuffer(urlOrPath) {
   if (!urlOrPath) return null;
   if (Buffer.isBuffer(urlOrPath)) return urlOrPath;
 
   if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+    const extMatch = typeof urlOrPath === 'string' ? urlOrPath.match(/\.([a-zA-Z0-9]+)(\?.*)?$/) : null;
+    const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '.tmp';
+    const cacheKey = getCacheKey(urlOrPath);
+    const cachedFilePath = path.join(MEDIA_CACHE_DIR, `${cacheKey}${ext}`);
+
+    if (fs.existsSync(cachedFilePath) && fs.statSync(cachedFilePath).size > 0) {
+      try {
+        return fs.readFileSync(cachedFilePath);
+      } catch (cErr) {}
+    }
+
     const res = await fetch(urlOrPath, {
       headers: { 'User-Agent': 'StarpixMediaRenderer/1.0' },
     });
     if (!res.ok) return null;
     const arrayBuf = await res.arrayBuffer();
-    return Buffer.from(arrayBuf);
+    const buf = Buffer.from(arrayBuf);
+
+    try {
+      fs.writeFileSync(cachedFilePath, buf);
+    } catch (cErr) {}
+
+    return buf;
   }
 
   if (urlOrPath.startsWith('data:')) {
@@ -733,8 +799,6 @@ async function renderPersonalizedTemplate({
         let audioMapArg = '';
         if (baseHasAudio) {
           audioMapArg = `-map 0:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
-        } else if (footerHasAudio) {
-          audioMapArg = `-map 1:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
         }
 
         if (isFooterVideo && footerVideoPath) {
@@ -759,10 +823,20 @@ async function renderPersonalizedTemplate({
           }
         } else {
           // Base is video, footer is static image or no footer (overlayPngPath already has footer, photo, text)
+          const baseDims = getVideoDimensions(baseMediaPath);
+          const needsRescale = !baseDims || baseDims.width !== CANVAS_WIDTH || baseDims.height !== CANVAS_HEIGHT;
+
           if (overlayPngPath) {
-            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            const videoFilterChain = needsRescale
+              ? `[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0:shortest=1[outv]`
+              : `[0:v][1:v]overlay=0:0:shortest=1[outv]`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "${videoFilterChain}" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
-            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            if (needsRescale) {
+              ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            } else {
+              ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" ${audioMapArg} ${durationArg} -c:v copy -movflags +faststart "${outputVideoPath}"`;
+            }
           }
         }
       } else {
@@ -791,9 +865,9 @@ async function renderPersonalizedTemplate({
         }
 
         if (overlayPngPath) {
-          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         } else {
-          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         }
       }
 
@@ -813,16 +887,27 @@ async function renderPersonalizedTemplate({
       }
 
       let s3Url = null;
+      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
+      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
+
+      if (isLocalHost && localUrl) {
+        uploadToS3(videoBuffer, `status_${Date.now()}.mp4`, 'video/mp4', 'user-creations', req).catch((e) => {
+          console.warn('[Renderer] Background S3 video upload notice:', e.message);
+        });
+        return {
+          downloadUrl: localUrl,
+          format: 'mp4',
+          isVideo: true,
+        };
+      }
+
       try {
         s3Url = await uploadToS3(videoBuffer, `status_${Date.now()}.mp4`, 'video/mp4', 'user-creations', req);
       } catch (sErr) {
         console.warn('[Renderer] S3 video upload notice:', sErr.message);
       }
 
-      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
-      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
-      const finalUrl = (isLocalHost && localUrl) ? localUrl : (s3Url || localUrl);
-
+      const finalUrl = s3Url || localUrl;
       return {
         downloadUrl: finalUrl,
         format: 'mp4',
@@ -847,16 +932,27 @@ async function renderPersonalizedTemplate({
       }
 
       let s3Url = null;
+      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
+      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
+
+      if (isLocalHost && localUrl) {
+        uploadToS3(finalJpgBuffer, `status_${Date.now()}.jpg`, 'image/jpeg', 'user-creations', req).catch((e) => {
+          console.warn('[Renderer] Background S3 image upload notice:', e.message);
+        });
+        return {
+          downloadUrl: localUrl,
+          format: 'jpg',
+          isVideo: false,
+        };
+      }
+
       try {
         s3Url = await uploadToS3(finalJpgBuffer, `status_${Date.now()}.jpg`, 'image/jpeg', 'user-creations', req);
       } catch (sErr) {
         console.warn('[Renderer] S3 image upload notice:', sErr.message);
       }
 
-      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
-      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
-      const finalUrl = (isLocalHost && localUrl) ? localUrl : (s3Url || localUrl);
-
+      const finalUrl = s3Url || localUrl;
       return {
         downloadUrl: finalUrl,
         format: 'jpg',

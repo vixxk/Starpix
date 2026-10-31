@@ -360,6 +360,7 @@ export default function HomeScreen() {
   }, [displayName]);
 
   const [actionLoading, setActionLoading] = useState(null); // { type: 'download' | 'share', id: string }
+  const userPhotoUploadCache = useRef(new Map());
 
   const [activeCategory, setActiveCategory] = useState('');
   const [categoryRows, setCategoryRows] = useState([]);
@@ -742,37 +743,43 @@ export default function HomeScreen() {
       const footerPayload = activeCustomFooter || 'none';
 
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
-      const targetDisplayName = withPersonalization ? displayName : '';
+      const hasPersonalization = withPersonalization && (Boolean(targetDisplayName) || Boolean(displayPhoto) || (targetFrame && targetFrame !== 'none'));
 
-      if (withPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
-        try {
-          const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
-          if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
-            remoteUserPhoto = uploaded;
-          } else {
-            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
-            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
-          }
-        } catch (uploadErr) {
-          console.warn('Could not upload user photo:', uploadErr);
+      if (hasPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
+        const cached = userPhotoUploadCache.current?.get(displayPhoto);
+        if (cached) {
+          remoteUserPhoto = cached;
+        } else {
           try {
-            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
-            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
-          } catch (b64Err) {}
+            const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
+            if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
+              remoteUserPhoto = uploaded;
+              userPhotoUploadCache.current?.set(displayPhoto, uploaded);
+            } else {
+              const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+              if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+            }
+          } catch (uploadErr) {
+            console.warn('Could not upload user photo:', uploadErr);
+            try {
+              const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+              if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+            } catch (b64Err) {}
+          }
         }
       }
 
       let resolved = resolveMediaUrl(mediaSource);
       let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
 
-      // Request server-side personalized render with footers, user photo, and user name
-      if (target.id && !String(target.id).startsWith('durga_')) {
+      // Request server-side personalized render only when personalization is applied
+      if (hasPersonalization && target.id && !String(target.id).startsWith('durga_')) {
         try {
           const res = await API.post(`/creations/${target.id}/download`, {
             userNameText: targetDisplayName,
             userPhotoUri: remoteUserPhoto,
             selectedFooter: footerPayload,
-            withPersonalization,
+            withPersonalization: true,
             customizationState: {
               userNameText: targetDisplayName,
               userPhotoUri: remoteUserPhoto,
@@ -842,26 +849,24 @@ export default function HomeScreen() {
       };
       useCreationStore.getState().addDownloadedCreation(creationItem);
 
-      // Record usage on backend
+      // Record usage on backend in background (non-blocking for instant responsiveness)
       if (target.id && !String(target.id).startsWith('durga_')) {
         API.post(`/templates/${target.id}/use`, { action: 'download' }).catch(() => {});
         if (user) {
-          try {
-            await API.post('/creations/save-download', {
-              templateId: target.id,
-              imageUrl: resolved,
-              editedText: targetDisplayName,
-              editedPhoto: remoteUserPhoto || '',
-              customizationState: {
-                userNameText: targetDisplayName,
-                userPhotoUri: remoteUserPhoto || null,
-                selectedFrame: targetFrame,
-                footers: target.footers || [],
-                canvasConfig: target.canvasConfig || null,
-                selectedFooter: activeCustomFooter,
-              },
-            });
-          } catch (e) {}
+          API.post('/creations/save-download', {
+            templateId: target.id,
+            imageUrl: resolved,
+            editedText: targetDisplayName,
+            editedPhoto: remoteUserPhoto || '',
+            customizationState: {
+              userNameText: targetDisplayName,
+              userPhotoUri: remoteUserPhoto || null,
+              selectedFrame: targetFrame,
+              footers: target.footers || [],
+              canvasConfig: target.canvasConfig || null,
+              selectedFooter: activeCustomFooter,
+            },
+          }).catch(() => {});
         }
       }
 
@@ -924,37 +929,43 @@ export default function HomeScreen() {
       const footerPayload = activeCustomFooter || 'none';
 
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
-      const targetDisplayName = withPersonalization ? displayName : '';
+      const hasPersonalization = withPersonalization && (Boolean(targetDisplayName) || Boolean(displayPhoto) || (targetFrame && targetFrame !== 'none'));
 
-      if (withPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
-        try {
-          const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
-          if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
-            remoteUserPhoto = uploaded;
-          } else {
-            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
-            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
-          }
-        } catch (uploadErr) {
-          console.warn('Could not upload user photo:', uploadErr);
+      if (hasPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
+        const cached = userPhotoUploadCache.current?.get(displayPhoto);
+        if (cached) {
+          remoteUserPhoto = cached;
+        } else {
           try {
-            const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
-            if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
-          } catch (b64Err) {}
+            const uploaded = await uploadUserMedia(displayPhoto, 'user-creations');
+            if (uploaded && (uploaded.startsWith('http://') || uploaded.startsWith('https://'))) {
+              remoteUserPhoto = uploaded;
+              userPhotoUploadCache.current?.set(displayPhoto, uploaded);
+            } else {
+              const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+              if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+            }
+          } catch (uploadErr) {
+            console.warn('Could not upload user photo:', uploadErr);
+            try {
+              const b64 = await FileSystem.readAsStringAsync(displayPhoto, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
+              if (b64) remoteUserPhoto = `data:image/jpeg;base64,${b64}`;
+            } catch (b64Err) {}
+          }
         }
       }
 
       let resolved = resolveMediaUrl(mediaSource);
       let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
 
-      // Request server-side personalized render with footers, user photo, and user name (using proven compositing endpoint)
-      if (target.id && !String(target.id).startsWith('durga_')) {
+      // Request server-side personalized render only when personalization is applied
+      if (hasPersonalization && target.id && !String(target.id).startsWith('durga_')) {
         try {
           const res = await API.post(`/creations/${target.id}/download`, {
             userNameText: targetDisplayName,
             userPhotoUri: remoteUserPhoto,
             selectedFooter: footerPayload,
-            withPersonalization,
+            withPersonalization: true,
             customizationState: {
               userNameText: targetDisplayName,
               userPhotoUri: remoteUserPhoto,
@@ -978,7 +989,7 @@ export default function HomeScreen() {
               userNameText: targetDisplayName,
               userPhotoUri: remoteUserPhoto,
               selectedFooter: footerPayload,
-              withPersonalization,
+              withPersonalization: true,
               customizationState: {
                 userNameText: targetDisplayName,
                 userPhotoUri: remoteUserPhoto,
@@ -1041,26 +1052,24 @@ export default function HomeScreen() {
       };
       useCreationStore.getState().addDownloadedCreation(creationItem);
 
-      // Record use on backend
+      // Record use on backend in background (non-blocking for immediate OS share dialog)
       if (target.id && !String(target.id).startsWith('durga_')) {
         API.post(`/templates/${target.id}/use`, { action: 'share' }).catch(() => {});
         if (user) {
-          try {
-            await API.post('/creations/save-download', {
-              templateId: target.id,
-              imageUrl: resolved,
-              editedText: targetDisplayName,
-              editedPhoto: remoteUserPhoto || '',
-              customizationState: {
-                userNameText: targetDisplayName,
-                userPhotoUri: remoteUserPhoto || null,
-                selectedFrame: targetFrame,
-                footers: target.footers || [],
-                canvasConfig: target.canvasConfig || null,
-                selectedFooter: activeCustomFooter,
-              },
-            });
-          } catch (e) {}
+          API.post('/creations/save-download', {
+            templateId: target.id,
+            imageUrl: resolved,
+            editedText: targetDisplayName,
+            editedPhoto: remoteUserPhoto || '',
+            customizationState: {
+              userNameText: targetDisplayName,
+              userPhotoUri: remoteUserPhoto || null,
+              selectedFrame: targetFrame,
+              footers: target.footers || [],
+              canvasConfig: target.canvasConfig || null,
+              selectedFooter: activeCustomFooter,
+            },
+          }).catch(() => {});
         }
       }
 

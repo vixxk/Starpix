@@ -458,7 +458,7 @@ export default function CanvasEditor({
       <label className="field-label !text-paper-100">{label}</label>
       <input
         type="number"
-        step={opts.step || '0.01'}
+        step={opts.step || 'any'}
         min={opts.min}
         max={opts.max}
         value={selectedLayer ? selectedLayer[field] : ''}
