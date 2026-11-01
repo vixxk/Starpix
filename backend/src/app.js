@@ -39,7 +39,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Rate limiting - safe behind reverse proxies
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // limit each IP to 300 requests per window
+  max: 10000, // generous limit for app usage
+  skip: (req) => req.path.includes('/proxy-image') || req.path.startsWith('/uploads'),
   message: { success: false, message: 'Too many requests, please try again later.' },
   validate: { xForwardedForHeader: false, trustProxy: false },
 });

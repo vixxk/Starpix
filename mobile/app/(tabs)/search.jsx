@@ -533,11 +533,9 @@ export default function SearchScreen() {
   };
 
   const handleEditPress = () => {
-    if (!selectedTemplate) return;
     hapticTap();
-    useCreationStore.getState().setActiveTemplate(selectedTemplate.rawTemplate || selectedTemplate);
     handleCloseViewer();
-    router.push(`/template/${selectedTemplate.id}`);
+    router.push('/edit-profile');
   };
 
   // Dimensions for Viewer Card (strictly maintaining 9:16 aspect ratio so no footer clipping occurs)

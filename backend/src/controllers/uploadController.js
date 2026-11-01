@@ -112,8 +112,14 @@ const proxyImage = asyncHandler(async (req, res) => {
       fetchHeaders.range = req.headers.range;
     }
 
-    const response = await fetch(url, { headers: fetchHeaders });
     if (!response.ok && response.status !== 206) {
+      if (response.status === 416) {
+        const contentRange = response.headers.get('content-range');
+        res.status(416);
+        res.setHeader('Accept-Ranges', 'bytes');
+        if (contentRange) res.setHeader('Content-Range', contentRange);
+        return res.end();
+      }
       return res.status(response.status).json({ success: false, message: `Failed to fetch media: ${response.statusText}` });
     }
 
