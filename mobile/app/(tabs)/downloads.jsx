@@ -190,7 +190,7 @@ export default function DownloadsScreen() {
     });
 
     const userLocalCreations = downloadedCreations.filter((item) => {
-      if (!user) return false;
+      if (!user) return true;
       const currentUserId = String(user._id || user.id || '');
       if (!item.userId) return true;
       return String(item.userId) === currentUserId;

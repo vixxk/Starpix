@@ -742,6 +742,7 @@ export default function HomeScreen() {
 
       const footerPayload = activeCustomFooter || 'none';
 
+      const targetDisplayName = withPersonalization ? (displayName || 'User') : '';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
       const hasPersonalization = withPersonalization && (Boolean(targetDisplayName) || Boolean(displayPhoto) || (targetFrame && targetFrame !== 'none'));
 
@@ -824,9 +825,12 @@ export default function HomeScreen() {
 
       // Add to Downloads store so it appears in the Downloads tab
       const creationItem = {
+        _id: `reel_${Date.now()}`,
         id: `reel_${Date.now()}`,
+        userId: user?._id || user?.id || null,
         templateId: target.id,
         name: target.title || 'Personalized Status',
+        templateTitle: target.title || 'Personalized Status',
         nameTranslations: target.nameTranslations,
         thumbnail: target.thumbnailUrl || target.posterUrl || targetUri,
         localUri: targetUri,
@@ -928,6 +932,7 @@ export default function HomeScreen() {
 
       const footerPayload = activeCustomFooter || 'none';
 
+      const targetDisplayName = withPersonalization ? (displayName || 'User') : '';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
       const hasPersonalization = withPersonalization && (Boolean(targetDisplayName) || Boolean(displayPhoto) || (targetFrame && targetFrame !== 'none'));
 
@@ -1027,9 +1032,12 @@ export default function HomeScreen() {
 
       // Save creation to Downloads store and backend as user shares
       const creationItem = {
+        _id: `reel_${Date.now()}`,
         id: `reel_${Date.now()}`,
+        userId: user?._id || user?.id || null,
         templateId: target.id,
         name: target.title || 'Personalized Status',
+        templateTitle: target.title || 'Personalized Status',
         nameTranslations: target.nameTranslations,
         thumbnail: target.thumbnailUrl || target.posterUrl || shareUri,
         localUri: shareUri,

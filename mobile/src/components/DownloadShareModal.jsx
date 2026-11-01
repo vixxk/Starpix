@@ -134,43 +134,24 @@ function ContentPreviewCard({
   const videoResizeMode = (selectedFooter && selectedFooter.objectFit === 'cover') ? ResizeMode.COVER : ResizeMode.STRETCH;
 
   const itemId = (item && (item.id || item._id)) || '';
-  const hasBgMedia = Boolean(resolvedImageUri || resolvedVideoUri || posterUri);
+  const hasBgMedia = Boolean(resolvedImageUri || (isVideo && resolvedVideoUri));
   const hasFooterMedia = Boolean(!isNoneFooter && footerUri);
 
-  const [bgLoaded, setBgLoaded] = React.useState(!hasBgMedia);
+  const [isMainReady, setIsMainReady] = React.useState(false);
   const [footerLoaded, setFooterLoaded] = React.useState(!hasFooterMedia);
 
   React.useEffect(() => {
-    setBgLoaded(!hasBgMedia);
+    setIsMainReady(false);
     setFooterLoaded(!hasFooterMedia);
+  }, [itemId, resolvedVideoUri, resolvedImageUri, footerUri, hasFooterMedia, isVideo]);
 
-    // Timeout safety fallback: if network is slow or callbacks are delayed, reveal gracefully after 2.5s
-    const timer = setTimeout(() => {
-      setBgLoaded(true);
-      setFooterLoaded(true);
-    }, 2500);
-
-    return () => clearTimeout(timer);
-  }, [itemId, resolvedVideoUri, resolvedImageUri, posterUri, footerUri, hasBgMedia, hasFooterMedia]);
-
-  const isFullyLoaded = bgLoaded && footerLoaded;
+  const isFullyLoaded = isMainReady && footerLoaded;
 
   return (
     <View style={{ width, height, position: 'relative', overflow: 'hidden', borderRadius: 14, backgroundColor: '#07140B' }}>
-      {/* 1. Main Background Content - Poster image is always rendered first to guarantee no black screen */}
+      {/* 1. Main Background Content - Videos play real content; thumbnails are never displayed */}
       <View style={StyleSheet.absoluteFillObject}>
-        {posterUri ? (
-          <Image
-            source={{ uri: posterUri }}
-            style={{ width, height, position: 'absolute', top: 0, left: 0 }}
-            resizeMode="cover"
-            onLoad={() => setBgLoaded(true)}
-            onLoadEnd={() => setBgLoaded(true)}
-            onError={() => setBgLoaded(true)}
-          />
-        ) : null}
-
-        {resolvedVideoUri ? (
+        {isVideo && resolvedVideoUri ? (
           <AppVideo
             source={{ uri: resolvedVideoUri }}
             style={{ width, height, position: 'absolute', top: 0, left: 0 }}
@@ -178,18 +159,18 @@ function ContentPreviewCard({
             shouldPlay={true}
             isLooping={true}
             isMuted={true}
-            onReadyForDisplay={() => setBgLoaded(true)}
-            onLoad={() => setBgLoaded(true)}
-            onError={() => setBgLoaded(true)}
+            onReadyForDisplay={() => setIsMainReady(true)}
+            onLoad={() => setIsMainReady(true)}
+            onError={() => setIsMainReady(true)}
           />
         ) : resolvedImageUri && !isVideoMedia(resolvedImageUri) ? (
           <Image
             source={{ uri: resolvedImageUri }}
             style={{ width, height, position: 'absolute', top: 0, left: 0 }}
             resizeMode="cover"
-            onLoad={() => setBgLoaded(true)}
-            onLoadEnd={() => setBgLoaded(true)}
-            onError={() => setBgLoaded(true)}
+            onLoad={() => setIsMainReady(true)}
+            onLoadEnd={() => setIsMainReady(true)}
+            onError={() => setIsMainReady(true)}
           />
         ) : null}
       </View>

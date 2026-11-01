@@ -91,7 +91,9 @@ const uploadSingleMedia = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Proxy media image for CORS-safe processing & DNS bypass on mobile devices
+const { Readable } = require('stream');
+
+// @desc    Proxy media image/video for CORS-safe processing, DNS bypass, and byte-range video streaming
 // @route   GET /api/uploads/proxy-image
 // @access  Public / Admin
 const proxyImage = asyncHandler(async (req, res) => {
@@ -105,20 +107,37 @@ const proxyImage = asyncHandler(async (req, res) => {
   }
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(response.status).json({ success: false, message: `Failed to fetch image: ${response.statusText}` });
+    const fetchHeaders = {};
+    if (req.headers.range) {
+      fetchHeaders.range = req.headers.range;
     }
-    const contentType = response.headers.get('content-type') || 'image/png';
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
+    const response = await fetch(url, { headers: fetchHeaders });
+    if (!response.ok && response.status !== 206) {
+      return res.status(response.status).json({ success: false, message: `Failed to fetch media: ${response.statusText}` });
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const contentLength = response.headers.get('content-length');
+    const contentRange = response.headers.get('content-range');
+    const acceptRanges = response.headers.get('accept-ranges') || 'bytes';
+
+    res.status(response.status);
     res.setHeader('Content-Type', contentType);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    return res.send(buffer);
+    res.setHeader('Accept-Ranges', acceptRanges);
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    if (contentRange) res.setHeader('Content-Range', contentRange);
+
+    if (response.body) {
+      const nodeStream = Readable.fromWeb(response.body);
+      nodeStream.pipe(res);
+    } else {
+      res.end();
+    }
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Failed to fetch image from URL: ' + err.message });
+    return res.status(500).json({ success: false, message: 'Failed to fetch media from URL: ' + err.message });
   }
 });
 
