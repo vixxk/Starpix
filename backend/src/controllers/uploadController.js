@@ -112,6 +112,13 @@ const proxyImage = asyncHandler(async (req, res) => {
       fetchHeaders.range = req.headers.range;
     }
 
+    const fetchOptions = {
+      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers: fetchHeaders,
+    };
+
+    const response = await fetch(url, fetchOptions);
+
     if (!response.ok && response.status !== 206) {
       if (response.status === 416) {
         const contentRange = response.headers.get('content-range');
@@ -136,12 +143,22 @@ const proxyImage = asyncHandler(async (req, res) => {
     if (contentLength) res.setHeader('Content-Length', contentLength);
     if (contentRange) res.setHeader('Content-Range', contentRange);
 
-    if (response.body) {
-      const nodeStream = Readable.fromWeb(response.body);
-      nodeStream.pipe(res);
-    } else {
-      res.end();
+    if (req.method === 'HEAD' || !response.body) {
+      return res.end();
     }
+
+    const nodeStream = Readable.fromWeb(response.body);
+    nodeStream.on('error', (streamErr) => {
+      if (!res.headersSent) {
+        res.status(500).end();
+      } else {
+        res.destroy(streamErr);
+      }
+    });
+    res.on('close', () => {
+      nodeStream.destroy();
+    });
+    nodeStream.pipe(res);
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to fetch media from URL: ' + err.message });
   }
