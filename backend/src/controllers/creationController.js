@@ -41,6 +41,15 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
 
   const isVideo = template?.type === 'video' || Boolean(finalImageUrl?.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i));
 
+  const crypto = require('crypto');
+  const footerKey = customizationState?.selectedFooter
+    ? String(customizationState.selectedFooter._id || customizationState.selectedFooter.id || customizationState.selectedFooter.name || '')
+    : (customizationState?.selectedFrame || 'none');
+  const renderHash = req.body.renderHash || crypto
+    .createHash('sha256')
+    .update(`${templateId}::${footerKey}::${editedText || ''}::${editedPhoto || ''}::true`)
+    .digest('hex');
+
   const creation = await Creation.create({
     userId,
     templateId,
@@ -49,6 +58,7 @@ const saveCreationDownload = asyncHandler(async (req, res) => {
     editedPhoto: editedPhoto || '',
     customizationState: customizationState || {},
     imageUrl: finalImageUrl,
+    renderHash,
     mediaType: isVideo ? 'video' : 'image',
     format: isVideo ? 'mp4' : 'png',
     isAi: false,
@@ -230,6 +240,70 @@ const downloadCreation = asyncHandler(async (req, res) => {
             ? customState.selectedFooter
             : (template.footers && template.footers.length > 0 ? template.footers[0] : null)));
 
+  const crypto = require('crypto');
+  const footerKey = effectiveFooter
+    ? String(effectiveFooter._id || effectiveFooter.id || effectiveFooter.name || 'default')
+    : 'none';
+  const renderHash = crypto
+    .createHash('sha256')
+    .update(`${templateId}::${footerKey}::${effectiveUserName}::${effectiveUserPhoto || ''}::${isPersonalized}`)
+    .digest('hex');
+
+  // Fast-Path 1: In-memory render cache (Instant response < 10ms)
+  if (!global.__renderCache) {
+    global.__renderCache = new Map();
+  }
+  if (global.__renderCache.has(renderHash)) {
+    const cached = global.__renderCache.get(renderHash);
+    console.log('[CreationController] In-memory Cache Hit for renderHash:', renderHash);
+    return res.status(200).json({
+      success: true,
+      data: {
+        downloadUrl: cached.downloadUrl,
+        shareUrl: cached.downloadUrl,
+        expiresInSeconds: 300,
+        format: cached.format,
+        isVideo: cached.isVideo,
+        watermarkRemoved: true,
+        cached: true,
+        renderHash,
+        message: 'Check out my personalized status creation on Starpix!',
+      },
+    });
+  }
+
+  // Fast-Path 2: Database cache for previously rendered creation
+  try {
+    const existingCreation = await Creation.findOne({
+      templateId,
+      renderHash,
+      imageUrl: { $regex: /\.(mp4|jpg|jpeg|png)/i },
+    }).sort({ createdAt: -1 });
+
+    if (existingCreation && existingCreation.imageUrl) {
+      console.log('[CreationController] MongoDB Cache Hit for renderHash:', renderHash);
+      global.__renderCache.set(renderHash, {
+        downloadUrl: existingCreation.imageUrl,
+        format: existingCreation.format,
+        isVideo: existingCreation.mediaType === 'video',
+      });
+      return res.status(200).json({
+        success: true,
+        data: {
+          downloadUrl: existingCreation.imageUrl,
+          shareUrl: existingCreation.imageUrl,
+          expiresInSeconds: 300,
+          format: existingCreation.format,
+          isVideo: existingCreation.mediaType === 'video',
+          watermarkRemoved: true,
+          cached: true,
+          renderHash,
+          message: 'Check out my personalized status creation on Starpix!',
+        },
+      });
+    }
+  } catch (findErr) {}
+
   let downloadUrl = null;
   let isVideoResult = Boolean(template.type === 'video');
   let outputFormat = isVideoResult ? 'mp4' : 'jpg';
@@ -251,6 +325,12 @@ const downloadCreation = asyncHandler(async (req, res) => {
       downloadUrl = rendered.downloadUrl;
       isVideoResult = rendered.isVideo;
       outputFormat = rendered.format;
+
+      global.__renderCache.set(renderHash, {
+        downloadUrl,
+        format: outputFormat,
+        isVideo: isVideoResult,
+      });
     }
   } catch (renderErr) {
     console.warn('[CreationController] Error in personalized render, falling back to raw media:', renderErr.message);
@@ -269,6 +349,7 @@ const downloadCreation = asyncHandler(async (req, res) => {
       format: outputFormat,
       isVideo: isVideoResult,
       watermarkRemoved: true,
+      renderHash,
       message: 'Check out my personalized status creation on Starpix!',
     },
   });

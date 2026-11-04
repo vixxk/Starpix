@@ -334,10 +334,23 @@ export default function DownloadsScreen() {
       const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
       let shareUri = fileOrUrl;
 
-      if (fileOrUrl.startsWith('http://') || fileOrUrl.startsWith('https://')) {
+      // Fast-path: Check if local file exists on device for instant share
+      const candidateLocal = itemObj?.localUri || (fileOrUrl.startsWith('file://') ? fileOrUrl : null);
+      let localExists = false;
+      if (candidateLocal) {
+        try {
+          const info = await FileSystem.getInfoAsync(candidateLocal);
+          if (info.exists && info.size > 0) {
+            shareUri = candidateLocal;
+            localExists = true;
+          }
+        } catch (e) {}
+      }
+
+      if (!localExists && (fileOrUrl.startsWith('http://') || fileOrUrl.startsWith('https://'))) {
         try {
           const proxyUrl = resolveMediaUrl(fileOrUrl);
-          const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
+          const fileUri = `${FileSystem.documentDirectory}starpix_share_${Date.now()}.${ext}`;
           let downloaded = await FileSystem.downloadAsync(proxyUrl, fileUri);
           if (downloaded.status !== 200 && proxyUrl !== fileOrUrl) {
             downloaded = await FileSystem.downloadAsync(fileOrUrl, fileUri);
@@ -369,46 +382,61 @@ export default function DownloadsScreen() {
   const handleRedownload = async (item) => {
     if (!item || downloadingId || sharingId) return;
     try {
-      const isAi = Boolean(item.isAi || item.aiTemplate || item.aiTemplateId || (typeof item._id === 'string' && item._id.startsWith('ai_')) || (typeof item.id === 'string' && item.id.startsWith('ai_')));
-      let uri = item.mediaUrl || item.imageUrl || item.image || item.localUri;
-      if (!uri) return;
       setDownloadingId(item._id);
 
-      // Legacy re-compose ONLY for regular non-AI templates that need dynamic server rendering
-      if (!isAi) {
-        const tId = getTemplateId(item);
-        if (tId && (!isVideoMedia(uri)) && (item.mediaType === 'video' || item.template?.type === 'video' || item.activeTemplate?.type === 'video')) {
-          try {
-            const res = await API.post(`/creations/${tId}/download`, {
-              userNameText: item.userNameText || item.editedText,
-              userPhotoUri: item.userPhotoUri || item.editedPhoto,
-              selectedFooter: item.selectedFooter,
-              customizationState: item.customizationState,
-            });
-            if (res.data?.data?.downloadUrl) {
-              uri = res.data.data.downloadUrl;
-            }
-          } catch (e) {
-            console.warn('Legacy re-compose fallback notice:', e?.message);
+      // Fast-path: If local file already exists on device, save to gallery immediately
+      let localPath = item.localUri;
+      let localExists = false;
+      if (localPath) {
+        try {
+          const info = await FileSystem.getInfoAsync(localPath);
+          if (info.exists && info.size > 0) {
+            localExists = true;
           }
-        }
+        } catch (e) {}
       }
 
-      const isVideo = isAi
-        ? (item.mediaType === 'video' || item.aiTemplate?.mediaType === 'video' || isVideoMedia(uri))
-        : isVideoMedia(uri);
-      const ext = isVideo ? 'mp4' : 'jpg';
-      let localPath = uri;
+      if (!localExists) {
+        const isAi = Boolean(item.isAi || item.aiTemplate || item.aiTemplateId || (typeof item._id === 'string' && item._id.startsWith('ai_')) || (typeof item.id === 'string' && item.id.startsWith('ai_')));
+        let uri = item.mediaUrl || item.imageUrl || item.image || item.localUri;
+        if (!uri) return;
 
-      if (uri.startsWith('http://') || uri.startsWith('https://')) {
-        const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.${ext}`;
-        const downloadSourceUrl = resolveMediaUrl(uri);
-        let downloaded = await FileSystem.downloadAsync(downloadSourceUrl, targetPath);
-        if (downloaded.status !== 200 && downloadSourceUrl !== uri) {
-          downloaded = await FileSystem.downloadAsync(uri, targetPath);
+        // Legacy re-compose ONLY for regular non-AI templates that need dynamic server rendering
+        if (!isAi) {
+          const tId = getTemplateId(item);
+          if (tId && (!isVideoMedia(uri)) && (item.mediaType === 'video' || item.template?.type === 'video' || item.activeTemplate?.type === 'video')) {
+            try {
+              const res = await API.post(`/creations/${tId}/download`, {
+                userNameText: item.userNameText || item.editedText,
+                userPhotoUri: item.userPhotoUri || item.editedPhoto,
+                selectedFooter: item.selectedFooter,
+                customizationState: item.customizationState,
+              });
+              if (res.data?.data?.downloadUrl) {
+                uri = res.data.data.downloadUrl;
+              }
+            } catch (e) {
+              console.warn('Legacy re-compose fallback notice:', e?.message);
+            }
+          }
         }
-        if (downloaded.status === 200) {
-          localPath = downloaded.uri;
+
+        const isVideo = isAi
+          ? (item.mediaType === 'video' || item.aiTemplate?.mediaType === 'video' || isVideoMedia(uri))
+          : isVideoMedia(uri);
+        const ext = isVideo ? 'mp4' : 'jpg';
+        localPath = uri;
+
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+          const targetPath = `${FileSystem.documentDirectory}starpix_dl_${Date.now()}.${ext}`;
+          const downloadSourceUrl = resolveMediaUrl(uri);
+          let downloaded = await FileSystem.downloadAsync(downloadSourceUrl, targetPath);
+          if (downloaded.status !== 200 && downloadSourceUrl !== uri) {
+            downloaded = await FileSystem.downloadAsync(uri, targetPath);
+          }
+          if (downloaded.status === 200) {
+            localPath = downloaded.uri;
+          }
         }
       }
 

@@ -404,7 +404,38 @@ export default function SearchScreen() {
     try {
       const targetFooter = withPersonalization ? activeFooter : null;
       const footerPayload = targetFooter || 'none';
+      const targetDisplayName = withPersonalization ? (displayName || 'User') : '';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
+
+      // Fast-Path: Check if already downloaded on device
+      const existingDownloaded = (useCreationStore.getState().downloadedCreations || []).find((c) =>
+        (c.templateId === selectedTemplate.id || c.id === selectedTemplate.id) &&
+        Boolean(c.localUri) &&
+        (!withPersonalization || (
+          (c.userNameText || '') === (targetDisplayName || '') &&
+          (c.selectedFrame || 'none') === (selectedFooterId || 'none')
+        ))
+      );
+
+      if (existingDownloaded?.localUri) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(existingDownloaded.localUri);
+          if (fileInfo.exists && fileInfo.size > 0) {
+            try {
+              const { status } = await MediaLibrary.requestPermissionsAsync();
+              if (status === 'granted') {
+                await MediaLibrary.createAssetAsync(existingDownloaded.localUri);
+              }
+            } catch (e) {}
+
+            if (selectedTemplate.id) {
+              API.post(`/templates/${selectedTemplate.id}/use`, { action: 'download' }).catch(() => {});
+            }
+            showToast(t('download_saved_msg') || 'Template saved successfully!');
+            return;
+          }
+        } catch (checkErr) {}
+      }
 
       let downloadUrl = selectedTemplate.mediaUrl || selectedTemplate.contentUrl || selectedTemplate.posterUrl;
       let isVideo = selectedTemplate.mediaType === 'video';
@@ -474,19 +505,49 @@ export default function SearchScreen() {
     try {
       const targetFooter = withPersonalization ? activeFooter : null;
       const footerPayload = targetFooter || 'none';
+      const targetDisplayName = withPersonalization ? (displayName || 'User') : '';
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
 
       let downloadUrl = selectedTemplate.mediaUrl || selectedTemplate.contentUrl || selectedTemplate.posterUrl;
       let isVideo = selectedTemplate.mediaType === 'video';
 
+      // Fast-Path: Check if already downloaded on device
+      const existingDownloaded = (useCreationStore.getState().downloadedCreations || []).find((c) =>
+        (c.templateId === selectedTemplate.id || c.id === selectedTemplate.id) &&
+        Boolean(c.localUri) &&
+        (!withPersonalization || (
+          (c.userNameText || '') === (targetDisplayName || '') &&
+          (c.selectedFrame || 'none') === (selectedFooterId || 'none')
+        ))
+      );
+
+      if (existingDownloaded?.localUri) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(existingDownloaded.localUri);
+          if (fileInfo.exists && fileInfo.size > 0) {
+            const ext = isVideo ? 'mp4' : 'jpg';
+            if (await Sharing.isAvailableAsync()) {
+              await Sharing.shareAsync(existingDownloaded.localUri, {
+                mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+                dialogTitle: t('share_status') || 'Share Status',
+              });
+            }
+            if (selectedTemplate.id) {
+              API.post(`/templates/${selectedTemplate.id}/use`, { action: 'share' }).catch(() => {});
+            }
+            return;
+          }
+        } catch (checkErr) {}
+      }
+
       try {
         const res = await API.post(`/creations/${selectedTemplate.id}/download`, {
-          userNameText: withPersonalization ? displayName : '',
+          userNameText: targetDisplayName,
           userPhotoUri: remoteUserPhoto,
           selectedFooter: footerPayload,
           withPersonalization,
           customizationState: {
-            userNameText: withPersonalization ? displayName : '',
+            userNameText: targetDisplayName,
             userPhotoUri: remoteUserPhoto,
             selectedFrame: withPersonalization ? selectedFooterId : 'none',
             selectedFooter: footerPayload,
@@ -501,10 +562,30 @@ export default function SearchScreen() {
       const ext = isVideo ? 'mp4' : 'jpg';
       let targetUri = downloadUrl;
       if (downloadUrl && downloadUrl.startsWith('http')) {
-        const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
+        const fileUri = `${FileSystem.documentDirectory}starpix_${Date.now()}.${ext}`;
         const downloadSourceUrl = resolveMediaUrl(downloadUrl);
         const dl = await FileSystem.downloadAsync(downloadSourceUrl, fileUri);
         targetUri = dl.uri;
+      }
+
+      useCreationStore.getState().addDownloadedCreation({
+        id: `search_${Date.now()}`,
+        templateId: selectedTemplate.id,
+        name: selectedTemplate.title,
+        thumbnail: selectedTemplate.thumbnailUrl || targetUri,
+        localUri: targetUri,
+        image: downloadUrl,
+        mediaUrl: downloadUrl,
+        mediaType: isVideo ? 'video' : 'image',
+        userNameText: targetDisplayName,
+        userPhotoUri: remoteUserPhoto,
+        selectedFooter: targetFooter,
+        createdAt: new Date().toISOString(),
+        downloadedAt: new Date().toISOString(),
+      });
+
+      if (selectedTemplate.id) {
+        API.post(`/templates/${selectedTemplate.id}/use`, { action: 'share' }).catch(() => {});
       }
 
       if (await Sharing.isAvailableAsync()) {

@@ -57,6 +57,11 @@ const creationSchema = new mongoose.Schema(
       enum: ['png', 'jpg', 'jpeg', 'mp4'],
       default: 'png',
     },
+    renderHash: {
+      type: String,
+      default: '',
+      index: true,
+    },
     downloadedAt: {
       type: Date,
       default: Date.now,

@@ -147,7 +147,7 @@ export default function DownloadCard({
           <PressableScale
             onPress={() => {
               if (isGenerating) return;
-              onShare(item.isAi ? (item.mediaUrl || item.imageUrl || item.localUri || item.image) : item.image);
+              onShare(item.localUri || item.mediaUrl || item.imageUrl || item.image);
             }}
             scaleTo={isGenerating ? 1 : 0.96}
             style={[

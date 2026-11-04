@@ -417,7 +417,7 @@ export default function DownloadPreviewModal({
           </PressableScale>
 
           <PressableScale
-            onPress={() => onShare(mediaSource)}
+            onPress={() => onShare(displayItem?.localUri || mediaSource)}
             scaleTo={0.96}
             style={[
               styles.fullscreenShareBtn,

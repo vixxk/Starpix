@@ -731,6 +731,42 @@ export default function HomeScreen() {
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
       const hasPersonalization = withPersonalization && (Boolean(targetDisplayName) || Boolean(displayPhoto) || (targetFrame && targetFrame !== 'none'));
 
+      let resolved = resolveMediaUrl(mediaSource);
+      let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+
+      // Fast-Path: Check if matching creation is already downloaded locally on device
+      const existingDownloaded = (useCreationStore.getState().downloadedCreations || []).find((c) =>
+        (c.templateId === target.id || c.id === target.id) &&
+        Boolean(c.localUri) &&
+        (!withPersonalization || (
+          (c.userNameText || '') === (targetDisplayName || '') &&
+          (c.selectedFrame || 'none') === (targetFrame || 'none')
+        ))
+      );
+
+      if (existingDownloaded?.localUri) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(existingDownloaded.localUri);
+          if (fileInfo.exists && fileInfo.size > 0) {
+            let savedToGallery = false;
+            try {
+              const { status } = await MediaLibrary.requestPermissionsAsync();
+              if (status === 'granted') {
+                await MediaLibrary.createAssetAsync(existingDownloaded.localUri);
+                savedToGallery = true;
+              }
+            } catch (mediaErr) {}
+
+            if (target.id && !String(target.id).startsWith('durga_')) {
+              API.post(`/templates/${target.id}/use`, { action: 'download' }).catch(() => {});
+            }
+
+            showToast(savedToGallery ? (t('download_saved_msg') || 'Status saved to gallery!') : 'Status downloaded!');
+            return;
+          }
+        } catch (checkErr) {}
+      }
+
       if (hasPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
         const cached = userPhotoUploadCache.current?.get(displayPhoto);
         if (cached) {
@@ -754,9 +790,6 @@ export default function HomeScreen() {
           }
         }
       }
-
-      let resolved = resolveMediaUrl(mediaSource);
-      let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
 
       // Request server-side personalized render only when personalization is applied
       if (hasPersonalization && target.id && !String(target.id).startsWith('durga_')) {
@@ -921,6 +954,45 @@ export default function HomeScreen() {
       let remoteUserPhoto = withPersonalization ? displayPhoto : null;
       const hasPersonalization = withPersonalization && (Boolean(targetDisplayName) || Boolean(displayPhoto) || (targetFrame && targetFrame !== 'none'));
 
+      let resolved = resolveMediaUrl(mediaSource);
+      let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
+
+      // Fast-Path: Check if matching creation is already downloaded locally on device
+      const existingDownloaded = (useCreationStore.getState().downloadedCreations || []).find((c) =>
+        (c.templateId === target.id || c.id === target.id) &&
+        Boolean(c.localUri) &&
+        (!withPersonalization || (
+          (c.userNameText || '') === (targetDisplayName || '') &&
+          (c.selectedFrame || 'none') === (targetFrame || 'none')
+        ))
+      );
+
+      if (existingDownloaded?.localUri) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(existingDownloaded.localUri);
+          if (fileInfo.exists && fileInfo.size > 0) {
+            const ext = isVideo ? 'mp4' : 'jpg';
+            const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+            if (await Sharing.isAvailableAsync()) {
+              await Sharing.shareAsync(existingDownloaded.localUri, {
+                mimeType,
+                dialogTitle: `${target?.title || 'StarPix Status'}`,
+              });
+            } else {
+              await Share.share({
+                message: `${target?.title || 'Happy Durga Puja'} - Created on StarPix! Check out trending AI statuses.`,
+              });
+            }
+
+            if (target.id && !String(target.id).startsWith('durga_')) {
+              API.post(`/templates/${target.id}/use`, { action: 'share' }).catch(() => {});
+            }
+
+            return;
+          }
+        } catch (checkErr) {}
+      }
+
       if (hasPersonalization && displayPhoto && !displayPhoto.startsWith('http://') && !displayPhoto.startsWith('https://')) {
         const cached = userPhotoUploadCache.current?.get(displayPhoto);
         if (cached) {
@@ -944,9 +1016,6 @@ export default function HomeScreen() {
           }
         }
       }
-
-      let resolved = resolveMediaUrl(mediaSource);
-      let isVideo = target.mediaType === 'video' || (typeof resolved === 'string' && Boolean(resolved.match(/\.(mp4|webm|mov)(\?.*)?$/i)));
 
       // Request server-side personalized render only when personalization is applied
       if (hasPersonalization && target.id && !String(target.id).startsWith('durga_')) {
@@ -1007,7 +1076,7 @@ export default function HomeScreen() {
       if (resolved && (resolved.startsWith('http://') || resolved.startsWith('https://'))) {
         try {
           const proxyResolved = resolveMediaUrl(resolved);
-          const fileUri = `${FileSystem.cacheDirectory}starpix_share_${Date.now()}.${ext}`;
+          const fileUri = `${FileSystem.documentDirectory}starpix_${Date.now()}.${ext}`;
           const downloaded = await FileSystem.downloadAsync(proxyResolved, fileUri);
           shareUri = downloaded.uri;
         } catch (shareDlErr) {

@@ -7,8 +7,8 @@ const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const { uploadToS3, getSignedDownloadUrl, saveLocally } = require('./s3Service');
 
-const CANVAS_WIDTH = 1080;
-const CANVAS_HEIGHT = 1920;
+const CANVAS_WIDTH = 720;
+const CANVAS_HEIGHT = 1280;
 
 const MEDIA_CACHE_DIR = path.join(__dirname, '../../uploads/media-cache');
 if (!fs.existsSync(MEDIA_CACHE_DIR)) {
@@ -804,7 +804,7 @@ async function renderPersonalizedTemplate({
 
         let audioMapArg = '';
         if (baseHasAudio) {
-          audioMapArg = `-map 0:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
+          audioMapArg = `-map 0:a:0? ${audioFadeFilter} -c:a aac -b:a 128k`;
         }
 
         if (isFooterVideo && footerVideoPath) {
@@ -823,9 +823,9 @@ async function renderPersonalizedTemplate({
           }
 
           if (overlayPngPath) {
-            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset superfast -tune fastdecode -crf 24 -maxrate 3M -bufsize 6M -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
-            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -stream_loop -1 -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}:eof_action=pass[outv]" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset superfast -tune fastdecode -crf 24 -maxrate 3M -bufsize 6M -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           }
         } else {
           // Base is video, footer is static image or no footer (overlayPngPath already has footer, photo, text)
@@ -836,10 +836,10 @@ async function renderPersonalizedTemplate({
             const videoFilterChain = needsRescale
               ? `[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[base][1:v]overlay=0:0:shortest=1[outv]`
               : `[0:v][1:v]overlay=0:0:shortest=1[outv]`;
-            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "${videoFilterChain}" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+            ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "${videoFilterChain}" -map "[outv]" ${audioMapArg} ${durationArg} -c:v libx264 -preset superfast -tune fastdecode -crf 24 -maxrate 3M -bufsize 6M -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
           } else {
             if (needsRescale) {
-              ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+              ffmpegCmd = `ffmpeg -y -threads 0 -i "${baseMediaPath}" -vf "scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}" ${audioMapArg} ${durationArg} -c:v libx264 -preset superfast -tune fastdecode -crf 24 -maxrate 3M -bufsize 6M -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
             } else {
               ffmpegCmd = `ffmpeg -y -i "${baseMediaPath}" ${audioMapArg} ${durationArg} -c:v copy -movflags +faststart "${outputVideoPath}"`;
             }
@@ -854,7 +854,7 @@ async function renderPersonalizedTemplate({
 
         let audioMapArg = '';
         if (footerHasAudio) {
-          audioMapArg = `-map 1:a:0? ${audioFadeFilter} -c:a aac -b:a 192k`;
+          audioMapArg = `-map 1:a:0? ${audioFadeFilter} -c:a aac -b:a 128k`;
         }
 
         const fWidth = footerRect ? footerRect.width : CANVAS_WIDTH;
@@ -871,9 +871,9 @@ async function renderPersonalizedTemplate({
         }
 
         if (overlayPngPath) {
-          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -loop 1 -i "${overlayPngPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[tmp];[tmp][2:v]overlay=0:0[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset superfast -tune fastdecode -crf 24 -maxrate 3M -bufsize 6M -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         } else {
-          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
+          ffmpegCmd = `ffmpeg -y -threads 0 -loop 1 -i "${baseMediaPath}" -i "${footerVideoPath}" -filter_complex "[0:v]scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}[base];[1:v]${footScaleFilter}[foot];[base][foot]overlay=${fLeft}:${fTop}[outv]" -map "[outv]" ${audioMapArg} -t ${targetDuration} -c:v libx264 -preset superfast -tune fastdecode -crf 24 -maxrate 3M -bufsize 6M -pix_fmt yuv420p -movflags +faststart "${outputVideoPath}"`;
         }
       }
 
@@ -892,11 +892,8 @@ async function renderPersonalizedTemplate({
         console.warn('[Renderer] Local video save notice:', lErr.message);
       }
 
-      let s3Url = null;
-      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
-      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
-
-      if (isLocalHost && localUrl) {
+      if (localUrl) {
+        // High-speed fast path: Return local URL immediately and upload to S3 asynchronously in background
         uploadToS3(videoBuffer, `status_${Date.now()}.mp4`, 'video/mp4', 'user-creations', req).catch((e) => {
           console.warn('[Renderer] Background S3 video upload notice:', e.message);
         });
@@ -907,6 +904,7 @@ async function renderPersonalizedTemplate({
         };
       }
 
+      let s3Url = null;
       try {
         s3Url = await uploadToS3(videoBuffer, `status_${Date.now()}.mp4`, 'video/mp4', 'user-creations', req);
       } catch (sErr) {
@@ -937,11 +935,8 @@ async function renderPersonalizedTemplate({
         console.warn('[Renderer] Local image save notice:', lErr.message);
       }
 
-      let s3Url = null;
-      const hostHeader = req ? (req.get('host') || req.headers['host'] || '') : '';
-      const isLocalHost = hostHeader.includes('192.168.') || hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') || hostHeader.includes('10.');
-
-      if (isLocalHost && localUrl) {
+      if (localUrl) {
+        // High-speed fast path: Return local URL immediately and upload to S3 asynchronously in background
         uploadToS3(finalJpgBuffer, `status_${Date.now()}.jpg`, 'image/jpeg', 'user-creations', req).catch((e) => {
           console.warn('[Renderer] Background S3 image upload notice:', e.message);
         });
@@ -952,6 +947,7 @@ async function renderPersonalizedTemplate({
         };
       }
 
+      let s3Url = null;
       try {
         s3Url = await uploadToS3(finalJpgBuffer, `status_${Date.now()}.jpg`, 'image/jpeg', 'user-creations', req);
       } catch (sErr) {

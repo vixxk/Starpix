@@ -2,6 +2,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API from './api';
 
+const uploadCache = new Map();
+
 /**
  * Uploads a local image or media file to backend S3 storage via Expo FileSystem native multipart upload.
  * Avoids JS FormData/Axios boundary serialization issues in React Native.
@@ -14,6 +16,12 @@ import API from './api';
 export async function uploadUserMedia(uri, folder = 'user-profiles') {
   if (!uri) return null;
 
+  // Check in-memory session cache for instant reuse
+  const cacheKey = `${folder}::${uri}`;
+  if (uploadCache.has(cacheKey)) {
+    return uploadCache.get(cacheKey);
+  }
+
   // If already a remote HTTPS S3 / CDN URL, return as-is
   if (
     typeof uri === 'string' &&
@@ -22,6 +30,7 @@ export async function uploadUserMedia(uri, folder = 'user-profiles') {
     !uri.includes('127.0.0.1') &&
     !uri.includes('192.168.')
   ) {
+    uploadCache.set(cacheKey, uri);
     return uri;
   }
 
@@ -69,6 +78,7 @@ export async function uploadUserMedia(uri, folder = 'user-profiles') {
       const responseData = JSON.parse(uploadResult.body);
       if (responseData && responseData.success && responseData.data?.url) {
         console.log('[UploadHelper] Media uploaded successfully to S3:', responseData.data.url);
+        uploadCache.set(cacheKey, responseData.data.url);
         return responseData.data.url;
       }
     } else {

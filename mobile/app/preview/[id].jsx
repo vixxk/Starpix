@@ -120,6 +120,45 @@ export default function PreviewScreen() {
         ? null
         : (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null);
 
+      const effectiveUserName = withPersonalization ? userNameText : '';
+      const effectiveUserQuote = withPersonalization ? userQuoteText : '';
+      const frameKey = withPersonalization ? (selectedFrame || (effectiveFooter?._id || effectiveFooter?.id || 'default')) : 'none';
+
+      // Fast-Path: If this creation is already downloaded locally, save directly with 0 network latency
+      const existingDownloaded = (useCreationStore.getState().downloadedCreations || []).find((c) =>
+        (c.templateId === activeTemplate._id || c.id === activeTemplate._id) &&
+        Boolean(c.localUri) &&
+        (!withPersonalization || (
+          (c.userNameText || '') === (effectiveUserName || '') &&
+          (c.selectedFrame || 'none') === (frameKey || 'none')
+        ))
+      );
+
+      if (existingDownloaded?.localUri) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(existingDownloaded.localUri);
+          if (fileInfo.exists && fileInfo.size > 0) {
+            if (Platform.OS !== 'web') {
+              try {
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status === 'granted') {
+                  await MediaLibrary.createAssetAsync(existingDownloaded.localUri);
+                }
+              } catch (mErr) {}
+            }
+            if (activeTemplate?._id) {
+              API.post(`/templates/${activeTemplate._id}/use`, { action: 'download' }).catch(() => {});
+            }
+            setAlertInfo({
+              kind: 'saved',
+              message: 'Saved to photos successfully!',
+            });
+            setDownloading(false);
+            return;
+          }
+        } catch (checkErr) {}
+      }
+
       let remoteUserPhoto = withPersonalization ? userPhotoUri : null;
       if (remoteUserPhoto && !remoteUserPhoto.startsWith('http://') && !remoteUserPhoto.startsWith('https://')) {
         try {
@@ -138,9 +177,6 @@ export default function PreviewScreen() {
           } catch (b64Err) {}
         }
       }
-
-      const effectiveUserName = withPersonalization ? userNameText : '';
-      const effectiveUserQuote = withPersonalization ? userQuoteText : '';
 
       const customizationState = {
         activeTemplate,
@@ -331,6 +367,51 @@ export default function PreviewScreen() {
         ? null
         : (selectedFooter || selectedEffect || (activeTemplate?.footers && activeTemplate.footers[0]) || null);
 
+      const effectiveUserName = withPersonalization ? userNameText : '';
+      const effectiveUserQuote = withPersonalization ? userQuoteText : '';
+      const frameKey = withPersonalization ? (selectedFrame || (effectiveFooter?._id || effectiveFooter?.id || 'default')) : 'none';
+
+      let isVideo = Boolean(
+        activeTemplate.type === 'video' ||
+        (effectiveFooter && (effectiveFooter.type === 'video' || (effectiveFooter.videoAsset && effectiveFooter.videoAsset.match(/\.(mp4|webm|mov)(\?.*)?$/i)))) ||
+        (activeTemplate.mainMedia && (activeTemplate.mainMedia.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || activeTemplate.mainMedia.includes('/video/')))
+      );
+
+      // Fast-Path: If this creation is already downloaded locally, share directly with 0 network latency
+      const existingDownloaded = (useCreationStore.getState().downloadedCreations || []).find((c) =>
+        (c.templateId === activeTemplate._id || c.id === activeTemplate._id) &&
+        Boolean(c.localUri) &&
+        (!withPersonalization || (
+          (c.userNameText || '') === (effectiveUserName || '') &&
+          (c.selectedFrame || 'none') === (frameKey || 'none')
+        ))
+      );
+
+      if (existingDownloaded?.localUri) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(existingDownloaded.localUri);
+          if (fileInfo.exists && fileInfo.size > 0) {
+            const ext = isVideo ? 'mp4' : 'jpg';
+            const mimeType = isVideo ? 'video/mp4' : 'image/jpeg';
+            if (Platform.OS !== 'web' && await Sharing.isAvailableAsync()) {
+              await Sharing.shareAsync(existingDownloaded.localUri, {
+                mimeType,
+                dialogTitle: 'Share Creation',
+              });
+            } else {
+              await Share.share({
+                message: `Check out my custom status created with Starpix!`,
+              });
+            }
+            if (activeTemplate?._id) {
+              API.post(`/templates/${activeTemplate._id}/use`, { action: 'share' }).catch(() => {});
+            }
+            setSharing(false);
+            return;
+          }
+        } catch (checkErr) {}
+      }
+
       let remoteUserPhoto = withPersonalization ? userPhotoUri : null;
       if (remoteUserPhoto && !remoteUserPhoto.startsWith('http://') && !remoteUserPhoto.startsWith('https://')) {
         try {
@@ -349,9 +430,6 @@ export default function PreviewScreen() {
           } catch (b64Err) {}
         }
       }
-
-      const effectiveUserName = withPersonalization ? userNameText : '';
-      const effectiveUserQuote = withPersonalization ? userQuoteText : '';
 
       const customizationState = {
         activeTemplate,
@@ -373,7 +451,7 @@ export default function PreviewScreen() {
       };
 
       let downloadUrl = activeTemplate.mainMedia || activeTemplate.previewAsset || activeTemplate.thumbnail;
-      let isVideo = Boolean(
+      isVideo = Boolean(
         activeTemplate.type === 'video' ||
         (effectiveFooter && (effectiveFooter.type === 'video' || (effectiveFooter.videoAsset && effectiveFooter.videoAsset.match(/\.(mp4|webm|mov)(\?.*)?$/i)))) ||
         (downloadUrl && (downloadUrl.match(/\.(mp4|webm|mov|m4v)(\?.*)?$/i) || downloadUrl.includes('/video/')))
