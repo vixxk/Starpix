@@ -91,6 +91,7 @@ export default function CanvasEditor({
   const dragRef = useRef(null); // stores active drag/resize metadata
 
   const [domCanvasWidth, setDomCanvasWidth] = useState(280);
+  const [domCanvasHeight, setDomCanvasHeight] = useState(498);
 
   const bgVideoRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -132,13 +133,16 @@ export default function CanvasEditor({
 
   useEffect(() => {
     if (!canvasRef.current) return;
-    const updateWidth = () => {
+    const updateDimensions = () => {
       if (canvasRef.current) {
-        setDomCanvasWidth(canvasRef.current.clientWidth || 280);
+        const w = canvasRef.current.clientWidth || 280;
+        const h = canvasRef.current.clientHeight || Math.round(w * (16 / 9));
+        setDomCanvasWidth(w);
+        setDomCanvasHeight(h);
       }
     };
-    updateWidth();
-    const ro = new ResizeObserver(updateWidth);
+    updateDimensions();
+    const ro = new ResizeObserver(updateDimensions);
     ro.observe(canvasRef.current);
     return () => ro.disconnect();
   }, []);
@@ -270,6 +274,21 @@ export default function CanvasEditor({
       }
     }
 
+    const isCircle = (field === 'shape' && (val === 'circle' || val === 'circle/oval')) ||
+      (targetLayer && targetLayer.type === 'photo' && (targetLayer.shape === 'circle' || !targetLayer.shape || targetLayer.shape === 'circle/oval'));
+
+    let extraUpdates = {};
+    if (isCircle) {
+      if (field === 'shape') {
+        const curW = targetLayer?.width || 0.35;
+        extraUpdates = { shape: 'circle', height: Math.round(curW * (9 / 16) * 1000) / 1000 };
+      } else if (field === 'width') {
+        extraUpdates = { height: Math.round(val * (9 / 16) * 1000) / 1000 };
+      } else if (field === 'height') {
+        extraUpdates = { width: Math.round(val * (16 / 9) * 1000) / 1000 };
+      }
+    }
+
     if (targetLayer && targetLayer.type === 'photo' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
       if (onFootersChange) {
         const nextFooters = [...footers];
@@ -279,16 +298,19 @@ export default function CanvasEditor({
           y: targetLayer.y,
           width: targetLayer.width,
           height: targetLayer.height,
-          shape: curF.userPhotoShape || curF.shape || targetLayer.shape || 'rectangle',
+          shape: curF.userPhotoShape || curF.shape || targetLayer.shape || 'circle',
         };
+        const finalVal = field === 'shape' && (val === 'circle' || val === 'circle/oval') ? 'circle' : val;
         const updatedPhotoPos = {
           ...currentPhotoPos,
-          [field]: val,
+          [field]: finalVal,
+          ...extraUpdates,
         };
         curF.userPhotoPosition = updatedPhotoPos;
         if (field === 'shape') {
-          curF.userPhotoShape = val;
-          curF.shape = val;
+          const finalShape = (val === 'circle' || val === 'circle/oval') ? 'circle' : val;
+          curF.userPhotoShape = finalShape;
+          curF.shape = finalShape;
         }
         nextFooters[activeFooterIdx] = curF;
         onFootersChange(nextFooters);
@@ -296,8 +318,9 @@ export default function CanvasEditor({
     }
 
     // Always keep base layers in sync with the updated properties
+    const finalVal = field === 'shape' && (val === 'circle' || val === 'circle/oval') ? 'circle' : val;
     updateLayers(
-      layers.map((l) => (l.id === selectedLayerId ? { ...l, [field]: val } : l))
+      layers.map((l) => (l.id === selectedLayerId ? { ...l, [field]: finalVal, ...extraUpdates } : l))
     );
   };
 
@@ -372,8 +395,15 @@ export default function CanvasEditor({
       newX = Math.max(-0.5, Math.min(1.5, Math.round((initialLayerX + dx) * 100) / 100));
       newY = Math.max(-0.5, Math.min(1.8, Math.round((initialLayerY + dy) * 100) / 100));
     } else if (action === 'resize-se') {
-      newW = Math.max(0.08, Math.min(1.2, Math.round((initialWidth + dx) * 100) / 100));
-      newH = Math.max(0.04, Math.min(1.2, Math.round((initialHeight + dy) * 100) / 100));
+      const isCircle = targetLayer?.type === 'photo' && (targetLayer?.shape === 'circle' || !targetLayer?.shape || targetLayer?.shape === 'circle/oval');
+      if (isCircle) {
+        const rawW = Math.max(0.08, Math.min(1.2, Math.round((initialWidth + dx) * 1000) / 1000));
+        newW = rawW;
+        newH = Math.round(rawW * (9 / 16) * 1000) / 1000;
+      } else {
+        newW = Math.max(0.08, Math.min(1.2, Math.round((initialWidth + dx) * 100) / 100));
+        newH = Math.max(0.04, Math.min(1.2, Math.round((initialHeight + dy) * 100) / 100));
+      }
     }
 
     if (targetLayer && targetLayer.type === 'text' && activeFooterIdx >= 0 && activeFooterIdx < footers.length) {
@@ -866,8 +896,19 @@ export default function CanvasEditor({
 
               {numInput('Center X (-0.5 to 1.5)', 'x', { min: -0.5, max: 1.5 })}
               {numInput('Center Y (-0.5 to 1.8)', 'y', { min: -0.5, max: 1.8 })}
-              {numInput('Width (0.05 to 1.5)', 'width', { min: 0.05, max: 1.5 })}
-              {numInput('Height (0.05 to 1.5)', 'height', { min: 0.05, max: 1.5 })}
+              {selectedLayer.type === 'photo' && (selectedLayer.shape === 'circle' || !selectedLayer.shape || selectedLayer.shape === 'circle/oval') ? (
+                <div>
+                  {numInput('Circle Diameter / Size (0.05 to 1.5)', 'width', { min: 0.05, max: 1.5, step: '0.01' })}
+                  <div className="mt-1 p-2 rounded bg-emerald-950/40 border border-emerald-500/30 text-[10px] text-emerald-300">
+                    ✓ <strong>Exact 1:1 Circle:</strong> Height automatically locked to 9:16 aspect ratio ({(selectedLayer.height || 0.197).toFixed(3)})
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {numInput('Width (0.05 to 1.5)', 'width', { min: 0.05, max: 1.5 })}
+                  {numInput('Height (0.05 to 1.5)', 'height', { min: 0.05, max: 1.5 })}
+                </>
+              )}
               {numInput('Layer Stacking Depth (Z-Index 1-50)', 'zIndex', { min: 1, max: 50, step: '1' })}
 
               <div className="flex gap-2 pt-1 pb-2">

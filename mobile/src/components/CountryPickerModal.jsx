@@ -186,8 +186,8 @@ export default function CountryPickerModal({
                       <Text style={styles.flagText}>{item.flag}</Text>
                     )}
                   </View>
-                  <Text textBreakStrategy="simple" style={styles.countryName}>{item.name}</Text>
-                  <Text textBreakStrategy="simple" style={styles.countryDialCode}>{item.dialCode}</Text>
+                  <Text numberOfLines={1} style={styles.countryName}>{item.name}</Text>
+                  <Text numberOfLines={1} style={styles.countryDialCode}>{item.dialCode}</Text>
                   {isSelected && (
                     <Ionicons
                       name="checkmark-circle"

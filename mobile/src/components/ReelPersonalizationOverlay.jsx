@@ -17,6 +17,7 @@ export default function ReelPersonalizationOverlay({
   cardWidth,
   cardHeight,
   isPlaying = true,
+  stretchProfilePhoto = false,
 }) {
   const photoSize = wp(0.18);
   const ringSize = wp(0.24);
@@ -162,7 +163,7 @@ export default function ReelPersonalizationOverlay({
           let lWidth = (photoLayer.width || 0.35) * cardWidth;
           let lHeight = (photoLayer.height || 0.22) * cardHeight;
           const isCircle = (photoLayer.shape || 'circle') === 'circle';
-          if (isCircle) {
+          if (isCircle && !stretchProfilePhoto) {
             const size = Math.min(lWidth, lHeight);
             lWidth = size;
             lHeight = size;
@@ -190,19 +191,26 @@ export default function ReelPersonalizationOverlay({
                 uri={effectivePhoto}
                 width={lWidth}
                 height={lHeight}
+                allowStretch={stretchProfilePhoto}
               />
             </View>
           );
         })() : effectivePhoto ? (() => {
-          const size = Math.min(0.35 * cardWidth, 0.22 * cardHeight);
+          let lWidth = 0.35 * cardWidth;
+          let lHeight = 0.22 * cardHeight;
+          if (!stretchProfilePhoto) {
+            const size = Math.min(lWidth, lHeight);
+            lWidth = size;
+            lHeight = size;
+          }
           return (
             <View
               style={{
                 position: 'absolute',
-                left: 0.25 * cardWidth - size / 2,
-                top: (textNameLayer?.y ?? 0.8) * cardHeight - size / 2,
-                width: size,
-                height: size,
+                left: 0.25 * cardWidth - lWidth / 2,
+                top: (textNameLayer?.y ?? 0.8) * cardHeight - lHeight / 2,
+                width: lWidth,
+                height: lHeight,
                 zIndex: 25,
                 elevation: 25,
                 alignItems: 'center',
@@ -213,8 +221,9 @@ export default function ReelPersonalizationOverlay({
               <ShapeClippedPhoto
                 shape="circle"
                 uri={effectivePhoto}
-                width={size}
-                height={size}
+                width={lWidth}
+                height={lHeight}
+                allowStretch={stretchProfilePhoto}
               />
             </View>
           );

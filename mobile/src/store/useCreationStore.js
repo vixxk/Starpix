@@ -40,7 +40,8 @@ export const hydrateDownloadedCreations = async () => {
           try {
             const bgEnabled = await AsyncStorage.getItem('starpix_user_bg_removed_enabled');
             const savedCutout = await AsyncStorage.getItem('starpix_user_cutout_photo');
-            if (bgEnabled === 'true' && savedCutout) {
+            const savedSource = await AsyncStorage.getItem('starpix_user_cutout_source');
+            if (bgEnabled === 'true' && savedCutout && (!savedSource || savedSource === photo || savedCutout === photo)) {
               activePhoto = savedCutout;
             }
           } catch (_) {}

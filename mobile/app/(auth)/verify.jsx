@@ -227,7 +227,13 @@ export default function VerifyScreen() {
               disabled={isAuthenticating}
               style={[styles.primaryButton, isAuthenticating && styles.buttonDisabled]}
             >
-              <Text textBreakStrategy="simple" numberOfLines={1} style={styles.primaryButtonText}>
+              <Text
+                allowFontScaling={false}
+                numberOfLines={1}
+                adjustsFontSizeToFit={true}
+                minimumFontScale={0.8}
+                style={styles.primaryButtonText}
+              >
                 {isAuthenticating ? '...' : t('auth_verify_continue')}
               </Text>
             </TouchableOpacity>
@@ -428,7 +434,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: fontScale(15),
-    lineHeight: fontScale(22),
     fontFamily: FONTS.bold,
     letterSpacing: 0.2,
     textAlign: 'center',

@@ -62,7 +62,7 @@ export const GRID_GAP = 8;
 // Pure percentage-based responsive layout tokens (Exact 1:1 snap alignment for zero cumulative drift)
 const topInsetBaseline = 44;
 const bottomInsetBaseline = 34;
-const totalChromeBaseline = topInsetBaseline + 38 + 93 + (64 + bottomInsetBaseline);
+const totalChromeBaseline = topInsetBaseline + 38 + 88 + (64 + bottomInsetBaseline);
 export const AVAILABLE_VIEWPORT_HEIGHT = SCREEN_HEIGHT - totalChromeBaseline;
 export const CARD_WIDTH = wp(0.70);
 export const CARD_HEIGHT = Math.min(CARD_WIDTH * (16 / 9), AVAILABLE_VIEWPORT_HEIGHT - 86);

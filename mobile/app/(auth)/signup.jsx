@@ -365,12 +365,20 @@ export default function SignupScreen() {
                   activeOpacity={0.88}
                   style={styles.primaryButton}
                 >
-                  <Text style={styles.primaryButtonText}>{t('auth_continue')}</Text>
+                  <Text
+                    allowFontScaling={false}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                    minimumFontScale={0.8}
+                    style={styles.primaryButtonText}
+                  >
+                    {t('auth_continue')}
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Switch to Login */}
                 <View style={styles.switchAuthRow}>
-                  <Text textBreakStrategy="simple" style={styles.switchAuthPrompt}>
+                  <Text allowFontScaling={false} style={styles.switchAuthPrompt}>
                     {t('auth_already_have_account')}{' '}
                     <Text
                       onPress={() => {
@@ -423,7 +431,7 @@ export default function SignupScreen() {
                         <Text style={styles.flagEmoji}>{selectedCountry.flag}</Text>
                       )}
                     </View>
-                    <Text textBreakStrategy="simple" style={styles.countryCodeText}>
+                    <Text allowFontScaling={false} style={styles.countryCodeText}>
                       {selectedCountry.dialCode}
                     </Text>
                     <Ionicons
@@ -456,7 +464,7 @@ export default function SignupScreen() {
                   <View style={styles.securityIconBox}>
                     <Ionicons name="lock-closed" size={fontScale(13)} color="#6B7280" />
                   </View>
-                  <Text textBreakStrategy="simple" style={styles.securityText}>
+                  <Text style={styles.securityText}>
                     {t('auth_security_note')}
                   </Text>
                 </View>
@@ -468,14 +476,20 @@ export default function SignupScreen() {
                   disabled={isAuthenticating}
                   style={[styles.primaryButton, isAuthenticating && styles.buttonDisabled]}
                 >
-                  <Text textBreakStrategy="simple" numberOfLines={1} style={styles.primaryButtonText}>
+                  <Text
+                    allowFontScaling={false}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                    minimumFontScale={0.8}
+                    style={styles.primaryButtonText}
+                  >
                     {isAuthenticating ? '...' : t('auth_get_otp')}
                   </Text>
                 </TouchableOpacity>
 
                 {/* Switch to Login */}
                 <View style={styles.switchAuthRow}>
-                  <Text textBreakStrategy="simple" style={styles.switchAuthPrompt}>
+                  <Text allowFontScaling={false} style={styles.switchAuthPrompt}>
                     {t('auth_already_have_account')}{' '}
                     <Text
                       onPress={() => {
@@ -750,13 +764,12 @@ const styles = StyleSheet.create({
   },
   countryCodeText: {
     fontSize: fontScale(14),
-    lineHeight: fontScale(18),
     fontFamily: FONTS.semibold,
     color: '#111827',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
     marginRight: 4,
-    paddingHorizontal: 1,
+    minWidth: fontScale(30),
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   chevronIcon: {
     marginTop: Platform.OS === 'android' ? 1 : 0,
@@ -773,7 +786,6 @@ const styles = StyleSheet.create({
     fontSize: fontScale(14),
     fontFamily: FONTS.medium,
     color: '#111827',
-    includeFontPadding: false,
     paddingVertical: 0,
   },
   securityRow: {
@@ -792,8 +804,6 @@ const styles = StyleSheet.create({
     fontSize: fontScale(11.5),
     fontFamily: FONTS.medium,
     color: '#6B7280',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
     flex: 1,
   },
   errorBox: {
@@ -835,12 +845,13 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: fontScale(15.5),
-    lineHeight: fontScale(22),
     fontFamily: FONTS.bold,
     letterSpacing: 0.2,
     textAlign: 'center',
   },
   switchAuthRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: hp(0.024),
@@ -848,7 +859,6 @@ const styles = StyleSheet.create({
   },
   switchAuthPrompt: {
     fontSize: fontScale(13.5),
-    lineHeight: fontScale(20),
     fontFamily: FONTS.medium,
     color: '#4B5563',
     textAlign: 'center',

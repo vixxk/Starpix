@@ -5,6 +5,7 @@ import Svg, {
   ClipPath,
   Polygon,
   Circle as SvgCircle,
+  Ellipse as SvgEllipse,
   Rect as SvgRect,
   Image as SvgImage,
   G,
@@ -22,6 +23,7 @@ export default function ShapeClippedPhoto({
   width,
   height,
   style,
+  allowStretch = false,
 }) {
   const [photoUri, setPhotoUri] = useState(uri);
   const [hasError, setHasError] = useState(false);
@@ -44,12 +46,14 @@ export default function ShapeClippedPhoto({
   const isHexagon = normalizedShape === 'hexagon';
   const isStar = normalizedShape === 'star';
 
-  // For circle, enforce exact 1:1 circular aspect ratio with diameter = min(w, h)
+  // For circle: if allowStretch is true (e.g. on mobile home screen where footer stretches),
+  // match raw dimensions so it fills the footer cutout without white side gaps.
+  // Otherwise, enforce exact 1:1 circular aspect ratio with diameter = min(w, h).
   const rawW = Math.round(width || 100);
   const rawH = Math.round(height || 100);
   const minDim = Math.min(rawW, rawH);
-  const w = isCircle ? minDim : rawW;
-  const h = isCircle ? minDim : rawH;
+  const w = isCircle ? (allowStretch ? rawW : minDim) : rawW;
+  const h = isCircle ? (allowStretch ? rawH : minDim) : rawH;
 
   // Polygon definitions matching backend videoRenderingService.js getShapeMaskSvg exactly
   const heartPoints = `${w * 0.5},${h * 0.15} ${w * 0.65},0 ${w * 0.85},0 ${w},${h * 0.15} ${w},${h * 0.35} ${w * 0.5},${h * 0.90} 0,${h * 0.35} 0,${h * 0.15} ${w * 0.15},0 ${w * 0.35},0`;
@@ -61,6 +65,9 @@ export default function ShapeClippedPhoto({
 
   const renderClipShape = () => {
     if (isCircle) {
+      if (allowStretch && w !== h) {
+        return <SvgEllipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} />;
+      }
       return <SvgCircle cx={w / 2} cy={h / 2} r={minDim / 2} />;
     }
     if (isRounded) {
@@ -84,6 +91,9 @@ export default function ShapeClippedPhoto({
 
   const renderStrokeShape = () => {
     if (isCircle) {
+      if (allowStretch && w !== h) {
+        return <SvgEllipse cx={w / 2} cy={h / 2} rx={w / 2 - 1.25} ry={h / 2 - 1.25} stroke="#FFFFFF" strokeWidth="2.5" fill="none" />;
+      }
       return <SvgCircle cx={w / 2} cy={h / 2} r={minDim / 2 - 1.25} stroke="#FFFFFF" strokeWidth="2.5" fill="none" />;
     }
     if (isRounded) {
@@ -129,6 +139,7 @@ export default function ShapeClippedPhoto({
         <G clipPath={`url(#${clipId})`}>
           {!hasError && photoUri ? (
             <SvgImage
+              key={photoUri}
               href={{ uri: photoUri }}
               width={w}
               height={h}

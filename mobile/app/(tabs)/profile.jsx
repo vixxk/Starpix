@@ -9,7 +9,7 @@ import {
   Share,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -95,6 +95,14 @@ export default function SettingsScreen() {
       router.replace('/login');
     }
   }, [user, isLoading, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (fetchUser) {
+        fetchUser().catch(() => {});
+      }
+    }, [fetchUser])
+  );
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -204,6 +212,7 @@ export default function SettingsScreen() {
                 <View style={styles.avatarWrapper}>
                   {effectivePhotoUri ? (
                     <Image
+                      key={effectivePhotoUri}
                       source={{ uri: resolveMediaUrl(effectivePhotoUri) }}
                       style={styles.avatarImage}
                       resizeMode="cover"

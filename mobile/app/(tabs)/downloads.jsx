@@ -17,7 +17,7 @@ import AppRefreshControl from '../../src/components/AppRefreshControl';
 import ConfirmModal from '../../src/components/ConfirmModal';
 import ExploreCta from '../../src/components/ExploreCta';
 import { COLORS } from '../../src/constants/colors';
-import { SCREEN_PAD, hp } from '../../src/utils/responsive';
+import { SCREEN_PAD, hp, wp } from '../../src/utils/responsive';
 import API from '../../src/utils/api';
 import { resolveMediaUrl } from '../../src/utils/media';
 import { useCreationStore } from '../../src/store/useCreationStore';
@@ -102,6 +102,7 @@ export default function DownloadsScreen() {
       setRefreshing(false);
       return;
     }
+    const startTime = Date.now();
     try {
       const res = await API.get('/creations/my-downloads');
       if (res.data && res.data.success) {
@@ -110,10 +111,26 @@ export default function DownloadsScreen() {
     } catch (err) {
       console.warn('[Downloads Fetch Notice]:', err.message || err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (showSkeleton) {
+        const elapsed = Date.now() - startTime;
+        const remainingDelay = Math.max(0, 450 - elapsed);
+        setTimeout(() => {
+          setLoading(false);
+          setRefreshing(false);
+        }, remainingDelay);
+      } else {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [user]);
+
+  // Fetch immediately when user state becomes available
+  useEffect(() => {
+    if (user) {
+      fetchDownloads(true);
+    }
+  }, [user, fetchDownloads]);
 
   // Refresh every time the Downloads screen comes into focus
   useFocusEffect(
@@ -129,6 +146,7 @@ export default function DownloadsScreen() {
 
   // Combine backend S3 downloads and local store downloads into a unified list
   const allCreations = useMemo(() => {
+    if (loading) return [];
     const list = [];
     const seenIds = new Set();
 
@@ -499,16 +517,19 @@ export default function DownloadsScreen() {
         {loading ? (
           <View style={styles.loadingContainer}>
             {[1, 2, 3].map((k) => (
-              <View key={k} style={[styles.downloadSkeletonCard, k > 1 && { marginTop: 12 }]}>
-                <Skeleton height={130} width={90} borderRadius={14} />
-                <View style={{ flex: 1, marginLeft: 12, justifyContent: 'space-between', paddingVertical: 4 }}>
+              <View key={k} style={styles.downloadSkeletonCard}>
+                <View style={{ width: wp(0.22), aspectRatio: 9 / 16, borderRadius: 12, overflow: 'hidden' }}>
+                  <Skeleton height="100%" width="100%" borderRadius={12} />
+                </View>
+                <View style={{ flex: 1, justifyContent: 'space-between', paddingVertical: 2, height: '100%' }}>
                   <View>
-                    <Skeleton height={18} width={k === 1 ? '75%' : k === 2 ? '65%' : '55%'} borderRadius={6} />
-                    <Skeleton height={13} width={k === 1 ? '45%' : k === 2 ? '40%' : '35%'} borderRadius={4} style={{ marginTop: 6 }} />
+                    <Skeleton height={16} width={k === 1 ? '78%' : k === 2 ? '65%' : '52%'} borderRadius={6} />
+                    <Skeleton height={12} width={k === 1 ? '45%' : k === 2 ? '38%' : '32%'} borderRadius={4} style={{ marginTop: 8 }} />
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Skeleton height={36} width="46%" borderRadius={10} />
-                    <Skeleton height={36} width="46%" borderRadius={10} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 }}>
+                    <Skeleton height={34} width="45%" borderRadius={8} />
+                    <Skeleton height={34} width="36%" borderRadius={8} />
+                    <Skeleton height={34} width={34} borderRadius={8} />
                   </View>
                 </View>
               </View>

@@ -41,15 +41,18 @@ export const styles = StyleSheet.create({
   },
   loadingContainer: {
     paddingHorizontal: SCREEN_PAD,
-    marginTop: hp(0.02),
+    marginTop: hp(0.015),
+    gap: hp(0.014),
   },
   downloadSkeletonCard: {
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderRadius: 16,
+    padding: wp(0.03),
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
+    gap: wp(0.035),
+    alignItems: 'center',
     ...CARD_SHADOW,
   },
   emptyState: {

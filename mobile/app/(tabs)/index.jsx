@@ -102,146 +102,130 @@ export const getCategoryLabel = (chip, currentLang, t) => {
   return formatCategoryName(chip.name || chip.label || chip.id || '');
 };
 
-const getCharWidth = (ch, fontMultiplier = 1) => {
-  const code = ch.charCodeAt(0);
-
-  // Tamil: 0x0B80 - 0x0BFF
-  if (code >= 0x0B80 && code <= 0x0BFF) {
-    if (code === 0x0BCD) return 1.5 * fontMultiplier; // pulli / virama
-    if (code === 0x0BBF || code === 0x0BC0) return 2.5 * fontMultiplier; // i, ii
-    if (code === 0x0BCA || code === 0x0BCB || code === 0x0BCC) return 14.0 * fontMultiplier; // o, oo, au (two-part)
-    if (code === 0x0BBE || code === 0x0BC1 || code === 0x0BC2 || (code >= 0x0BC6 && code <= 0x0BC8) || code === 0x0BD7) {
-      return 7.8 * fontMultiplier; // aa, u, uu, e, ee, ai, au length
-    }
-    return 8.2 * fontMultiplier; // base Tamil letters
-  }
-
-  // Malayalam: 0x0D00 - 0x0D7F
-  if (code >= 0x0D00 && code <= 0x0D7F) {
-    if (code === 0x0D4D || code === 0x0D02) return 2.0 * fontMultiplier; // virama, anusvara
-    if (code === 0x0D3F || code === 0x0D40) return 2.8 * fontMultiplier; // i, ii
-    if (code === 0x0D4A || code === 0x0D4B || code === 0x0D4C) return 14.5 * fontMultiplier; // two-part
-    if (code === 0x0D3E || (code >= 0x0D41 && code <= 0x0D43) || (code >= 0x0D46 && code <= 0x0D48) || code === 0x0D57) {
-      return 8.0 * fontMultiplier;
-    }
-    return 8.8 * fontMultiplier; // base Malayalam letters
-  }
-
-  // Telugu: 0x0C00 - 0x0C7F & Kannada: 0x0C80 - 0x0CFF
-  if (code >= 0x0C00 && code <= 0x0CFF) {
-    const off = code % 0x80;
-    if (off === 0x4D || off === 0x02 || off === 0x03) return 2.0 * fontMultiplier; // virama, anusvara
-    if (off >= 0x3E && off <= 0x4C) return 5.5 * fontMultiplier; // matras
-    return 8.5 * fontMultiplier; // base letters
-  }
-
-  // Devanagari (0x0900-0x097F), Bengali (0x0980-0x09FF), Gurmukhi (0x0A00-0x0A7F), Gujarati (0x0A80-0x0AFF)
-  if (code >= 0x0900 && code <= 0x0AFF) {
-    const off = code % 0x80;
-    if (off === 0x01 || off === 0x02 || off === 0x03 || off === 0x3C || off === 0x4D) return 1.8 * fontMultiplier;
-    if ((code >= 0x0980 && code <= 0x09FF) && (off === 0x4B || off === 0x4C)) return 12.0 * fontMultiplier; // Bengali two-part
-    if (off === 0x3E || off === 0x3F || off === 0x40 || off === 0x46 || off === 0x47 || off === 0x48) return 5.5 * fontMultiplier;
-    if (off >= 0x41 && off <= 0x44) return 3.0 * fontMultiplier;
-    return 7.5 * fontMultiplier;
-  }
-
-  // Latin / ASCII
-  if (code === 32) return 3.5 * fontMultiplier; // space
-  if (ch >= 'A' && ch <= 'Z') {
-    if ('MW'.includes(ch)) return 9.5 * fontMultiplier;
-    return 7.5 * fontMultiplier;
-  }
-  if ('mw'.includes(ch)) return 8.5 * fontMultiplier;
-  if ('ijl., \'!-:;()'.includes(ch)) return 3.5 * fontMultiplier;
-  if ('rtfks'.includes(ch)) return 5.2 * fontMultiplier;
-  if (ch >= '0' && ch <= '9') return 6.2 * fontMultiplier;
-  if (ch >= 'a' && ch <= 'z') return 6.5 * fontMultiplier;
-  if (code > 127) return 7.5 * fontMultiplier;
-  return 6.5 * fontMultiplier;
+export const VIEW_ALL_CHIP = {
+  id: '__view_all__',
+  isViewAll: true,
+  name: 'View All',
+  labelKey: 'view_all',
+  icon: 'grid-outline',
 };
 
-const estimateChipWidth = (cat, currentLang, t) => {
+const getCharWidth = (ch, scale = 1) => {
+  const code = ch.charCodeAt(0);
+  if (code >= 0x0900 && code <= 0x0DFF) return 5.8 * scale;
+  if ('MWmw'.includes(ch)) return 7.2 * scale;
+  if ('ijl., \'!:-;/()'.includes(ch)) return 2.8 * scale;
+  if (ch >= 'A' && ch <= 'Z') return 5.8 * scale;
+  return 4.9 * scale;
+};
+
+export const estimateChipWidth = (cat, currentLang, t, screenW) => {
   const isViewAll = cat.isViewAll || cat.id === '__view_all__';
   const label = isViewAll ? (t('view_all') || 'View All') : getCategoryLabel(cat, currentLang, t);
   const hasIcon = Boolean(isViewAll || cat.icon);
-  const screenW = Dimensions.get('window').width || 390;
-  const fontMultiplier = Math.max(screenW / 390, 0.9);
-
-  // Ionicons grid or emoji glyph
-  const iconExtra = isViewAll ? (12 * fontMultiplier) : (hasIcon ? (16 * fontMultiplier) : 0);
+  const scale = Math.max((screenW || 390) / 390, 0.85);
 
   let charSum = 0;
   for (let i = 0; i < label.length; i++) {
-    charSum += getCharWidth(label[i], fontMultiplier);
+    charSum += getCharWidth(label[i], scale);
   }
 
-  // Base overhead (padding 12 + border 2 + gap 2 = 16)
-  const baseOverhead = 16;
-  const scaledTextWidth = Math.ceil(Math.max(charSum, 10));
-  return Math.ceil(baseOverhead + iconExtra + scaledTextWidth);
+  const iconExtra = hasIcon ? (15 * scale) : 0;
+  const paddingBorder = 16.2 * scale;
+  return Math.ceil(iconExtra + paddingBorder + charSum);
 };
 
-const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth, t) => {
+export const packCategories = (categoriesList, currentLang, availableWidth, activeCatId, t, screenW) => {
   if (!categoriesList || categoriesList.length === 0) return [];
 
-  const GAP = 5;
-  const VIEW_ALL_CHIP = {
-    id: '__view_all__',
-    isViewAll: true,
-    name: 'View All',
-    labelKey: 'view_all',
-    icon: 'grid-outline',
+  const GAP = 4.5;
+  const viewAllWidth = estimateChipWidth(VIEW_ALL_CHIP, currentLang, t, screenW);
+  const maxLineWidth = Math.max(availableWidth - 2, 200);
+
+  // Helper to pack categories up to maxLines (2 or 3)
+  const tryPack = (maxLines, reserveForViewAll) => {
+    let unplaced = [...categoriesList];
+    // Ensure active category is prioritized in visible rows
+    if (activeCatId && activeCatId !== 'special' && activeCatId !== '__view_all__') {
+      const activeIdx = unplaced.findIndex((c) => c.id === activeCatId || c.slug === activeCatId);
+      if (activeIdx > 4) {
+        const [activeItem] = unplaced.splice(activeIdx, 1);
+        unplaced.splice(1, 0, activeItem);
+      }
+    }
+
+    const lines = [];
+    for (let l = 0; l < maxLines; l++) lines.push([]);
+
+    for (let lineIdx = 0; lineIdx < maxLines; lineIdx++) {
+      let curW = 0;
+      const isLast = lineIdx === maxLines - 1;
+      const limit = (isLast && reserveForViewAll)
+        ? Math.max(maxLineWidth - GAP - viewAllWidth, 60)
+        : maxLineWidth;
+
+      let i = 0;
+      while (i < unplaced.length) {
+        const cat = unplaced[i];
+        const catWidth = estimateChipWidth(cat, currentLang, t, screenW);
+        const addedWidth = lines[lineIdx].length === 0 ? catWidth : curW + GAP + catWidth;
+
+        if (addedWidth <= limit) {
+          lines[lineIdx].push(cat);
+          curW = addedWidth;
+          unplaced.splice(i, 1);
+        } else {
+          // If next category cannot fit, check if any subsequent smaller category can fit into the remaining gap
+          let foundSmaller = false;
+          for (let j = i + 1; j < unplaced.length; j++) {
+            const smallerCat = unplaced[j];
+            const smallerWidth = estimateChipWidth(smallerCat, currentLang, t, screenW);
+            const addedSmaller = curW + GAP + smallerWidth;
+            if (addedSmaller <= limit) {
+              lines[lineIdx].push(smallerCat);
+              curW = addedSmaller;
+              unplaced.splice(j, 1);
+              foundSmaller = true;
+              break;
+            }
+          }
+          if (!foundSmaller) {
+            // Cannot fit any more chips on this line
+            break;
+          }
+        }
+      }
+    }
+
+    return { lines: lines.filter((l) => l.length > 0), unplaced };
   };
-  const viewAllWidth = estimateChipWidth(VIEW_ALL_CHIP, currentLang, t);
 
-  // Safety buffer to ensure that even with rendering sub-pixels or font variations,
-  // NO chip ever touches the right edge or gets clipped. If it would overflow, it wraps to next line.
-  const lineSafetyBuffer = 16;
-  const maxLineWidth = Math.max(availableWidth - lineSafetyBuffer, 200);
+  // 1. If ALL categories fit cleanly in 2 lines, only then use 2 lines
+  const twoLinesAttempt = tryPack(2, false);
+  if (twoLinesAttempt.unplaced.length === 0) {
+    return twoLinesAttempt.lines;
+  }
 
-  // Line 0, Line 1, Line 2 max widths
-  // Line 2 must reserve space for GAP + viewAllWidth
-  const maxWs = [
-    maxLineWidth,
-    maxLineWidth,
-    Math.max(maxLineWidth - GAP - viewAllWidth, 60),
-  ];
+  // 2. Otherwise, use 3 lines. Check if all categories fit in 3 lines without View All
+  const threeLinesNoViewAll = tryPack(3, false);
+  if (threeLinesNoViewAll.unplaced.length === 0) {
+    return threeLinesNoViewAll.lines;
+  }
 
-  // We respect the exact admin order of categoriesList
-  const pool = [...categoriesList];
-  const lines = [[], [], []];
-
-  let currentLine = 0;
-  let currentLineWidth = 0;
-
-  for (let i = 0; i < pool.length; i++) {
-    if (currentLine >= 3) break;
-
-    const cat = pool[i];
-    const catWidth = estimateChipWidth(cat, currentLang, t);
-    const addedGap = lines[currentLine].length === 0 ? 0 : GAP;
-    const nextWidth = currentLineWidth + addedGap + catWidth;
-
-    if (nextWidth <= maxWs[currentLine]) {
-      // Fits on current line
-      lines[currentLine].push(cat);
-      currentLineWidth = nextWidth;
-    } else {
-      // Overflows current line -> advance to next line
-      currentLine++;
-      if (currentLine >= 3) break;
-
-      const firstWidthOnNewLine = catWidth;
-      lines[currentLine].push(cat);
-      currentLineWidth = firstWidthOnNewLine;
+  // 3. Otherwise, use 3 lines with View All at the end of line 3
+  const threeLinesWithViewAll = tryPack(3, true);
+  const lastLineIdx = threeLinesWithViewAll.lines.length - 1;
+  if (lastLineIdx >= 0) {
+    if (!threeLinesWithViewAll.lines[lastLineIdx].some((c) => c.isViewAll || c.id === '__view_all__')) {
+      threeLinesWithViewAll.lines[lastLineIdx].push(VIEW_ALL_CHIP);
     }
   }
 
-  // Always append VIEW_ALL_CHIP at the end of Line 3
-  lines[2].push(VIEW_ALL_CHIP);
-
-  return lines.filter((l) => l.length > 0);
+  return threeLinesWithViewAll.lines;
 };
+
+export const packThreeLinesWithViewAll = (categoriesList, currentLang, availableWidth, activeCatId, t, screenW) =>
+  packCategories(categoriesList, currentLang, availableWidth, activeCatId, t, screenW);
 
 const ReelMediaCard = React.memo(function ReelMediaCard({
   item,
@@ -363,9 +347,10 @@ export default function HomeScreen() {
   const userPhotoUploadCache = useRef(new Map());
 
   const [activeCategory, setActiveCategory] = useState('');
-  const [categoryRows, setCategoryRows] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [rawCategories, setRawCategories] = useState([]);
+  const [categoryRows, setCategoryRows] = useState([]);
+
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
   const [showDownloadShareModal, setShowDownloadShareModal] = useState(false);
   const [modalActionType, setModalActionType] = useState('download'); // 'download' | 'share'
@@ -412,18 +397,18 @@ export default function HomeScreen() {
       });
   }, []);
 
-  // Dynamically pack categories into 3 lines with View All as the last button
+  // Dynamically pack categories: 3 lines (or 2 lines if all categories fit), with tight packing and zero empty space
   useEffect(() => {
     if (rawCategories && rawCategories.length > 0) {
       const screenW = windowWidth || Dimensions.get('window').width;
-      // categoryContainer paddingHorizontal is 10 (20px total)
+      // paddingHorizontal: 10 on each side (20px total)
       const availWidth = Math.floor(screenW - 20);
-      const packed = packThreeLinesWithViewAll(rawCategories, i18n.language, availWidth, t);
+      const packed = packCategories(rawCategories, i18n.language, availWidth, activeCategory, t, screenW);
       setCategoryRows(packed);
     } else {
       setCategoryRows([]);
     }
-  }, [rawCategories, i18n.language, windowWidth, t]);
+  }, [rawCategories, i18n.language, windowWidth, activeCategory, t]);
 
   // Synchronize playback: hold playback at frame 0 for a brief 350ms so background, footer, name & avatar all mount together before motion starts
   useEffect(() => {
@@ -505,7 +490,7 @@ export default function HomeScreen() {
 
   // Responsive calculations so card + action row + frame selector fit within the visible viewport on all screens
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const fallbackHeight = Math.max(360, windowHeight - insets.top - insets.bottom - 210);
+  const fallbackHeight = Math.max(360, windowHeight - insets.top - insets.bottom - 198);
   const availHeight = contentAreaHeight > 0 ? contentAreaHeight : fallbackHeight;
 
   // Space reserved for controls below the card:
@@ -1333,6 +1318,7 @@ export default function HomeScreen() {
               cardWidth={cardWidth}
               cardHeight={cardHeight}
               isPlaying={shouldPlayMedia}
+              stretchProfilePhoto={true}
             />
 
             {/* Play/Pause Button - ONLY for Video */}
@@ -1585,25 +1571,27 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Category / Filter Chips at Top (Exactly 3 Lines, no scrolling, no elongation, Skeleton Loading) */}
+      {/* Category / Filter Chips at Top (Exactly 3 Lines, no overflow, whatever doesn't fit is in View All) */}
       <View style={styles.categoryContainer}>
         <View style={styles.categoryInnerWrapper}>
           {loadingCategories ? (
             <View style={styles.categorySkeletonWrapper}>
               <View style={styles.categoryRow}>
-                <Skeleton width={wp(0.32)} height={25} borderRadius={14} />
-                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
-                <Skeleton width={wp(0.22)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.32)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.28)} height={25} borderRadius={13} />
               </View>
               <View style={styles.categoryRow}>
-                <Skeleton width={wp(0.28)} height={25} borderRadius={14} />
-                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
-                <Skeleton width={wp(0.24)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.24)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.22)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.20)} height={25} borderRadius={13} />
               </View>
               <View style={styles.categoryRow}>
-                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
-                <Skeleton width={wp(0.26)} height={25} borderRadius={14} />
-                <Skeleton width={wp(0.22)} height={25} borderRadius={14} />
+                <Skeleton width={wp(0.26)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.24)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.22)} height={25} borderRadius={13} />
+                <Skeleton width={wp(0.20)} height={25} borderRadius={13} />
               </View>
             </View>
           ) : (
@@ -1612,7 +1600,7 @@ export default function HomeScreen() {
                 {row.map((chip) => {
                   const isViewAll = chip.isViewAll || chip.id === '__view_all__';
                   const isSelected = !isViewAll && activeCategory === chip.id;
-                  const label = getCategoryLabel(chip, i18n.language, t);
+                  const label = isViewAll ? (t('view_all') || 'View All') : getCategoryLabel(chip, i18n.language, t);
 
                   return (
                     <TouchableOpacity
@@ -1627,7 +1615,7 @@ export default function HomeScreen() {
                       ]}
                     >
                       {isViewAll ? (
-                        <Ionicons name="grid" size={fontScale(10.5)} color="#9F1239" />
+                        <Ionicons name="grid" size={fontScale(10)} color="#9F1239" />
                       ) : chip.icon ? (
                         <Text style={styles.chipIcon}>{chip.icon}</Text>
                       ) : null}

@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   cardText: {
     fontSize: fontScale(13),
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.semibold,
     color: '#334155',
   },
   cardTextActive: {

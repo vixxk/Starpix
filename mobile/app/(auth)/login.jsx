@@ -107,19 +107,19 @@ export default function LoginScreen() {
             ]}
           >
             {/* Title & Subtitle */}
-            <Text style={styles.title}>{t('auth_welcome_title')}</Text>
-            <Text style={styles.subtitle}>{t('auth_welcome_subtitle')}</Text>
+            <Text allowFontScaling={false} style={styles.title}>{t('auth_welcome_title')}</Text>
+            <Text allowFontScaling={false} style={styles.subtitle}>{t('auth_welcome_subtitle')}</Text>
 
             {/* Error Banner - only show for other errors, not for account not found which is handled by popup */}
             {error && !isUserNotFoundError && !showSignUpPrompt && (
               <View style={styles.errorBox}>
                 <Ionicons name="alert-circle" size={fontScale(16)} color="#EF4444" />
-                <Text style={styles.errorText}>{error}</Text>
+                <Text allowFontScaling={false} style={styles.errorText}>{error}</Text>
               </View>
             )}
 
             {/* Mobile Number Input Section */}
-            <Text style={styles.inputLabel}>{t('auth_mobile_number')}</Text>
+            <Text allowFontScaling={false} style={styles.inputLabel}>{t('auth_mobile_number')}</Text>
             <View style={[styles.phoneInputRow, isFocused && styles.phoneInputRowFocused]}>
               {/* Country Code Dropdown Trigger */}
               <TouchableOpacity
@@ -134,10 +134,10 @@ export default function LoginScreen() {
                   {selectedCountry.code === 'IN' ? (
                     <IndiaFlagSvg width={22} height={15} />
                   ) : (
-                    <Text style={styles.flagEmoji}>{selectedCountry.flag}</Text>
+                    <Text allowFontScaling={false} style={styles.flagEmoji}>{selectedCountry.flag}</Text>
                   )}
                 </View>
-                <Text textBreakStrategy="simple" style={styles.countryCodeText}>
+                <Text allowFontScaling={false} style={styles.countryCodeText}>
                   {selectedCountry.dialCode}
                 </Text>
                 <Ionicons name="chevron-down" size={fontScale(12)} color="#6B7280" style={styles.chevronIcon} />
@@ -156,6 +156,7 @@ export default function LoginScreen() {
                 maxLength={selectedCountry.maxLen || 12}
                 placeholder={t('auth_mobile_placeholder')}
                 placeholderTextColor="#9CA3AF"
+                allowFontScaling={false}
                 style={styles.textInput}
               />
             </View>
@@ -165,7 +166,7 @@ export default function LoginScreen() {
               <View style={styles.securityIconBox}>
                 <Ionicons name="lock-closed" size={fontScale(13)} color="#6B7280" />
               </View>
-              <Text textBreakStrategy="simple" style={styles.securityText}>
+              <Text allowFontScaling={false} style={styles.securityText}>
                 {t('auth_security_note')}
               </Text>
             </View>
@@ -177,14 +178,20 @@ export default function LoginScreen() {
               disabled={isAuthenticating}
               style={[styles.primaryButton, isAuthenticating && styles.buttonDisabled]}
             >
-              <Text textBreakStrategy="simple" numberOfLines={1} style={styles.primaryButtonText}>
+              <Text
+                allowFontScaling={false}
+                numberOfLines={1}
+                adjustsFontSizeToFit={true}
+                minimumFontScale={0.8}
+                style={styles.primaryButtonText}
+              >
                 {isAuthenticating ? '...' : t('auth_get_otp')}
               </Text>
             </TouchableOpacity>
 
             {/* Switch Auth Option: Don't have an account? Sign up */}
             <View style={styles.switchAuthRow}>
-              <Text textBreakStrategy="simple" style={styles.switchAuthPrompt}>
+              <Text allowFontScaling={false} style={styles.switchAuthPrompt}>
                 {t('auth_dont_have_account')}{' '}
                 <Text
                   onPress={() => {
@@ -200,7 +207,7 @@ export default function LoginScreen() {
 
             {/* Terms of Service & Privacy Policy Footer */}
             <View style={styles.termsFooter}>
-              <Text style={styles.termsText}>
+              <Text allowFontScaling={false} style={styles.termsText}>
                 {t('auth_terms_prefix')}
                 <Text
                   style={styles.termsLink}
@@ -363,13 +370,12 @@ const styles = StyleSheet.create({
   },
   countryCodeText: {
     fontSize: fontScale(14),
-    lineHeight: fontScale(18),
     fontFamily: FONTS.semibold,
     color: '#111827',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
     marginRight: 4,
-    paddingHorizontal: 1,
+    minWidth: fontScale(30),
+    includeFontPadding: false,
+    flexShrink: 0,
   },
   chevronIcon: {
     marginTop: Platform.OS === 'android' ? 1 : 0,
@@ -386,7 +392,6 @@ const styles = StyleSheet.create({
     fontSize: fontScale(14),
     fontFamily: FONTS.medium,
     color: '#111827',
-    includeFontPadding: false,
     paddingVertical: 0,
   },
   securityRow: {
@@ -405,8 +410,6 @@ const styles = StyleSheet.create({
     fontSize: fontScale(11.5),
     fontFamily: FONTS.medium,
     color: '#6B7280',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
     flex: 1,
   },
   primaryButton: {
@@ -430,12 +433,13 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: fontScale(15.5),
-    lineHeight: fontScale(22),
     fontFamily: FONTS.bold,
     letterSpacing: 0.2,
     textAlign: 'center',
   },
   switchAuthRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: hp(0.028),
@@ -443,7 +447,6 @@ const styles = StyleSheet.create({
   },
   switchAuthPrompt: {
     fontSize: fontScale(13.5),
-    lineHeight: fontScale(20),
     fontFamily: FONTS.medium,
     color: '#4B5563',
     textAlign: 'center',

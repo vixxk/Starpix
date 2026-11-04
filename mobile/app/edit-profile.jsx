@@ -11,7 +11,6 @@ import {
   BackHandler,
   Modal,
   TouchableOpacity,
-  Switch,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -89,38 +88,56 @@ export default function EditProfileScreen() {
           setOriginalPhotoUri(null);
           setCutoutPhotoUri(null);
           setPhotoUri(null);
+          setInitialPhotoUri(null);
           setIsBgRemoved(false);
           setInitialIsBgRemoved(false);
           AsyncStorage.multiRemove([
             'starpix_user_original_photo',
             'starpix_user_cutout_photo',
+            'starpix_user_cutout_source',
             'starpix_default_user_photo',
             'starpix_user_bg_removed_enabled',
           ]).catch(() => {});
           return;
         }
 
+        const savedSource = await AsyncStorage.getItem('starpix_user_cutout_source');
         const savedOriginal = await AsyncStorage.getItem('starpix_user_original_photo');
         const savedCutout = await AsyncStorage.getItem('starpix_user_cutout_photo');
         const savedEnabled = await AsyncStorage.getItem('starpix_user_bg_removed_enabled');
 
         if (!isMounted) return;
 
-        const currentBase = savedOriginal || currentUserPhoto;
-        setOriginalPhotoUri(currentBase);
-
-        if (savedCutout) {
-          setCutoutPhotoUri(savedCutout);
-        }
-
         const isEnabled = savedEnabled === 'true';
-        setIsBgRemoved(isEnabled);
-        setInitialIsBgRemoved(isEnabled);
+        // Only use the saved cutout if it was computed for the current profile photo!
+        const isCutoutValid = Boolean(
+          savedCutout && (savedSource === currentUserPhoto || savedCutout === currentUserPhoto)
+        );
 
-        if (isEnabled && savedCutout) {
+        if (isCutoutValid && isEnabled) {
+          const base = savedOriginal || currentUserPhoto;
+          setOriginalPhotoUri(base);
+          setCutoutPhotoUri(savedCutout);
+          setIsBgRemoved(true);
+          setInitialIsBgRemoved(true);
           setPhotoUri(savedCutout);
-        } else if (currentBase) {
-          setPhotoUri(currentBase);
+          setInitialPhotoUri(savedCutout);
+        } else {
+          // Latest user profile photo from backend is ALWAYS the source of truth
+          setOriginalPhotoUri(currentUserPhoto);
+          setCutoutPhotoUri(null);
+          setIsBgRemoved(false);
+          setInitialIsBgRemoved(false);
+          setPhotoUri(currentUserPhoto);
+          setInitialPhotoUri(currentUserPhoto);
+
+          if (savedSource && savedSource !== currentUserPhoto) {
+            AsyncStorage.multiRemove([
+              'starpix_user_original_photo',
+              'starpix_user_cutout_photo',
+              'starpix_user_cutout_source',
+            ]).catch(() => {});
+          }
         }
       } catch (e) {
         console.warn('Error loading background removal settings:', e);
@@ -130,7 +147,7 @@ export default function EditProfileScreen() {
     return () => {
       isMounted = false;
     };
-  }, [user?.profilePhoto]);
+  }, []);
 
   const hasUnsavedChanges =
     photoUri !== initialPhotoUri ||
@@ -182,51 +199,47 @@ export default function EditProfileScreen() {
     setToastKey((k) => k + 1);
   };
 
-  // Toggle Background Removal (Google ML Kit / MediaPipe Selfie Segmentation)
-  const handleToggleRemoveBg = async (val) => {
+  // Remove Background Service (Google ML Kit / MediaPipe Selfie Segmentation)
+  const handleRemoveBackgroundAction = async () => {
     hapticTap();
-    if (val) {
-      const basePhoto = originalPhotoUri || photoUri;
-      if (!basePhoto) {
-        showToast(t('please_select_photo_first') || 'Please select a photo first');
-        return;
-      }
+    const currentPhoto = photoUri || originalPhotoUri;
+    if (!currentPhoto) {
+      showToast(t('please_select_photo_first') || 'Please select a photo first');
+      return;
+    }
 
-      if (!originalPhotoUri) {
-        setOriginalPhotoUri(basePhoto);
-      }
+    if (processingBgRemoval) return;
 
-      // Check if cutout is already cached or previously computed
-      const cached = cutoutPhotoUri || (await getCachedCutout(basePhoto));
-      if (cached && cached !== basePhoto) {
-        setCutoutPhotoUri(cached);
-        setIsBgRemoved(true);
-        setPhotoUri(cached);
-        showToast(t('background_removed_success') || 'Background removed successfully!');
-        hapticImpact();
-        return;
-      }
+    if (!originalPhotoUri) {
+      setOriginalPhotoUri(currentPhoto);
+    }
 
-      setProcessingBgRemoval(true);
-      try {
-        const cutout = await removeBackground(basePhoto);
+    // Check if cutout is already cached or previously computed for this photo
+    const cached = cutoutPhotoUri || (await getCachedCutout(currentPhoto));
+    if (cached && cached !== currentPhoto) {
+      setCutoutPhotoUri(cached);
+      setIsBgRemoved(true);
+      setPhotoUri(cached);
+      showToast(t('background_removed_success') || 'Background removed successfully!');
+      hapticImpact();
+      return;
+    }
+
+    setProcessingBgRemoval(true);
+    try {
+      const cutout = await removeBackground(currentPhoto);
+      if (cutout) {
         setCutoutPhotoUri(cutout);
         setIsBgRemoved(true);
         setPhotoUri(cutout);
         showToast(t('background_removed_success') || 'Background removed successfully!');
         hapticImpact();
-      } catch (err) {
-        console.error('Error removing background:', err);
-        showToast(t('failed_remove_background') || 'Failed to remove background');
-        setIsBgRemoved(false);
-      } finally {
-        setProcessingBgRemoval(false);
       }
-    } else {
-      setIsBgRemoved(false);
-      if (originalPhotoUri) {
-        setPhotoUri(originalPhotoUri);
-      }
+    } catch (err) {
+      console.error('Error removing background service:', err);
+      showToast(t('failed_remove_background') || 'Failed to remove background');
+    } finally {
+      setProcessingBgRemoval(false);
     }
   };
 
@@ -251,28 +264,9 @@ export default function EditProfileScreen() {
         const newUri = result.assets[0].uri;
         setOriginalPhotoUri(newUri);
         setCutoutPhotoUri(null);
-
-        if (isBgRemoved) {
-          setProcessingBgRemoval(true);
-          setPhotoUri(newUri);
-          showToast(t('removing_background') || 'Removing background...');
-          try {
-            const cutout = await removeBackground(newUri);
-            setCutoutPhotoUri(cutout);
-            setPhotoUri(cutout);
-            showToast(t('background_removed_success') || 'Background removed successfully!');
-          } catch (err) {
-            console.error('Error auto-removing background from captured photo:', err);
-            setPhotoUri(newUri);
-            setIsBgRemoved(false);
-            showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
-          } finally {
-            setProcessingBgRemoval(false);
-          }
-        } else {
-          setPhotoUri(newUri);
-          showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
-        }
+        setIsBgRemoved(false);
+        setPhotoUri(newUri);
+        showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
       }
     } catch (err) {
       console.error('Error taking photo:', err);
@@ -302,28 +296,9 @@ export default function EditProfileScreen() {
         const newUri = result.assets[0].uri;
         setOriginalPhotoUri(newUri);
         setCutoutPhotoUri(null);
-
-        if (isBgRemoved) {
-          setProcessingBgRemoval(true);
-          setPhotoUri(newUri);
-          showToast(t('removing_background') || 'Removing background...');
-          try {
-            const cutout = await removeBackground(newUri);
-            setCutoutPhotoUri(cutout);
-            setPhotoUri(cutout);
-            showToast(t('background_removed_success') || 'Background removed successfully!');
-          } catch (err) {
-            console.error('Error auto-removing background from gallery photo:', err);
-            setPhotoUri(newUri);
-            setIsBgRemoved(false);
-            showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
-          } finally {
-            setProcessingBgRemoval(false);
-          }
-        } else {
-          setPhotoUri(newUri);
-          showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
-        }
+        setIsBgRemoved(false);
+        setPhotoUri(newUri);
+        showToast(t('photo_selected') || 'Photo selected! Tap Save to apply.');
       }
     } catch (err) {
       console.error('Error picking photo from gallery:', err);
@@ -403,19 +378,20 @@ export default function EditProfileScreen() {
           await AsyncStorage.multiRemove([
             'starpix_user_original_photo',
             'starpix_user_cutout_photo',
+            'starpix_user_cutout_source',
             'starpix_default_user_photo',
             'starpix_user_bg_removed_enabled',
           ]);
         } else {
           await AsyncStorage.setItem('starpix_user_bg_removed_enabled', isBgRemoved ? 'true' : 'false');
-          if (originalPhotoUri) {
-            await AsyncStorage.setItem('starpix_user_original_photo', originalPhotoUri);
-          } else {
-            await AsyncStorage.removeItem('starpix_user_original_photo');
+          if (uploadedPhotoUrl) {
+            await AsyncStorage.setItem('starpix_user_cutout_source', uploadedPhotoUrl);
           }
-          if (cutoutPhotoUri) {
-            const savedCutout = (isBgRemoved && uploadedPhotoUrl) ? uploadedPhotoUrl : cutoutPhotoUri;
-            await AsyncStorage.setItem('starpix_user_cutout_photo', savedCutout);
+          if (uploadedPhotoUrl) {
+            await AsyncStorage.setItem('starpix_user_original_photo', uploadedPhotoUrl);
+          }
+          if (isBgRemoved && uploadedPhotoUrl) {
+            await AsyncStorage.setItem('starpix_user_cutout_photo', uploadedPhotoUrl);
           } else {
             await AsyncStorage.removeItem('starpix_user_cutout_photo');
           }
@@ -425,8 +401,9 @@ export default function EditProfileScreen() {
       }
 
       // Sync with user auth profile in backend
+      let serverUser = null;
       if (updateUserProfile) {
-        await updateUserProfile({
+        serverUser = await updateUserProfile({
           name: trimmedName,
           email: emailText.trim(),
           profilePhoto: profilePhotoForBackend,
@@ -434,8 +411,12 @@ export default function EditProfileScreen() {
         });
       }
 
+      const finalSavedPhoto = isPhotoRemoved ? null : (serverUser?.profilePhoto || uploadedPhotoUrl);
+
       // Reset initial values so hasUnsavedChanges immediately becomes false
-      setInitialPhotoUri(uploadedPhotoUrl);
+      setInitialPhotoUri(finalSavedPhoto);
+      setPhotoUri(finalSavedPhoto);
+      setOriginalPhotoUri(finalSavedPhoto);
       setInitialIsBgRemoved(isPhotoRemoved ? false : isBgRemoved);
 
       showToast(t('profile_updated') || 'Profile updated successfully!');
@@ -506,6 +487,7 @@ export default function EditProfileScreen() {
                 >
                   {photoUri ? (
                     <Image
+                      key={photoUri}
                       source={{ uri: resolveMediaUrl(photoUri) }}
                       style={styles.heroAvatarImage}
                       resizeMode="cover"
@@ -521,37 +503,48 @@ export default function EditProfileScreen() {
                   </View>
                 </PressableScale>
 
-                {/* Remove Background Control with Toggle Button (Compact / Smaller) */}
+                {/* Remove Background Action Button */}
                 <View style={styles.removeBgActionWrap}>
-                  <View style={styles.removeBgControl}>
-                    <View style={styles.removeBgInfo}>
-                      <View style={[styles.removeBgIconBadge, isBgRemoved && styles.removeBgIconBadgeActive]}>
-                        <Ionicons
-                          name="sparkles"
-                          size={13}
-                          color={isBgRemoved ? '#FFFFFF' : '#E11D48'}
-                        />
-                      </View>
-                      <Text style={styles.removeBgLabel} numberOfLines={1}>
-                        {processingBgRemoval
-                          ? (t('removing_background') || 'Removing background...')
-                          : (t('remove_background') || 'Remove Background')}
-                      </Text>
-                    </View>
-
+                  <PressableScale
+                    onPress={handleRemoveBackgroundAction}
+                    disabled={processingBgRemoval || !photoUri}
+                    scaleTo={0.96}
+                    style={[
+                      styles.removeBgBtn,
+                      isBgRemoved && styles.removeBgBtnActive,
+                      (!photoUri || processingBgRemoval) && styles.removeBgBtnDisabled,
+                    ]}
+                  >
                     {processingBgRemoval ? (
-                      <ActivityIndicator size="small" color="#E11D48" style={{ marginLeft: 8 }} />
+                      <View style={styles.removeBgBtnContent}>
+                        <ActivityIndicator size="small" color="#E11D48" />
+                        <Text style={styles.removeBgBtnText}>
+                          {t('removing_background') || 'Removing background...'}
+                        </Text>
+                      </View>
                     ) : (
-                      <Switch
-                        value={isBgRemoved}
-                        onValueChange={handleToggleRemoveBg}
-                        trackColor={{ false: '#E2E8F0', true: '#FDA4AF' }}
-                        thumbColor={isBgRemoved ? '#E11D48' : '#FFFFFF'}
-                        ios_backgroundColor="#E2E8F0"
-                        style={Platform.OS === 'ios' ? { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] } : { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }] }}
-                      />
+                      <View style={styles.removeBgBtnContent}>
+                        <View style={[styles.removeBgIconBadge, isBgRemoved && styles.removeBgIconBadgeActive]}>
+                          <Ionicons
+                            name={isBgRemoved ? 'checkmark' : 'sparkles'}
+                            size={13}
+                            color={isBgRemoved ? '#FFFFFF' : '#E11D48'}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.removeBgBtnText,
+                            isBgRemoved && styles.removeBgBtnTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {isBgRemoved
+                            ? (t('background_removed_success') ? (t('remove_background') || 'Remove Background') + ' ✓' : 'Background Removed')
+                            : (t('remove_background') || 'Remove Background')}
+                        </Text>
+                      </View>
                     )}
-                  </View>
+                  </PressableScale>
                 </View>
               </View>
             </View>
@@ -833,40 +826,51 @@ const styles = StyleSheet.create({
     marginTop: 14,
     width: '100%',
   },
-  removeBgControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  removeBgBtn: {
     backgroundColor: '#FFF1F2',
     borderWidth: 1.2,
     borderColor: '#FECDD3',
-    borderRadius: 20,
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    gap: 10,
+    borderRadius: 22,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    shadowColor: '#E11D48',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
     maxWidth: '92%',
   },
-  removeBgInfo: {
+  removeBgBtnActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  removeBgBtnDisabled: {
+    opacity: 0.65,
+  },
+  removeBgBtnContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    flexShrink: 1,
   },
   removeBgIconBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#FFE4E6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   removeBgIconBadgeActive: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#16A34A',
   },
-  removeBgLabel: {
+  removeBgBtnText: {
     fontSize: fontScale(12.5),
     fontFamily: FONTS.bold,
-    color: '#0F172A',
+    color: '#E11D48',
+  },
+  removeBgBtnTextActive: {
+    color: '#16A34A',
   },
   tapToChangeWrap: {
     marginTop: 6,
