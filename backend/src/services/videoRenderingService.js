@@ -451,8 +451,14 @@ async function buildOverlayPng({
   // 2. Shaped User Photo with White Border (zIndex 15)
   if (photoLayer) {
     const scale = photoTransform?.scale || 1;
-    const photoW = Math.max(40, Math.round(photoLayer.width * CANVAS_WIDTH * scale));
-    const photoH = Math.max(40, Math.round(photoLayer.height * CANVAS_HEIGHT * scale));
+    const isCircle = (photoLayer.shape || 'circle') === 'circle';
+    let photoW = Math.max(40, Math.round(photoLayer.width * CANVAS_WIDTH * scale));
+    let photoH = Math.max(40, Math.round(photoLayer.height * CANVAS_HEIGHT * scale));
+    if (isCircle) {
+      const size = Math.min(photoW, photoH);
+      photoW = size;
+      photoH = size;
+    }
     const photoLeft = Math.round(photoLayer.x * CANVAS_WIDTH - photoW / 2 + (photoTransform?.offsetX || 0));
     const photoTop = Math.round(photoLayer.y * CANVAS_HEIGHT - photoH / 2 + (photoTransform?.offsetY || 0));
 

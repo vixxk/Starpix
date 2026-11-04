@@ -159,8 +159,14 @@ export default function ReelPersonalizationOverlay({
       >
         {/* Photo Layer with exact SVG ClipPath shape */}
         {photoLayer ? (() => {
-          const lWidth = (photoLayer.width || 0.35) * cardWidth;
-          const lHeight = (photoLayer.height || 0.22) * cardHeight;
+          let lWidth = (photoLayer.width || 0.35) * cardWidth;
+          let lHeight = (photoLayer.height || 0.22) * cardHeight;
+          const isCircle = (photoLayer.shape || 'circle') === 'circle';
+          if (isCircle) {
+            const size = Math.min(lWidth, lHeight);
+            lWidth = size;
+            lHeight = size;
+          }
           const left = (photoLayer.x ?? 0.25) * cardWidth - lWidth / 2;
           const top = (photoLayer.y ?? 0.8) * cardHeight - lHeight / 2;
 
@@ -187,29 +193,32 @@ export default function ReelPersonalizationOverlay({
               />
             </View>
           );
-        })() : effectivePhoto ? (
-          <View
-            style={{
-              position: 'absolute',
-              left: 0.25 * cardWidth - (0.35 * cardWidth) / 2,
-              top: (textNameLayer?.y ?? 0.8) * cardHeight - (0.22 * cardHeight) / 2,
-              width: 0.35 * cardWidth,
-              height: 0.22 * cardHeight,
-              zIndex: 25,
-              elevation: 25,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            pointerEvents="none"
-          >
-            <ShapeClippedPhoto
-              shape="circle"
-              uri={effectivePhoto}
-              width={0.35 * cardWidth}
-              height={0.22 * cardHeight}
-            />
-          </View>
-        ) : null}
+        })() : effectivePhoto ? (() => {
+          const size = Math.min(0.35 * cardWidth, 0.22 * cardHeight);
+          return (
+            <View
+              style={{
+                position: 'absolute',
+                left: 0.25 * cardWidth - size / 2,
+                top: (textNameLayer?.y ?? 0.8) * cardHeight - size / 2,
+                width: size,
+                height: size,
+                zIndex: 25,
+                elevation: 25,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              pointerEvents="none"
+            >
+              <ShapeClippedPhoto
+                shape="circle"
+                uri={effectivePhoto}
+                width={size}
+                height={size}
+              />
+            </View>
+          );
+        })() : null}
 
         {/* Text Name Layer positioned as in admin */}
         {textNameLayer ? (() => {

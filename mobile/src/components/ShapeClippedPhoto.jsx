@@ -36,10 +36,6 @@ export default function ShapeClippedPhoto({
     setPhotoUri(null);
   };
 
-  const w = Math.round(width || 100);
-  const h = Math.round(height || 100);
-  const minDim = Math.min(w, h);
-
   const normalizedShape = String(shape || 'rectangle').toLowerCase();
   const isCircle = normalizedShape === 'circle';
   const isRounded = normalizedShape === 'rounded';
@@ -47,6 +43,13 @@ export default function ShapeClippedPhoto({
   const isDiamond = normalizedShape === 'diamond';
   const isHexagon = normalizedShape === 'hexagon';
   const isStar = normalizedShape === 'star';
+
+  // For circle, enforce exact 1:1 circular aspect ratio with diameter = min(w, h)
+  const rawW = Math.round(width || 100);
+  const rawH = Math.round(height || 100);
+  const minDim = Math.min(rawW, rawH);
+  const w = isCircle ? minDim : rawW;
+  const h = isCircle ? minDim : rawH;
 
   // Polygon definitions matching backend videoRenderingService.js getShapeMaskSvg exactly
   const heartPoints = `${w * 0.5},${h * 0.15} ${w * 0.65},0 ${w * 0.85},0 ${w},${h * 0.15} ${w},${h * 0.35} ${w * 0.5},${h * 0.90} 0,${h * 0.35} 0,${h * 0.15} ${w * 0.15},0 ${w * 0.35},0`;

@@ -94,7 +94,8 @@ export default function DownloadsScreen() {
       .catch(() => {});
   }, []);
 
-  const fetchDownloads = useCallback(async () => {
+  const fetchDownloads = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setLoading(true);
     if (!user) {
       setBackendDownloads([]);
       setLoading(false);
@@ -117,13 +118,13 @@ export default function DownloadsScreen() {
   // Refresh every time the Downloads screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchDownloads();
+      fetchDownloads(true);
     }, [fetchDownloads])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchDownloads();
+    fetchDownloads(false);
   }, [fetchDownloads]);
 
   // Combine backend S3 downloads and local store downloads into a unified list
@@ -495,47 +496,23 @@ export default function DownloadsScreen() {
           </View>
         )}
 
-        {loading && allCreations.length === 0 ? (
+        {loading ? (
           <View style={styles.loadingContainer}>
-            <View style={styles.downloadSkeletonCard}>
-              <Skeleton height={130} width={90} borderRadius={14} />
-              <View style={{ flex: 1, marginLeft: 12, justifyContent: 'space-between', paddingVertical: 4 }}>
-                <View>
-                  <Skeleton height={18} width="75%" borderRadius={6} />
-                  <Skeleton height={13} width="45%" borderRadius={4} style={{ marginTop: 6 }} />
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Skeleton height={36} width="46%" borderRadius={10} />
-                  <Skeleton height={36} width="46%" borderRadius={10} />
-                </View>
-              </View>
-            </View>
-            <View style={[styles.downloadSkeletonCard, { marginTop: 12 }]}>
-              <Skeleton height={130} width={90} borderRadius={14} />
-              <View style={{ flex: 1, marginLeft: 12, justifyContent: 'space-between', paddingVertical: 4 }}>
-                <View>
-                  <Skeleton height={18} width="65%" borderRadius={6} />
-                  <Skeleton height={13} width="40%" borderRadius={4} style={{ marginTop: 6 }} />
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Skeleton height={36} width="46%" borderRadius={10} />
-                  <Skeleton height={36} width="46%" borderRadius={10} />
+            {[1, 2, 3].map((k) => (
+              <View key={k} style={[styles.downloadSkeletonCard, k > 1 && { marginTop: 12 }]}>
+                <Skeleton height={130} width={90} borderRadius={14} />
+                <View style={{ flex: 1, marginLeft: 12, justifyContent: 'space-between', paddingVertical: 4 }}>
+                  <View>
+                    <Skeleton height={18} width={k === 1 ? '75%' : k === 2 ? '65%' : '55%'} borderRadius={6} />
+                    <Skeleton height={13} width={k === 1 ? '45%' : k === 2 ? '40%' : '35%'} borderRadius={4} style={{ marginTop: 6 }} />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Skeleton height={36} width="46%" borderRadius={10} />
+                    <Skeleton height={36} width="46%" borderRadius={10} />
+                  </View>
                 </View>
               </View>
-            </View>
-            <View style={[styles.downloadSkeletonCard, { marginTop: 12 }]}>
-              <Skeleton height={130} width={90} borderRadius={14} />
-              <View style={{ flex: 1, marginLeft: 12, justifyContent: 'space-between', paddingVertical: 4 }}>
-                <View>
-                  <Skeleton height={18} width="55%" borderRadius={6} />
-                  <Skeleton height={13} width="35%" borderRadius={4} style={{ marginTop: 6 }} />
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Skeleton height={36} width="46%" borderRadius={10} />
-                  <Skeleton height={36} width="46%" borderRadius={10} />
-                </View>
-              </View>
-            </View>
+            ))}
           </View>
         ) : allCreations.length === 0 ? (
           <View style={styles.emptyState}>

@@ -186,8 +186,8 @@ export default function CountryPickerModal({
                       <Text style={styles.flagText}>{item.flag}</Text>
                     )}
                   </View>
-                  <Text style={styles.countryName}>{item.name}</Text>
-                  <Text style={styles.countryDialCode}>{item.dialCode}</Text>
+                  <Text textBreakStrategy="simple" style={styles.countryName}>{item.name}</Text>
+                  <Text textBreakStrategy="simple" style={styles.countryDialCode}>{item.dialCode}</Text>
                   {isSelected && (
                     <Ionicons
                       name="checkmark-circle"
@@ -302,9 +302,12 @@ const styles = StyleSheet.create({
   },
   countryDialCode: {
     fontSize: fontScale(14),
+    lineHeight: fontScale(18),
     fontFamily: FONTS.semibold,
     color: '#6B7280',
     marginRight: wp(0.02),
+    paddingHorizontal: 2,
+    includeFontPadding: false,
   },
   checkIcon: {
     marginLeft: wp(0.01),

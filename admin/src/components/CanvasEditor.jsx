@@ -14,7 +14,7 @@ import {
 const getPhotoShapeStyles = (shape) => {
   switch (shape) {
     case 'circle':
-      return { borderRadius: '50%', clipPath: 'circle(50% at 50% 50%)' };
+      return { borderRadius: '50%', clipPath: 'circle(50% at 50% 50%)', aspectRatio: '1 / 1' };
     case 'diamond':
       return { borderRadius: '0px', clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' };
     case 'hexagon':
@@ -711,6 +711,16 @@ export default function CanvasEditor({
               {layers.map((rawL) => {
                 const l = getEffectiveLayer(rawL);
                 const isSelected = selectedLayerId === l.id;
+                const isCirclePhoto = l.type === 'photo' && (l.shape === 'circle' || !l.shape);
+                let effW = l.width;
+                let effH = l.height;
+                if (isCirclePhoto && domCanvasWidth > 0 && domCanvasHeight > 0) {
+                  const wPx = l.width * domCanvasWidth;
+                  const hPx = l.height * domCanvasHeight;
+                  const sizePx = Math.min(wPx, hPx);
+                  effW = sizePx / domCanvasWidth;
+                  effH = sizePx / domCanvasHeight;
+                }
                 return (
                   <div
                     key={l.id}
@@ -719,10 +729,10 @@ export default function CanvasEditor({
                       isSelected ? 'ring-2 ring-flame-400 ring-offset-1 ring-offset-night-950 z-30' : 'hover:ring-1 hover:ring-flame-500/50'
                     }`}
                     style={{
-                      left: `${(l.x - l.width / 2) * 100}%`,
-                      top: `${(l.y - l.height / 2) * 100}%`,
-                      width: `${l.width * 100}%`,
-                      height: `${l.height * 100}%`,
+                      left: `${(l.x - effW / 2) * 100}%`,
+                      top: `${(l.y - effH / 2) * 100}%`,
+                      width: `${effW * 100}%`,
+                      height: `${effH * 100}%`,
                       zIndex: l.zIndex || 15,
                     }}
                   >
@@ -888,7 +898,7 @@ export default function CanvasEditor({
                     className="select font-bold text-xs"
                   >
                     <option value="rectangle">Square / Rectangle (Default)</option>
-                    <option value="circle">Circle / Oval</option>
+                    <option value="circle">Circle</option>
                     <option value="diamond">Diamond</option>
                     <option value="hexagon">Hexagon</option>
                     <option value="star">5-Point Star</option>

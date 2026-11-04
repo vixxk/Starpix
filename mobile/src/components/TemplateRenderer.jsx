@@ -67,7 +67,21 @@ function DraggablePhotoLayer({
   interactive = true,
 }) {
   const shape = layer.shape || 'rectangle';
-  const shapeStyle = getPhotoShapeStyles(shape, layerWidth, layerHeight);
+  const isCircle = shape === 'circle';
+  let effWidth = layerWidth;
+  let effHeight = layerHeight;
+  let effLeft = layerLeft;
+  let effTop = layerTop;
+
+  if (isCircle) {
+    const size = Math.min(layerWidth, layerHeight);
+    effLeft = layerLeft + (layerWidth - size) / 2;
+    effTop = layerTop + (layerHeight - size) / 2;
+    effWidth = size;
+    effHeight = size;
+  }
+
+  const shapeStyle = getPhotoShapeStyles(shape, effWidth, effHeight);
 
   const content = userPhotoUri ? (
     <Image
@@ -80,7 +94,7 @@ function DraggablePhotoLayer({
       {interactive ? (
         <Text style={styles.photoPlaceholderText}>Tap to add photo</Text>
       ) : (
-        <Ionicons name="person" size={Math.min(layerWidth, layerHeight) * 0.45} color="#94A3B8" />
+        <Ionicons name="person" size={Math.min(effWidth, effHeight) * 0.45} color="#94A3B8" />
       )}
     </View>
   );
@@ -88,10 +102,10 @@ function DraggablePhotoLayer({
   const containerStyle = [
     styles.layerContainer,
     {
-      left: layerLeft,
-      top: layerTop,
-      width: layerWidth,
-      height: layerHeight,
+      left: effLeft,
+      top: effTop,
+      width: effWidth,
+      height: effHeight,
       zIndex: layer.zIndex !== undefined ? layer.zIndex : 15,
       overflow: 'hidden',
       borderWidth: userPhotoUri || !interactive ? 0 : 2,
@@ -490,10 +504,16 @@ export default function TemplateRenderer({
         const pos = activeFooterObj?.userPhotoPosition;
         if (!pos) return null;
 
+        const photoShape = pos.shape || activeFooterObj.userPhotoShape || 'circle';
+        let effWidth = (pos.width ?? 0.3) * canvasWidth;
+        let effHeight = (pos.height ?? 0.2) * canvasHeight;
+        if (photoShape === 'circle') {
+          const size = Math.min(effWidth, effHeight);
+          effWidth = size;
+          effHeight = size;
+        }
         const effX = pos.x ?? 0.2;
         const effY = pos.y ?? 0.85;
-        const effWidth = (pos.width ?? 0.3) * canvasWidth;
-        const effHeight = (pos.height ?? 0.2) * canvasHeight;
         const effLeft = effX * canvasWidth - effWidth / 2;
         const effTop = effY * canvasHeight - effHeight / 2;
 
@@ -501,7 +521,7 @@ export default function TemplateRenderer({
           <DraggablePhotoLayer
             key="footer_photo_layer"
             layer={{
-              shape: pos.shape || activeFooterObj.userPhotoShape || 'circle',
+              shape: photoShape,
               zIndex: pos.zIndex || 20,
             }}
             userPhotoUri={effectiveUserPhotoUri}

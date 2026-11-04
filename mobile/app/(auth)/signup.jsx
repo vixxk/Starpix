@@ -370,18 +370,18 @@ export default function SignupScreen() {
 
                 {/* Switch to Login */}
                 <View style={styles.switchAuthRow}>
-                  <Text style={styles.switchAuthPrompt}>
+                  <Text textBreakStrategy="simple" style={styles.switchAuthPrompt}>
                     {t('auth_already_have_account')}{' '}
+                    <Text
+                      onPress={() => {
+                        hapticTap();
+                        router.replace('/(auth)/login');
+                      }}
+                      style={styles.switchAuthLink}
+                    >
+                      {t('auth_login_link')}
+                    </Text>
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      hapticTap();
-                      router.replace('/(auth)/login');
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.switchAuthLink}>{t('auth_login_link')}</Text>
-                  </TouchableOpacity>
                 </View>
 
                 {/* Divider */}
@@ -423,7 +423,9 @@ export default function SignupScreen() {
                         <Text style={styles.flagEmoji}>{selectedCountry.flag}</Text>
                       )}
                     </View>
-                    <Text style={styles.countryCodeText}>{selectedCountry.dialCode}</Text>
+                    <Text textBreakStrategy="simple" style={styles.countryCodeText}>
+                      {selectedCountry.dialCode}
+                    </Text>
                     <Ionicons
                       name="chevron-down"
                       size={fontScale(12)}
@@ -454,7 +456,9 @@ export default function SignupScreen() {
                   <View style={styles.securityIconBox}>
                     <Ionicons name="lock-closed" size={fontScale(13)} color="#6B7280" />
                   </View>
-                  <Text style={styles.securityText}>{t('auth_security_note')}</Text>
+                  <Text textBreakStrategy="simple" style={styles.securityText}>
+                    {t('auth_security_note')}
+                  </Text>
                 </View>
 
                 {/* Primary Action Button: "Get OTP" */}
@@ -464,25 +468,25 @@ export default function SignupScreen() {
                   disabled={isAuthenticating}
                   style={[styles.primaryButton, isAuthenticating && styles.buttonDisabled]}
                 >
-                  <Text style={styles.primaryButtonText}>
+                  <Text textBreakStrategy="simple" numberOfLines={1} style={styles.primaryButtonText}>
                     {isAuthenticating ? '...' : t('auth_get_otp')}
                   </Text>
                 </TouchableOpacity>
 
                 {/* Switch to Login */}
                 <View style={styles.switchAuthRow}>
-                  <Text style={styles.switchAuthPrompt}>
+                  <Text textBreakStrategy="simple" style={styles.switchAuthPrompt}>
                     {t('auth_already_have_account')}{' '}
+                    <Text
+                      onPress={() => {
+                        hapticTap();
+                        router.replace('/(auth)/login');
+                      }}
+                      style={styles.switchAuthLink}
+                    >
+                      {t('auth_login_link')}
+                    </Text>
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      hapticTap();
-                      router.replace('/(auth)/login');
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.switchAuthLink}>{t('auth_login_link')}</Text>
-                  </TouchableOpacity>
                 </View>
 
                 {/* Terms & Privacy Policy Footer */}
@@ -726,7 +730,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: '100%',
-    paddingRight: wp(0.01),
+    paddingRight: wp(0.015),
+    flexShrink: 0,
   },
   flagContainer: {
     width: 22,
@@ -745,11 +750,13 @@ const styles = StyleSheet.create({
   },
   countryCodeText: {
     fontSize: fontScale(14),
+    lineHeight: fontScale(18),
     fontFamily: FONTS.semibold,
     color: '#111827',
     includeFontPadding: false,
     textAlignVertical: 'center',
     marginRight: 4,
+    paddingHorizontal: 1,
   },
   chevronIcon: {
     marginTop: Platform.OS === 'android' ? 1 : 0,
@@ -809,11 +816,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: '#EE1D24',
-    height: hp(0.062),
+    minHeight: hp(0.062),
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: hp(0.03),
+    paddingVertical: hp(0.012),
+    paddingHorizontal: wp(0.04),
     shadowColor: '#EE1D24',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,
@@ -826,19 +835,23 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: fontScale(15.5),
+    lineHeight: fontScale(22),
     fontFamily: FONTS.bold,
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
   switchAuthRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: hp(0.024),
+    paddingHorizontal: wp(0.02),
   },
   switchAuthPrompt: {
     fontSize: fontScale(13.5),
+    lineHeight: fontScale(20),
     fontFamily: FONTS.medium,
     color: '#4B5563',
+    textAlign: 'center',
   },
   switchAuthLink: {
     fontSize: fontScale(13.5),
