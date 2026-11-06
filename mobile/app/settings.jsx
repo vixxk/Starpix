@@ -27,7 +27,7 @@ import BackButton from '../src/components/BackButton';
 import Toast from '../src/components/Toast';
 import { hapticTap, hapticImpact } from '../src/utils/haptics';
 import * as Haptics from 'expo-haptics';
-import API from '../src/utils/api';
+import API, { getPublicWebUrl } from '../src/utils/api';
 
 function SettingItem({ icon, label, sublabel, badge, onPress, isLast = false, isDestructive = false }) {
   return (
@@ -71,10 +71,8 @@ export default function SettingsScreen() {
 
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastKey, setToastKey] = useState(0);
 
@@ -114,25 +112,6 @@ export default function SettingsScreen() {
       router.replace('/login');
     } finally {
       setLogoutLoading(false);
-    }
-  };
-
-  const handleConfirmDeleteAccount = async () => {
-    setDeleteLoading(true);
-    try {
-      const baseUrl = API.defaults?.baseURL || 'http://localhost:5000/api';
-      const webDeleteUrl = `${baseUrl.replace(/\/api\/?$/, '')}/delete${
-        token ? `?token=${encodeURIComponent(token)}` : ''
-      }`;
-      setShowDeleteModal(false);
-      await Linking.openURL(webDeleteUrl);
-      await logout();
-      router.replace('/login');
-    } catch (err) {
-      console.error('Delete account error:', err);
-      showToast(err.message || 'Failed to open account deletion page');
-    } finally {
-      setDeleteLoading(false);
     }
   };
 
@@ -227,17 +206,17 @@ export default function SettingsScreen() {
           <SettingItem
             icon="shield-checkmark-outline"
             label={t('settings_privacy_policy') || 'Privacy Policy'}
-            onPress={() => openUrl('https://starpix.co/privacy')}
+            onPress={() => openUrl(getPublicWebUrl('/privacy'))}
           />
           <SettingItem
             icon="document-text-outline"
             label={t('settings_terms_conditions') || 'Terms & Conditions'}
-            onPress={() => openUrl('https://starpix.co/terms')}
+            onPress={() => openUrl(getPublicWebUrl('/terms'))}
           />
           <SettingItem
             icon="refresh-outline"
             label={t('settings_refund_policy') || 'Refund Policy'}
-            onPress={() => openUrl('https://starpix.co/refund')}
+            onPress={() => openUrl(getPublicWebUrl('/refund'))}
             isLast={true}
           />
         </View>
@@ -263,7 +242,7 @@ export default function SettingsScreen() {
           <SettingItem
             icon="trash-outline"
             label={t('delete_account') || 'Delete Account'}
-            onPress={() => setShowDeleteModal(true)}
+            onPress={() => openUrl(getPublicWebUrl('/delete-account'))}
             isDestructive={true}
             isLast={true}
           />
@@ -309,20 +288,6 @@ export default function SettingsScreen() {
         confirmLoading={logoutLoading}
         onCancel={() => setShowLogoutModal(false)}
         onConfirm={handleConfirmLogout}
-      />
-
-      {/* Account Delete Confirmation */}
-      <ConfirmModal
-        visible={showDeleteModal}
-        title={t('delete_account_title')}
-        message={t('delete_account_msg')}
-        confirmText={t('confirm')}
-        cancelText={t('cancel')}
-        icon="trash-outline"
-        iconColor="#EF4444"
-        confirmLoading={deleteLoading}
-        onCancel={() => setShowDeleteModal(false)}
-        onConfirm={handleConfirmDeleteAccount}
       />
 
       {/* Issues & Feedback Modal Popup */}

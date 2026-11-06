@@ -22,7 +22,7 @@ import { useAuthStore } from '../src/store/useAuthStore';
 import ConfirmModal from '../src/components/ConfirmModal';
 import PlanAlertModal from '../src/components/PlanAlertModal';
 import LanguageModal from '../src/components/LanguageModal';
-import API from '../src/utils/api';
+import API, { getPublicWebUrl } from '../src/utils/api';
 import Skeleton from '../src/components/Skeleton';
 import { checkHasActiveSubscription } from '../src/utils/subscription';
 
@@ -792,14 +792,14 @@ export default function VipScreen() {
             {t('sub_by_purchasing')}{' '}
             <Text
               style={styles.legalLink}
-              onPress={() => openUrl('https://starpix.co/terms')}
+              onPress={() => openUrl(getPublicWebUrl('/terms'))}
             >
               {t('sub_terms')}
             </Text>{' '}
             {t('sub_and')}{' '}
             <Text
               style={styles.legalLink}
-              onPress={() => openUrl('https://starpix.co/privacy')}
+              onPress={() => openUrl(getPublicWebUrl('/privacy'))}
             >
               {t('sub_privacy')}
             </Text>

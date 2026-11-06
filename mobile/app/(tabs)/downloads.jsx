@@ -30,6 +30,7 @@ import {
   isVideoMedia,
   DownloadCard,
   DownloadPreviewModal,
+  DownloadSkeleton,
 } from '../../src/modules/downloads';
 
 export default function DownloadsScreen() {
@@ -39,6 +40,7 @@ export default function DownloadsScreen() {
   const params = useLocalSearchParams();
   const fromScreen = params.from;
   const user = useAuthStore((state) => state.user);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
 
   const handleBack = useCallback(() => {
     if (fromScreen === 'ai-video') {
@@ -65,6 +67,7 @@ export default function DownloadsScreen() {
   const [backendDownloads, setBackendDownloads] = useState([]);
   const [templateCatalog, setTemplateCatalog] = useState({});
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [shareAlert, setShareAlert] = useState(false);
@@ -97,46 +100,46 @@ export default function DownloadsScreen() {
   const fetchDownloads = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) setLoading(true);
     if (!user) {
-      setBackendDownloads([]);
-      setLoading(false);
-      setRefreshing(false);
+      if (!isAuthLoading) {
+        setBackendDownloads([]);
+        setLoading(false);
+        setRefreshing(false);
+        setHasLoadedOnce(true);
+      }
       return;
     }
     const startTime = Date.now();
     try {
       const res = await API.get('/creations/my-downloads');
-      if (res.data && res.data.success) {
-        setBackendDownloads(res.data.data || []);
+      if (res.data && res.data.success && Array.isArray(res.data.data)) {
+        setBackendDownloads(res.data.data);
       }
     } catch (err) {
       console.warn('[Downloads Fetch Notice]:', err.message || err);
     } finally {
       if (showSkeleton) {
         const elapsed = Date.now() - startTime;
-        const remainingDelay = Math.max(0, 450 - elapsed);
+        const remainingDelay = Math.max(0, 350 - elapsed);
         setTimeout(() => {
           setLoading(false);
           setRefreshing(false);
+          setHasLoadedOnce(true);
         }, remainingDelay);
       } else {
         setLoading(false);
         setRefreshing(false);
+        setHasLoadedOnce(true);
       }
     }
-  }, [user]);
-
-  // Fetch immediately when user state becomes available
-  useEffect(() => {
-    if (user) {
-      fetchDownloads(true);
-    }
-  }, [user, fetchDownloads]);
+  }, [user, isAuthLoading]);
 
   // Refresh every time the Downloads screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchDownloads(true);
-    }, [fetchDownloads])
+      if (!isAuthLoading) {
+        fetchDownloads(!hasLoadedOnce);
+      }
+    }, [fetchDownloads, isAuthLoading, hasLoadedOnce])
   );
 
   const onRefresh = useCallback(() => {
@@ -146,7 +149,6 @@ export default function DownloadsScreen() {
 
   // Combine backend S3 downloads and local store downloads into a unified list
   const allCreations = useMemo(() => {
-    if (loading) return [];
     const list = [];
     const seenIds = new Set();
 
@@ -524,7 +526,7 @@ export default function DownloadsScreen() {
         />
 
         {/* Clear All Toolbar */}
-        {!loading && allCreations.filter((c) => !c.isGenerating).length > 0 && (
+        {hasLoadedOnce && !loading && allCreations.filter((c) => !c.isGenerating).length > 0 && (
           <View style={styles.clearRow}>
             <Text style={styles.clearHint}>
               {allCreations.filter((c) => !c.isGenerating).length} saved{' '}
@@ -542,27 +544,8 @@ export default function DownloadsScreen() {
           </View>
         )}
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            {[1, 2, 3].map((k) => (
-              <View key={k} style={styles.downloadSkeletonCard}>
-                <View style={{ width: wp(0.22), aspectRatio: 9 / 16, borderRadius: 12, overflow: 'hidden' }}>
-                  <Skeleton height="100%" width="100%" borderRadius={12} />
-                </View>
-                <View style={{ flex: 1, justifyContent: 'space-between', paddingVertical: 2, height: '100%' }}>
-                  <View>
-                    <Skeleton height={16} width={k === 1 ? '78%' : k === 2 ? '65%' : '52%'} borderRadius={6} />
-                    <Skeleton height={12} width={k === 1 ? '45%' : k === 2 ? '38%' : '32%'} borderRadius={4} style={{ marginTop: 8 }} />
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 }}>
-                    <Skeleton height={34} width="45%" borderRadius={8} />
-                    <Skeleton height={34} width="36%" borderRadius={8} />
-                    <Skeleton height={34} width={34} borderRadius={8} />
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
+        {(!hasLoadedOnce || loading) ? (
+          <DownloadSkeleton />
         ) : allCreations.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconWrap}>

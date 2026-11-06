@@ -23,6 +23,7 @@ import { useAuthStore } from '../../src/store/useAuthStore';
 import { checkHasActiveSubscription } from '../../src/utils/subscription';
 import { useTranslation } from 'react-i18next';
 import { hapticTap } from '../../src/utils/haptics';
+import { getPublicWebUrl } from '../../src/utils/api';
 
 export default function VerifyScreen() {
   const { phone = '9876543210', countryCode = '+91', name = '', email = '', isNewUser = 'false', profilePhoto = '' } = useLocalSearchParams();
@@ -255,14 +256,14 @@ export default function VerifyScreen() {
                 {t('auth_terms_prefix')}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => openLink('https://starpix.co/terms')}
+                  onPress={() => openLink(getPublicWebUrl('/terms'))}
                 >
                   {t('auth_terms_of_service')}
                 </Text>
                 {t('auth_and')}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => openLink('https://starpix.co/privacy')}
+                  onPress={() => openLink(getPublicWebUrl('/privacy'))}
                 >
                   {t('auth_privacy_policy')}
                 </Text>

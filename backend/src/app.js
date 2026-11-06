@@ -27,7 +27,10 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security and middleware
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: false,
+}));
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -66,10 +69,10 @@ app.use('/api/admin/ai-video', aiVideoRoutes);
 const { getAICredits } = require('./controllers/aiCreditController');
 app.get('/api/ai-credits', getAICredits);
 
-// Web routes for Google Play compliance (Account Deletion web request)
+// Web routes for Google Play compliance (Website, Privacy, Terms, Refund, Support, Account Deletion)
 app.use('/', webRoutes);
 
-// Home and Health check endpoints
+// Health check endpoints
 const healthCheckHandler = (req, res) => {
   res.status(200).json({
     success: true,
@@ -80,7 +83,6 @@ const healthCheckHandler = (req, res) => {
   });
 };
 
-app.get('/', healthCheckHandler);
 app.get('/api', healthCheckHandler);
 app.get('/health', healthCheckHandler);
 app.get('/api/health', healthCheckHandler);

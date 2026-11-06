@@ -5,8 +5,56 @@ const Purchase = require('../models/Purchase');
 const Report = require('../models/Report');
 const DeletionLog = require('../models/DeletionLog');
 const { renderAccountDeletionPage } = require('../views/accountDeletionHtml');
+const { renderHomePage } = require('../views/homeHtml');
+const { renderPrivacyPage } = require('../views/privacyHtml');
+const { renderTermsPage } = require('../views/termsHtml');
+const { renderRefundPage } = require('../views/refundHtml');
+const { renderContentPolicyPage } = require('../views/contentPolicyHtml');
+const { renderContactPage } = require('../views/contactHtml');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'starpix_super_secret_jwt_key_2026_dev';
+
+/**
+ * GET /
+ */
+const getHomePage = (req, res) => {
+  renderHomePage(req, res);
+};
+
+/**
+ * GET /privacy, /privacy-policy
+ */
+const getPrivacyPolicy = (req, res) => {
+  renderPrivacyPage(req, res);
+};
+
+/**
+ * GET /terms, /terms-and-conditions, /terms-of-service, /tos
+ */
+const getTermsOfService = (req, res) => {
+  renderTermsPage(req, res);
+};
+
+/**
+ * GET /refund, /refund-policy, /cancellation-policy
+ */
+const getRefundPolicy = (req, res) => {
+  renderRefundPage(req, res);
+};
+
+/**
+ * GET /content-policy, /ai-policy
+ */
+const getContentPolicy = (req, res) => {
+  renderContentPolicyPage(req, res);
+};
+
+/**
+ * GET /contact, /contact-us, /support
+ */
+const getContactPage = (req, res) => {
+  renderContactPage(req, res);
+};
 
 /**
  * GET /delete, /delete-account, /account-deletion
@@ -205,6 +253,12 @@ const postDeleteAccount = async (req, res) => {
 };
 
 module.exports = {
+  getHomePage,
+  getPrivacyPolicy,
+  getTermsOfService,
+  getRefundPolicy,
+  getContentPolicy,
+  getContactPage,
   getDeleteAccount,
   postDeleteAccount,
 };

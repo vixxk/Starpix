@@ -24,6 +24,7 @@ import { fontScale, wp, hp } from '../../src/utils/responsive';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import { hapticTap } from '../../src/utils/haptics';
+import { getPublicWebUrl } from '../../src/utils/api';
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -211,14 +212,14 @@ export default function LoginScreen() {
                 {t('auth_terms_prefix')}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => openLink('https://starpix.co/terms')}
+                  onPress={() => openLink(getPublicWebUrl('/terms'))}
                 >
                   {t('auth_terms_of_service')}
                 </Text>
                 {t('auth_and')}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => openLink('https://starpix.co/privacy')}
+                  onPress={() => openLink(getPublicWebUrl('/privacy'))}
                 >
                   {t('auth_privacy_policy')}
                 </Text>

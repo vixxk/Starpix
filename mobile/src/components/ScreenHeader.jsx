@@ -16,7 +16,13 @@ export default function ScreenHeader({ icon, title, subtitle, onBack }) {
 
       {icon && (
         <View style={styles.iconChip}>
-          <Text style={styles.iconText}>{icon}</Text>
+          {React.isValidElement(icon) ? (
+            icon
+          ) : typeof icon === 'string' && (icon.includes('-') || ['headset', 'mail', 'call', 'settings', 'help', 'shield'].includes(icon)) ? (
+            <Ionicons name={icon} size={fontScale(18)} color="#EA580C" />
+          ) : (
+            <Text style={styles.iconText}>{icon}</Text>
+          )}
         </View>
       )}
 

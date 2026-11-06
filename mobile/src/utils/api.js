@@ -90,5 +90,11 @@ API.interceptors.response.use(
   }
 );
 
+export const getPublicWebUrl = (path = '') => {
+  const base = (API_BASE_URL || 'https://16.192.94.86.sslip.io/api').replace(/\/api\/?$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${cleanPath}`;
+};
+
 export { API_BASE_URL };
 export default API;
